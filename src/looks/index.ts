@@ -52,8 +52,8 @@ export interface Look {
 
 const portraSoft: Look = {
   id: 'A',
-  name: 'Portra · мягкая',
-  note: 'тёплая, мягкий контраст, ореол умеренный',
+  name: 'Portra · soft',
+  note: 'warm, soft contrast, moderate halation',
   defaultOn: false,
   passGain: 1,
   hlStart: 0.8,
@@ -90,8 +90,8 @@ const portraSoft: Look = {
 const portraPunchy: Look = {
   ...portraSoft,
   id: 'B',
-  name: 'Portra · контраст + ореол',
-  note: 'плотнее тени, сильнее красный ореол (понравился в lab-0.2)',
+  name: 'Portra · contrast + halation',
+  note: 'denser shadows, stronger red halation (liked in lab-0.2)',
   defaultOn: true,
   halThreshold: 1.3,
   halSmall: 0.5,
@@ -106,8 +106,8 @@ const portraPunchy: Look = {
 const faded: Look = {
   ...portraSoft,
   id: 'C',
-  name: 'Выцветшая',
-  note: 'низкий контраст, приподнятый чёрный, лёгкий малиново-голубой оттенок',
+  name: 'Faded',
+  note: 'low contrast, lifted blacks, slight magenta-cyan tint',
   defaultOn: false,
   contrast: [0.6, 0.58, 0.56],
   offsetStops: [-0.05, 0.05, 0.05],
@@ -125,8 +125,8 @@ const faded: Look = {
 const burnt: Look = {
   ...portraPunchy,
   id: 'D',
-  name: 'Плотная · белое выгорает',
-  note: 'как B, но яркое небо выжигает второй кадр почти до белого, глубже чёрный, мягче резкость',
+  name: 'Dense · burnt whites',
+  note: 'like B, but a bright sky burns the second frame almost to white; deeper blacks, softer sharpness',
   defaultOn: true,
   hlStart: 0.55,
   hlBoost: 5,
@@ -141,8 +141,8 @@ const burnt: Look = {
 const blown: Look = {
   ...burnt,
   id: 'E',
-  name: 'Сильный пересвет',
-  note: 'ещё на ⅔ ступени светлее: света сгорают целиком, тени держат картинку, ореол сильнее',
+  name: 'Heavy overexposure',
+  note: '⅔ stop brighter still: highlights burn out fully, shadows hold the image, stronger halation',
   exposure: 1.7,
   hlStart: 0.5,
   hlBoost: 6,
@@ -162,8 +162,8 @@ const blown: Look = {
 const merged: Look = {
   ...blown,
   id: 'F',
-  name: 'Белое сливается · чёрное чёрное',
-  note: 'выгоревшее сливается в один чистый белый без окантовок, чёрный без подъёма, контраст выше',
+  name: 'Melted whites · true blacks',
+  note: 'burnt areas melt into one clean white with no edges; unlifted blacks, higher contrast',
   defaultOn: true,
   contrast: [1.3, 1.27, 1.24],
   black: [0.008, 0.008, 0.01],

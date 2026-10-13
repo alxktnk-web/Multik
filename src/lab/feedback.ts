@@ -126,7 +126,7 @@ export class Feedback {
     const lines = [...this.marks.values()]
       .filter((m) => m.verdict || m.comment)
       .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
-      .map((m) => `${m.verdict === 'like' ? '👍' : m.verdict === 'dislike' ? '👎' : '💬'} рецепт ${m.seed}, кадр ${m.frame}, вариант ${m.look}${m.comment ? ` — ${m.comment}` : ''} [${m.version}; ${m.details}]`);
+      .map((m) => `${m.verdict === 'like' ? '👍' : m.verdict === 'dislike' ? '👎' : '💬'} recipe ${m.seed}, frame ${m.frame}, look ${m.look}${m.comment ? ` — ${m.comment}` : ''} [${m.version}; ${m.details}]`);
     const notes = (JSON.parse(safeGet(`${LOCAL_KEY}-notes`) ?? '[]') as { text: string }[]).map((n) => `📝 ${n.text}`);
     return [...lines, ...notes].join('\n');
   }

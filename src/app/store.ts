@@ -78,7 +78,7 @@ async function tx(names: StoreName[], mode: IDBTransactionMode, fn: (t: IDBTrans
   await new Promise<void>((resolve, reject) => {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
-    t.onabort = () => reject(t.error ?? new Error('Не хватило места на устройстве'));
+    t.onabort = () => reject(t.error ?? new Error('Not enough storage on this device'));
   });
 }
 

@@ -45,7 +45,7 @@ if (args.seed) await page.evaluate((s) => window.__setSeed?.(Number(s)), args.se
 const t0 = Date.now();
 await page.click('#develop');
 await page.waitForFunction(() => document.getElementById('progress').hidden && !document.getElementById('develop').disabled, null, { timeout: 600_000 });
-console.log(`проявка: ${((Date.now() - t0) / 1000).toFixed(1)} с`);
+console.log(`development: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 const err = await page.textContent('#error');
 if (err && !(await page.isHidden('#error'))) console.error(err);
 console.log(await page.textContent('.summary').catch(() => ''));
@@ -65,6 +65,6 @@ for (const s of shots) {
   const file = s.name.replace(/[^\p{L}\p{N}]+/gu, '_') + '.jpg';
   writeFileSync(join(out, file), Buffer.from(s.data, 'base64'));
 }
-console.log(`сохранено ${shots.length} кадров в ${out}`);
+console.log(`saved ${shots.length} frames to ${out}`);
 await browser.close();
 server.close();

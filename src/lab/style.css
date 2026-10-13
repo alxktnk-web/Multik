@@ -112,7 +112,7 @@ textarea { width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; bord
 
 .roll { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 0.5px solid var(--line); }
 .roll:first-child { border-top: none; }
-.roll.current b::after { content: ' · сейчас'; color: var(--accent); font-weight: 400; }
+.roll.current b::after { content: ' · current'; color: var(--accent); font-weight: 400; }
 .roll-info { display: grid; gap: 2px; min-width: 0; }
 .roll-info span { color: var(--muted); font-size: 13px; }
 .roll-seeds { font-family: var(--font-data); font-size: 12px !important; overflow-wrap: anywhere; }

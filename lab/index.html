@@ -1,92 +1,92 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Мультик · лаборатория</title>
+    <title>Multik · Lab</title>
     <link rel="stylesheet" href="../src/lab/style.css" />
   </head>
   <body>
     <main>
       <header>
-        <h1>Лаборатория</h1>
-        <p class="muted">Фото обрабатываются прямо в этом браузере и никуда не отправляются.</p>
+        <h1>Lab</h1>
+        <p class="muted">Photos are processed right in this browser and never leave it.</p>
         <p class="muted small" id="version"></p>
       </header>
 
       <section class="card">
         <label class="pick">
-          <span>Проход 1</span>
+          <span>Pass 1</span>
           <input id="passA" type="file" accept="image/*" multiple />
-          <b id="countA">0 фото</b>
+          <b id="countA">0 photos</b>
         </label>
         <label class="pick">
-          <span>Проход 2</span>
+          <span>Pass 2</span>
           <input id="passB" type="file" accept="image/*" multiple />
-          <b id="countB">0 фото</b>
+          <b id="countB">0 photos</b>
         </label>
         <p class="muted small" id="rollInfo" hidden></p>
-        <p class="muted small" id="framesInfo">Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачке.</p>
+        <p class="muted small" id="framesInfo">Choose photos for both passes. The roll gets as many frames as the smaller set has photos.</p>
       </section>
 
       <section class="card">
-        <h2>Библиотека плёнок</h2>
+        <h2>Roll library</h2>
         <div id="library"></div>
       </section>
 
       <section class="card">
-        <h2>Варианты вида</h2>
+        <h2>Looks</h2>
         <div id="looks"></div>
       </section>
 
       <section class="card">
-        <h2>Плёнка</h2>
+        <h2>Roll</h2>
         <div class="row">
-          <label><input type="radio" name="shiftMode" value="random" checked /> Сдвиг случайно</label>
-          <label><input type="radio" name="shiftMode" value="manual" /> Задать</label>
+          <label><input type="radio" name="shiftMode" value="random" checked /> Random shift</label>
+          <label><input type="radio" name="shiftMode" value="manual" /> Set manually</label>
         </div>
         <div class="row">
           <input id="shift" type="range" min="-36" max="36" step="0.5" value="10" disabled />
-          <output id="shiftOut">10 мм</output>
+          <output id="shiftOut">10 mm</output>
         </div>
-        <label class="check"><input id="swap" type="checkbox" checked /> Перевернуть вторую плёнку</label>
-        <label class="check"><input id="reverse" type="checkbox" /> Обратный порядок второй плёнки</label>
-        <label class="check"><input id="leaks" type="checkbox" checked /> Засветки</label>
-        <label class="check"><input id="fog" type="checkbox" checked /> Засветка концов плёнки</label>
-        <label class="check"><input id="dust" type="checkbox" checked /> Пыль и волоски</label>
-        <label class="check"><input id="jitter" type="checkbox" checked /> Разброс экспозиции</label>
-        <label class="check"><input id="whiteOn" type="checkbox" checked /> Слияние белого для всех вариантов</label>
+        <label class="check"><input id="swap" type="checkbox" checked /> Flip the second roll</label>
+        <label class="check"><input id="reverse" type="checkbox" /> Reverse second roll order</label>
+        <label class="check"><input id="leaks" type="checkbox" checked /> Light leaks</label>
+        <label class="check"><input id="fog" type="checkbox" checked /> Fogged roll ends</label>
+        <label class="check"><input id="dust" type="checkbox" checked /> Dust & hairs</label>
+        <label class="check"><input id="jitter" type="checkbox" checked /> Exposure jitter</label>
+        <label class="check"><input id="whiteOn" type="checkbox" checked /> White merge for all looks</label>
         <div class="row">
-          <input id="white" type="range" min="0" max="10" step="1" value="6" aria-label="Слияние белого" />
-          <output id="whiteOut">6 из 10</output>
+          <input id="white" type="range" min="0" max="10" step="1" value="6" aria-label="White merge" />
+          <output id="whiteOut">6 of 10</output>
         </div>
         <div class="row">
-          <label>Размер кадра
+          <label>Frame size
             <select id="size">
-              <option value="33">1200 px — быстро</option>
+              <option value="33">1200 px — fast</option>
               <option value="56">2000 px</option>
-              <option value="111">4000 px — полный</option>
+              <option value="111">4000 px — full</option>
             </select>
           </label>
         </div>
         <div class="row">
-          <span>Рецепт № <b id="seed"></b></span>
-          <button id="reroll" type="button" class="ghost">Новый рецепт</button>
+          <span>Recipe #<b id="seed"></b></span>
+          <button id="reroll" type="button" class="ghost">New recipe</button>
         </div>
-        <button id="develop" type="button" class="primary" disabled>Проявить</button>
+        <button id="develop" type="button" class="primary" disabled>Develop</button>
         <progress id="progress" value="0" max="1" hidden></progress>
         <p class="error" id="error" hidden></p>
       </section>
 
       <section class="card" id="feedbackCard">
-        <h2>Отметки</h2>
-        <p class="muted small" id="fbStatus">Под каждым кадром — 👍 / 👎 и комментарий.</p>
-        <label class="check" id="thumbRow" hidden><input id="sendThumb" type="checkbox" checked /> Прикладывать к отметке маленькую копию кадра (640 px), чтобы Claude видел, о чём речь</label>
-        <label for="note" class="small">Общая заметка</label>
-        <textarea id="note" rows="3" placeholder="Например: везде слишком розово, засветки нравятся"></textarea>
+        <h2>Marks</h2>
+        <p class="muted small" id="fbStatus">Each frame has 👍 / 👎 and a comment.</p>
+        <label class="check" id="thumbRow" hidden><input id="sendThumb" type="checkbox" checked /> Attach a small copy of the frame (640 px) to each mark so Claude can see it</label>
+        <label for="note" class="small">General note</label>
+        <textarea id="note" rows="3" placeholder="For example: too pink overall, love the light leaks"></textarea>
         <div class="row">
-          <button id="saveNote" type="button" class="ghost">Сохранить заметку</button>
-          <button id="copyMarks" type="button" class="ghost" hidden>Скопировать отзывы</button>
+          <button id="saveNote" type="button" class="ghost">Save note</button>
+          <button id="copyMarks" type="button" class="ghost" hidden>Copy feedback</button>
         </div>
       </section>
 
@@ -96,10 +96,10 @@
       <img id="viewerImg" alt="" />
       <div class="viewer-bar">
         <span id="viewerCaption"></span>
-        <button id="viewerSave" type="button" class="primary-sm">Сохранить</button>
-        <button id="viewerClose" type="button" class="ghost">Закрыть</button>
+        <button id="viewerSave" type="button" class="primary-sm">Save</button>
+        <button id="viewerClose" type="button" class="ghost">Close</button>
       </div>
-      <p class="viewer-hint">На iPhone можно также зажать картинку → «Сохранить в Фото».</p>
+      <p class="viewer-hint">On iPhone, you can also touch and hold the image → Save to Photos.</p>
     </div>
     <script type="module" src="../src/lab/main.ts"></script>
   </body>

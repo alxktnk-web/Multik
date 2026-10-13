@@ -1,5 +1,5 @@
 // Мультик: офлайн-работа. Сначала сеть (чтобы обновления приходили сразу), без сети — из кэша.
-const CACHE = 'multik-v1';
+const CACHE = 'multik-v2';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (e) => {

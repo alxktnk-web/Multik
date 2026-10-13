@@ -41,9 +41,9 @@ export class Developer {
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
-    if (!gl) throw new Error('WebGL2 недоступен в этом браузере');
+    if (!gl) throw new Error('WebGL2 is not available in this browser');
     if (!gl.getExtension('EXT_color_buffer_float') && !gl.getExtension('EXT_color_buffer_half_float')) {
-      throw new Error('Браузер не умеет рисовать в float-текстуры');
+      throw new Error('This browser can’t render to float textures');
     }
     gl.getExtension('OES_texture_float_linear');
     this.gl = gl;
@@ -296,7 +296,7 @@ export class Developer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-      throw new Error(`Не удалось создать буфер ${name} ${w}×${h}`);
+      throw new Error(`Could not create buffer ${name} ${w}×${h}`);
     }
     const t = { tex, fbo, w, h };
     this.targets.set(name, t);

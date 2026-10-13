@@ -11,6 +11,8 @@ import { Library, type Roll } from './library';
 const sourcePx = (ppm: number) => Math.min(4000, Math.round(36 * ppm * 1.15));
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const photos = (n: number) => plural(n, 'photo');
 
 const state = {
   filesA: [] as File[],
@@ -28,7 +30,7 @@ void (window as Window & { claude?: { use(n: string): Promise<unknown> } }).clau
   ?.use('downloads')
   .then((d) => (downloads = d as typeof downloads));
 
-$('version').textContent = `Версия конвейера ${ALGO_VERSION}`;
+$('version').textContent = `Pipeline version ${ALGO_VERSION}`;
 
 /** Та же лаборатория на claude.ai: там отметки попадают в хранилище, которое читает Claude. */
 const CLAUDE_LAB_URL = 'https://claude.ai/artifact/BpQdeYrYDxU3kJsFPBLzS1';
@@ -41,9 +43,9 @@ function showFeedbackMode() {
   const marked = [...feedback.marks.values()].filter((m) => m.verdict || m.comment).length;
   const status = $('fbStatus');
   if (claude) {
-    status.textContent = `Отметки сохраняются на этой странице, Claude их видит. Отмечено кадров: ${marked}.`;
+    status.textContent = `Marks are saved on this page, and Claude can see them. Frames marked: ${marked}.`;
   } else {
-    status.innerHTML = `Отметки сохраняются только в этом браузере. Отмечено кадров: ${marked}. Чтобы Claude видел их сам, открывайте <a href="${CLAUDE_LAB_URL}" target="_blank" rel="noopener">лабораторию на claude.ai</a> — или нажмите «Скопировать отзывы» и пришлите текст.`;
+    status.innerHTML = `Marks are saved only in this browser. Frames marked: ${marked}. To let Claude see them directly, open <a href="${CLAUDE_LAB_URL}" target="_blank" rel="noopener">the lab on claude.ai</a>, or tap Copy feedback and send the text.`;
   }
   $('copyMarks').hidden = claude;
   $('thumbRow').hidden = !claude;
@@ -63,10 +65,10 @@ function refreshMarks() {
 }
 
 $('copyMarks').addEventListener('click', async () => {
-  const text = feedback.exportText() || 'Отметок пока нет.';
+  const text = feedback.exportText() || 'No marks yet.';
   try {
     await navigator.clipboard.writeText(text);
-    $('copyMarks').textContent = 'Скопировано';
+    $('copyMarks').textContent = 'Copied';
   } catch {
     const ta = $<HTMLTextAreaElement>('note');
     ta.value = text;
@@ -80,8 +82,8 @@ $('saveNote').addEventListener('click', async () => {
   if (!text) return;
   await feedback.note(text, { version: ALGO_VERSION, seed: lastRecipe?.seed ?? state.seed });
   ta.value = '';
-  $('saveNote').textContent = 'Заметка сохранена';
-  setTimeout(() => ($('saveNote').textContent = 'Сохранить заметку'), 2000);
+  $('saveNote').textContent = 'Note saved';
+  setTimeout(() => ($('saveNote').textContent = 'Save note'), 2000);
 });
 
 const looksBox = $('looks');
@@ -100,14 +102,14 @@ function frameCount(): number {
 }
 
 function updateCounts() {
-  $('countA').textContent = state.roll ? `${state.roll.namesA.length} фото` : `${state.filesA.length} фото`;
-  $('countB').textContent = state.roll ? `${state.roll.namesB.length} фото` : `${state.filesB.length} фото`;
+  $('countA').textContent = photos(state.roll ? state.roll.namesA.length : state.filesA.length);
+  $('countB').textContent = photos(state.roll ? state.roll.namesB.length : state.filesB.length);
   const n = frameCount();
   $('rollInfo').hidden = !state.roll;
-  if (state.roll) $('rollInfo').textContent = `Фото взяты из библиотеки: плёнка №${state.roll.number}. Выберите новые фото, чтобы начать другую плёнку.`;
+  if (state.roll) $('rollInfo').textContent = `Photos from the library: roll #${state.roll.number}. Choose new photos to start another roll.`;
   $('framesInfo').textContent = n
-    ? `Кадров на плёнке: ${n}.` + (state.filesA.length !== state.filesB.length ? ' Лишние фото большей пачки не используются.' : '')
-    : 'Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачки.';
+    ? `Frames on the roll: ${n}.` + (state.filesA.length !== state.filesB.length ? ' Extra photos in the larger set are not used.' : '')
+    : 'Choose photos for both passes. The roll gets as many frames as the smaller set has photos.';
   ($('develop') as HTMLButtonElement).disabled = n === 0 || state.busy;
 }
 
@@ -124,7 +126,7 @@ $<HTMLInputElement>('passB').addEventListener('change', (e) => {
 
 const white = $<HTMLInputElement>('white');
 const whiteOn = $<HTMLInputElement>('whiteOn');
-const whiteLabel = () => ($('whiteOut').textContent = whiteOn.checked ? `${white.value} из 10` : 'как в варианте');
+const whiteLabel = () => ($('whiteOut').textContent = whiteOn.checked ? `${white.value} of 10` : 'per look');
 white.addEventListener('input', whiteLabel);
 whiteOn.addEventListener('change', () => {
   white.disabled = !whiteOn.checked;
@@ -135,7 +137,7 @@ let whiteLevel: number | null = null;
 
 const shift = $<HTMLInputElement>('shift');
 const shiftOut = $('shiftOut');
-shift.addEventListener('input', () => (shiftOut.textContent = `${shift.value} мм`));
+shift.addEventListener('input', () => (shiftOut.textContent = `${shift.value} mm`));
 document.querySelectorAll<HTMLInputElement>('input[name=shiftMode]').forEach((r) =>
   r.addEventListener('change', () => (shift.disabled = r.value === 'random' && r.checked)),
 );
@@ -221,9 +223,9 @@ async function saveImage(url: string, filename: string, button: HTMLButtonElemen
         a.click();
       }
     }
-    button.textContent = 'Сохранено';
+    button.textContent = 'Saved';
   } catch {
-    button.textContent = 'Не сохранилось';
+    button.textContent = 'Couldn’t save';
   }
   setTimeout(() => (button.textContent = label), 2000);
 }
@@ -245,18 +247,18 @@ $('viewerSave').addEventListener('click', (e) => saveImage(viewerImg.src, viewer
 
 // --- библиотека плёнок ---
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 async function renderLibrary() {
   const box = $('library');
   if (!library.available) {
-    box.innerHTML = '<p class="muted small">Библиотека недоступна в этом браузере.</p>';
+    box.innerHTML = '<p class="muted small">The library isn’t available in this browser.</p>';
     return;
   }
   const rolls = await library.list();
   if (!rolls.length) {
-    box.innerHTML = '<p class="muted small">Здесь появятся проявленные плёнки. Фото хранятся только на этом устройстве, в памяти браузера.</p>';
+    box.innerHTML = '<p class="muted small">Developed rolls will appear here. Photos are stored only on this device, in browser storage.</p>';
     return;
   }
   box.innerHTML = '';
@@ -264,7 +266,7 @@ async function renderLibrary() {
     const likes = [...feedback.marks.values()].filter((m) => roll.seeds.includes(m.seed) && m.verdict === 'like').length;
     const row = document.createElement('div');
     row.className = 'roll' + (state.roll?.id === roll.id ? ' current' : '');
-    row.innerHTML = `<div class="roll-info"><b>Плёнка №${roll.number}</b><span>${roll.n} кадров · ${formatDate(roll.createdAt)} · проявок ${roll.seeds.length}${likes ? ` · 👍 ${likes}` : ''}</span><span class="roll-seeds">рецепты: ${roll.seeds.join(', ') || '—'}</span></div><div class="roll-actions"><button type="button" class="ghost again">Проявить снова</button><button type="button" class="ghost fresh">Новый рецепт</button><button type="button" class="ghost danger remove">Удалить</button></div>`;
+    row.innerHTML = `<div class="roll-info"><b>Roll #${roll.number}</b><span>${plural(roll.n, 'frame')} · ${formatDate(roll.createdAt)} · ${plural(roll.seeds.length, 'development')}${likes ? ` · 👍 ${likes}` : ''}</span><span class="roll-seeds">Recipes: ${roll.seeds.join(', ') || '—'}</span></div><div class="roll-actions"><button type="button" class="ghost again">Develop again</button><button type="button" class="ghost fresh">New recipe</button><button type="button" class="ghost danger remove">Delete</button></div>`;
     const pick = async (seed: number) => {
       state.roll = roll;
       state.seed = seed;
@@ -278,7 +280,7 @@ async function renderLibrary() {
     remove.addEventListener('click', async () => {
       if (remove.dataset.confirm !== '1') {
         remove.dataset.confirm = '1';
-        remove.textContent = 'Точно удалить?';
+        remove.textContent = 'Delete roll?';
         return;
       }
       await library.remove(roll);
@@ -311,10 +313,10 @@ function markControls(recipe: Recipe, frame: number, lookId: string, lookName: s
   const box = document.createElement('div');
   box.className = 'mark';
   box.dataset.id = id;
-  box.innerHTML = `<button type="button" class="like" aria-pressed="false" aria-label="Нравится">👍</button><button type="button" class="dislike" aria-pressed="false" aria-label="Не нравится">👎</button><input class="comment" id="c-${id}" type="text" placeholder="Комментарий" />`;
+  box.innerHTML = `<button type="button" class="like" aria-pressed="false" aria-label="Like">👍</button><button type="button" class="dislike" aria-pressed="false" aria-label="Dislike">👎</button><input class="comment" id="c-${id}" type="text" placeholder="Comment" />`;
   const save = (verdict: Verdict, comment: string) =>
     feedback.save(
-      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) + (whiteLevel === null ? '' : ` · слияние белого ${whiteLevel}`) },
+      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) + (whiteLevel === null ? '' : ` · white merge ${whiteLevel}`) },
       $<HTMLInputElement>('sendThumb').checked ? () => thumb : null,
     );
   const current = () => feedback.marks.get(id);
@@ -331,12 +333,12 @@ function markControls(recipe: Recipe, frame: number, lookId: string, lookName: s
 }
 
 function describe(recipe: Recipe): string {
-  const parts = [`Рецепт № ${recipe.seed}`, `сдвиг ${recipe.shiftMm.toFixed(1)} мм`];
-  if (recipe.settings.swapRotate) parts.push('вторая плёнка перевёрнута');
+  const parts = [`Recipe #${recipe.seed}`, `shift ${recipe.shiftMm.toFixed(1)} mm`];
+  if (recipe.settings.swapRotate) parts.push('second roll flipped');
   if (recipe.leaks.length) {
-    parts.push(`засветки у кадров ${recipe.leaks.map((l) => l.frame + 1).join(', ')}`);
+    parts.push(`light leaks on frames ${recipe.leaks.map((l) => l.frame + 1).join(', ')}`);
   }
-  if (recipe.fogs.length) parts.push(`засвечены концы: ${recipe.fogs.map((f) => (f.dir === 1 ? 'начало' : 'конец')).join(', ')}`);
+  if (recipe.fogs.length) parts.push(`fogged ends: ${recipe.fogs.map((f) => (f.dir === 1 ? 'start' : 'end')).join(', ')}`);
   return parts.join(' · ');
 }
 
@@ -418,7 +420,7 @@ async function develop() {
     for (let i = 0; i < n; i++) {
       const block = document.createElement('section');
       block.className = 'frame';
-      block.innerHTML = `<h3>Кадр ${i + 1}</h3><div class="variants"></div>`;
+      block.innerHTML = `<h3>Frame ${i + 1}</h3><div class="variants"></div>`;
       results.append(block);
       const grid = block.querySelector('.variants')!;
       for (const look of looks) {
@@ -427,15 +429,15 @@ async function develop() {
         urls.push(url);
         const fig = document.createElement('figure');
         fig.className = 'variant';
-        const caption = `Кадр ${i + 1} · вариант ${look.id} · рецепт ${recipe.seed}`;
+        const caption = `Frame ${i + 1} · look ${look.id} · recipe ${recipe.seed}`;
         const filename = `multik-${recipe.seed}-${i + 1}${look.id}.jpg`;
-        fig.innerHTML = `<img src="${url}" alt="Кадр ${i + 1}, вариант ${look.id}" /><figcaption>${caption}</figcaption>`;
+        fig.innerHTML = `<img src="${url}" alt="Frame ${i + 1}, look ${look.id}" /><figcaption>${caption}</figcaption>`;
         fig.querySelector('img')!.addEventListener('click', () => openViewer(url, caption, filename));
         const controls = markControls(recipe, i + 1, look.id, look.name, thumbOf(img));
         const saveBtn = document.createElement('button');
         saveBtn.type = 'button';
         saveBtn.className = 'save';
-        saveBtn.textContent = 'Сохранить';
+        saveBtn.textContent = 'Save';
         saveBtn.addEventListener('click', () => saveImage(url, filename, saveBtn));
         controls.append(saveBtn);
         fig.append(controls);
@@ -447,7 +449,7 @@ async function develop() {
     }
   } catch (e) {
     error.hidden = false;
-    error.textContent = `Не получилось проявить: ${(e as Error).message}`;
+    error.textContent = `Couldn’t develop: ${(e as Error).message}`;
     console.error(e);
   } finally {
     sources.forEach((s) => dev?.release(s));

@@ -36,7 +36,7 @@ export function encode(img: ImageData, width?: number, quality = 0.92): Promise<
     out.height = Math.round((img.height / img.width) * width);
     out.getContext('2d')!.drawImage(full, 0, 0, out.width, out.height);
   }
-  return new Promise((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error('Не удалось сохранить кадр'))), 'image/jpeg', quality));
+  return new Promise((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not save the frame'))), 'image/jpeg', quality));
 }
 
 export interface Progress {
@@ -48,7 +48,7 @@ export interface Progress {
 /** Проявляет кадры dev.done … n−1. Возвращает обновлённую проявку. */
 export async function runDevelopment(dev: Development, onFrame: (p: Progress) => void, shouldStop: () => boolean): Promise<Development> {
   const [rollA, rollB] = await Promise.all([getRoll(dev.rollA), getRoll(dev.rollB)]);
-  if (!rollA || !rollB) throw new Error('Одна из плёнок удалена — эту проявку уже не продолжить');
+  if (!rollA || !rollB) throw new Error('One of the rolls was deleted — this development can’t be resumed');
   const recipe = makeRecipe(dev.n, dev.seed, dev.params.settings);
   const look = lookFor(dev);
   const shapes = {
@@ -79,7 +79,7 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
         if (cache.has(key)) continue;
         const roll = key[0] === 'a' ? rollA : rollB;
         const blob = await rollPhoto(roll, Number(key.slice(1)));
-        if (!blob) throw new Error(`Не найден снимок плёнки «${roll.name}»`);
+        if (!blob) throw new Error(`A photo from “${roll.name}” is missing`);
         const img = await decode(blob, maxPx);
         cache.set(key, developer.upload(img));
         if (img instanceof ImageBitmap) img.close();
@@ -88,7 +88,7 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
       const srcB: (Source | undefined)[] = [];
       for (const [key, src] of cache) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
       const img = developer.renderFrame(i, recipe, look, srcA, srcB, ppm, shapes);
-      if (lost) throw new Error('Телефон прервал проявку — продолжите её из списка проявок');
+      if (lost) throw new Error('The phone interrupted developing — resume it from Developed');
       const [full, thumb] = await Promise.all([encode(img), encode(img, 480, 0.8)]);
       dev = await saveFrame(dev, i, full, thumb);
       onFrame({ frame: i, thumb, dev });
