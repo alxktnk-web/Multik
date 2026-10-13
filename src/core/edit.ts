@@ -19,7 +19,10 @@ export interface FrameEdit {
   leakGain: number;
   /** сдвиг второго прохода, мм (−36…+36) */
   shiftMm: number;
+  /** второй проход повёрнут на 180° (film swap) */
   flip: boolean;
+  /** снимок первого прохода этого кадра повёрнут на 180° */
+  rotateA: boolean;
   /** ореол и «дыхание» светов, множители 0…2 */
   halation: number;
   glow: number;
@@ -56,6 +59,7 @@ export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
     leakGain: 1,
     shiftMm: Math.round(recipe.shiftMm * 10) / 10,
     flip: recipe.settings.swapRotate,
+    rotateA: false,
     halation: 1,
     glow: 1,
     leaks: leaksTouching(recipe, i).map((l) => ({ ...l })),
@@ -70,8 +74,8 @@ export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
 }
 
 export const EDIT_SECTIONS = {
-  basic: ['balance', 'exposure', 'whites', 'leakGain'],
-  overlay: ['balance', 'shiftMm', 'flip', 'exposure', 'whites', 'halation', 'glow'],
+  basic: ['balance', 'exposure', 'whites', 'leakGain', 'rotateA', 'flip'],
+  overlay: ['balance', 'shiftMm', 'rotateA', 'flip', 'exposure', 'whites', 'halation', 'glow'],
   leaks: ['leaks', 'leakGain'],
   tone: ['curves', 'black', 'contrast', 'saturation', 'warmth'],
   texture: ['grain', 'dust'],
@@ -100,6 +104,7 @@ export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe
     ...recipe,
     shiftMm: Math.max(-FRAME_W, Math.min(FRAME_W, edit.shiftMm)),
     settings: { ...recipe.settings, swapRotate: edit.flip },
+    rotateA: edit.rotateA ? [...(recipe.rotateA ?? []), i] : recipe.rotateA,
     leaks: [...others, ...edit.leaks.filter((l) => !l.off).map((l) => ({ ...l, strength: l.strength * edit.leakGain }))],
     dust,
     hairs,

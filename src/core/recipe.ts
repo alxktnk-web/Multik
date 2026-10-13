@@ -127,6 +127,8 @@ export interface Recipe {
   fogs: Fog[];
   dust: Dust[][];
   hairs: Hair[][];
+  /** кадры первого прохода, повёрнутые на 180° правкой кадра (панель Edit) */
+  rotateA?: number[];
 }
 
 /**
@@ -231,7 +233,7 @@ export function placements(recipe: Recipe, shapesA: PhotoShape[], shapesB: Photo
   const a = recipe.orderA.map((photo, i) => ({
     rect: frameA(i),
     photo,
-    turn: shapesA[photo].portrait ? 1 : 0,
+    turn: ((shapesA[photo].portrait ? 1 : 0) + (recipe.rotateA?.includes(i) ? 2 : 0)) % 4,
     gain: 2 ** recipe.evA[i],
   }));
   const b = recipe.orderB.map((_, j) => {

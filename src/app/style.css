@@ -266,6 +266,9 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 .edial small { font-size: 11px; font-weight: 600; color: var(--muted); }
 .edial.on { color: var(--yellow); }
 .edial.on small { color: var(--yellow); }
+.erotate { display: flex; justify-content: center; gap: 10px; }
+.erotate button { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; border: 0.5px solid var(--glass-line); background: var(--fill); color: #fff; font-size: 13px; font-weight: 600; }
+.erotate button[aria-pressed='true'] { background: var(--yellow); color: #000; border-color: var(--yellow); }
 .ereset { border: none; background: none; color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 12px; }
 .egroup { background: var(--elev); border-radius: 16px; padding: 2px 14px 8px; }
 .egroup-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0 2px; }

@@ -159,6 +159,14 @@ describe('Правка кадра', () => {
     }
   });
 
+  it('поворот первого прохода на 180° касается только снимка этого кадра', () => {
+    const r = makeRecipe(6, 3, { ...DEFAULT_SETTINGS, exposureJitter: false });
+    const shapes = Array.from({ length: 6 }, () => ({ portrait: false }));
+    const e = editedRecipe(r, 2, { ...baseEdit(r, 2, 4), rotateA: true });
+    const { a } = placements(e, shapes, shapes);
+    expect(a.map((p) => p.turn)).toEqual([0, 0, 2, 0, 0, 0]);
+  });
+
   it('засветка переносится к другому краю того же кадра', () => {
     const r = makeRecipe(6, 8);
     const base = baseEdit(r, 2, 4);

@@ -51,6 +51,7 @@ const ICON = {
   original: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>',
   undo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
   redo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>',
+  rotate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
   plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   dice: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>',
 };
@@ -92,7 +93,8 @@ export async function openEditor(host: EditorHost): Promise<void> {
   }
   const recipe = renderer.recipe;
   const base = baseEdit(recipe, i, dev.params.whiteMerge ?? 0);
-  let edit: FrameEdit = structuredClone(dev.edits?.[i] ?? base);
+  // правка из старой версии могла не знать новых полей — дополняем значениями проявки
+  let edit: FrameEdit = structuredClone({ ...base, ...dev.edits?.[i] });
   const hadEdit = !!dev.edits?.[i];
   const undo: FrameEdit[] = [];
   const redo: FrameEdit[] = [];
@@ -234,11 +236,16 @@ export async function openEditor(host: EditorHost): Promise<void> {
         <div class="ebasic-head"><small>${d.title}</small><b id="dial-value">${d.fmt(edit)}</b></div>
         <div class="edials">${DIALS.map((x) => dialHtml(x)).join('')}</div>
         <div class="dial-wrap"><div class="dial" id="edit-dial"><div class="ticks">${ticks}</div></div><div class="needle"></div></div>
+        <div class="erotate">
+          <button type="button" data-ed="rotateA" aria-pressed="${edit.rotateA}">${ICON.rotate}<span>Rotate A 180°</span></button>
+          <button type="button" data-ed="flip" aria-pressed="${edit.flip}">${ICON.rotate}<span>Rotate B 180°</span></button>
+        </div>
         <div class="center"><button type="button" class="ereset" data-ed="reset" data-arg="${EDIT_SECTIONS.basic.join(',')}">Reset Basic</button></div>
       </div>`;
     }
     if (tab === 'overlay') {
-      return group('OVERLAY', ['balance', 'shiftMm'], ['balance', 'shiftMm', 'flip'], toggle('Flip 2nd pass 180°', edit.flip, 'flip')) +
+      return group('OVERLAY', ['balance', 'shiftMm'], ['balance', 'shiftMm', 'rotateA', 'flip'],
+        toggle(`Rotate 1st pass 180° · ${esc(nameA)}`, edit.rotateA, 'rotateA') + toggle(`Rotate 2nd pass 180° · ${esc(nameB)}`, edit.flip, 'flip')) +
         group('LIGHT', ['exposure', 'whites', 'halation', 'glow'], ['exposure', 'whites', 'halation', 'glow']);
     }
     if (tab === 'texture') return group('TEXTURE', ['grain', 'dust'], ['grain', 'dust']);
@@ -511,6 +518,10 @@ export async function openEditor(host: EditorHost): Promise<void> {
       case 'reset':
         edit = resetKeys(edit, base, arg.split(',') as (keyof FrameEdit)[]);
         if (arg.includes('leaks')) leakSel = 0;
+        commit();
+        return paint();
+      case 'rotateA':
+        edit.rotateA = !edit.rotateA;
         commit();
         return paint();
       case 'flip':
