@@ -175,6 +175,8 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 .looks button { border: none; background: none; padding: 0; width: 72px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); }
 .looks small { font-size: 12px; line-height: 1.2; text-align: center; font-weight: 600; }
 .look-dot { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 700 20px var(--font-round); color: rgba(0, 0, 0, 0.75); opacity: 0.75; transition: opacity 0.2s, transform 0.2s; }
+.look-M { background: radial-gradient(circle at 35% 30%, #ffffff, #dfe6ee 55%, #1d2430); }
+.look-N { background: radial-gradient(circle at 35% 30%, #fff8ec, #e8cfa8 55%, #4a3622); }
 .look-F { background: radial-gradient(circle at 35% 30%, #ffffff, #e9e4da 55%, #3a3530); }
 .look-E { background: radial-gradient(circle at 35% 30%, #fff3e4, #f6b98f 55%, #8a3b22); }
 .look-D { background: radial-gradient(circle at 35% 30%, #f3d2ae, #c4895a 55%, #3d2214); }
@@ -223,9 +225,10 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 
 /* «Просмотр» */
 .viewer { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; margin: 0 -16px; min-height: 240px; }
-.viewer img { width: 100%; max-height: 62vh; object-fit: contain; display: block; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); }
-.nav-zone { position: absolute; top: 0; bottom: 0; width: 30%; border: none; background: none; z-index: 1; }
-.nav-zone.left { left: 0; } .nav-zone.right { right: 0; }
+.viewer { touch-action: pan-y; -webkit-user-select: none; user-select: none; cursor: pointer; }
+.viewer img { width: 100%; max-height: 62vh; object-fit: contain; display: block; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); -webkit-touch-callout: none; -webkit-user-drag: none; transition: transform 0.2s ease, opacity 0.2s ease; }
+.viewer img.held { transform: scale(0.96); transition: transform 0.25s ease; }
+.hint { margin: 0; text-align: center; font-size: 12px; color: var(--muted); }
 .filmstrip { display: flex; gap: 3px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; justify-content: safe center; }
 .filmstrip::-webkit-scrollbar { display: none; }
 .filmstrip button { position: relative; flex: none; padding: 0; border: none; background: none; opacity: 0.55; }

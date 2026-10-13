@@ -4,7 +4,7 @@
 import { FRAME_H, FRAME_W, PITCH, frameA, type Placement, type Rect } from './geometry';
 import { Rng } from './rng';
 
-export const ALGO_VERSION = 'lab-0.5';
+export const ALGO_VERSION = 'lab-0.6';
 
 export interface RecipeSettings {
   shiftMode: 'random' | 'manual';

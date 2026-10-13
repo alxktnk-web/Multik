@@ -48,6 +48,14 @@ export interface Look {
   grainMm: number;
   grainChroma: number;
   leakGain: number;
+  /**
+   * Тональная модель: 'log' — S-кривая в логарифме экспозиции (contrast/offset, жёсткая);
+   * 'faithful' — один проход воспроизводит исходное фото, чёрное прозрачно для другого прохода,
+   * сумма уходит в мягкое плечо; contrast/offset не используются, вместо них punch.
+   */
+  tone?: 'log' | 'faithful';
+  /** сила S-кривой в модели 'faithful', 0…1 */
+  punch?: number;
 }
 
 const portraSoft: Look = {
@@ -92,7 +100,7 @@ const portraPunchy: Look = {
   id: 'B',
   name: 'Portra · contrast + halation',
   note: 'denser shadows, stronger red halation (liked in lab-0.2)',
-  defaultOn: true,
+  defaultOn: false,
   halThreshold: 1.3,
   halSmall: 0.5,
   halLarge: 0.7,
@@ -127,7 +135,7 @@ const burnt: Look = {
   id: 'D',
   name: 'Dense · burnt whites',
   note: 'like B, but a bright sky burns the second frame almost to white; deeper blacks, softer sharpness',
-  defaultOn: true,
+  defaultOn: false,
   hlStart: 0.55,
   hlBoost: 5,
   exposure: 1.3,
@@ -176,7 +184,52 @@ const merged: Look = {
   halLarge: 0.7,
 };
 
-export const LOOKS: Look[] = [merged, blown, burnt, portraPunchy, portraSoft, faded];
+// lab-0.6: «чёрное — это дырка для другой экспозиции, как альфа-канал» (Александр). Логарифмическая кривая
+// вариантов A–F в 2–3 раза контрастнее фото: тёмно-средние тона одного прохода уходили в чистый чёрный
+// и закрывали другой проход. M и N — на «честной» кривой: один проход = исходное фото.
+const meltedClean: Look = {
+  ...merged,
+  id: 'M',
+  name: 'Melted · clean blacks',
+  note: 'faithful curve: black is a hole for the other pass, overlaps brighten like screen, near-whites melt into white',
+  defaultOn: true,
+  tone: 'faithful',
+  punch: 0.35,
+  exposure: 1,
+  hlStart: 0.75,
+  hlBoost: 4,
+  lensSoftness: 0.6,
+  black: [0.008, 0.008, 0.01],
+  white: [1, 1, 1],
+  clipLow: 0.03,
+  clipHigh: 0.9,
+  saturation: 1.08,
+  highlightSaturation: 0.5,
+  shadowTint: [-0.005, 0, 0.01],
+  highlightTint: [0.01, 0.004, -0.008],
+  grain: 0.12,
+};
+
+const natural: Look = {
+  ...meltedClean,
+  id: 'N',
+  name: 'Natural',
+  note: 'faithful curve, softer: photos look like themselves, gentle Portra warmth, whites do not merge on their own',
+  punch: 0.15,
+  hlStart: 0.8,
+  hlBoost: 3,
+  lensSoftness: 0.3,
+  black: [0.03, 0.028, 0.032],
+  white: [0.985, 0.975, 0.95],
+  clipLow: 0,
+  clipHigh: 1,
+  saturation: 1.02,
+  highlightSaturation: 0.7,
+  shadowTint: [-0.01, 0, 0.015],
+  highlightTint: [0.02, 0.008, -0.015],
+};
+
+export const LOOKS: Look[] = [meltedClean, natural, merged, blown, burnt, portraPunchy, portraSoft, faded];
 
 /**
  * «Слияние белого» 0…10: верх кривой обрезается в чистый белый тем раньше, чем выше значение.

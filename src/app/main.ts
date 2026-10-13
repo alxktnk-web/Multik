@@ -28,8 +28,8 @@ import {
 
 const app = document.getElementById('app')!;
 const LENGTHS = [6, 12, 24, 36];
-const MIX_LOOKS = ['F', 'E', 'D', 'B'];
-const LOOK_NAMES: Record<string, string> = { F: 'Melted', E: 'Blown', D: 'Dense', B: 'Portra' };
+const MIX_LOOKS = ['M', 'N', 'F', 'B'];
+const LOOK_NAMES: Record<string, string> = { M: 'Melted', N: 'Natural', F: 'Burnt', B: 'Portra' };
 
 interface Param {
   id: 'shift' | 'white' | 'leaks' | 'exposure' | 'dust';
@@ -54,15 +54,15 @@ type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result';
 
 const MIX_DEFAULTS = {
   swap: false,
-  look: 'F',
+  look: 'M',
   param: 'shift' as Param['id'],
-  values: { shift: -12, white: 4, leaks: 2, exposure: -5, dust: 4 } as Record<Param['id'], number>,
+  values: { shift: -12, white: 4, leaks: 2, exposure: 0, dust: 4 } as Record<Param['id'], number>,
   randomShift: true,
   flip: true,
   full: false,
 };
 type MixState = typeof MIX_DEFAULTS;
-const MIX_KEY = 'multik-mix-v2';
+const MIX_KEY = 'multik-mix-v3';
 
 // последние настройки «Смешать» запоминаются на этом устройстве (удобство, не данные)
 function loadMix(): MixState {
@@ -579,15 +579,14 @@ async function renderResult(): Promise<string> {
       <div class="title2"><b>Frame ${i + 1} of ${d.n}</b><small>${esc(d.titleA)} × ${esc(d.titleB)}</small></div>
       <span></span>
     </div>
-    <div class="viewer">
-      <button type="button" class="nav-zone left" data-step="-1" aria-label="Previous frame"></button>
-      <img src="${full}" alt="Frame ${i + 1}">
-      <button type="button" class="nav-zone right" data-step="1" aria-label="Next frame"></button>
+    <div class="viewer" id="viewer">
+      <img src="${full}" alt="Frame ${i + 1}" draggable="false">
     </div>
     <div class="filmstrip" id="filmstrip">${thumbs
       .map((u, k) => `<button type="button" data-view="${k}" class="${k === i ? 'on' : ''}"><img src="${u}" alt="Frame ${k + 1}">${d.likes.includes(k) ? '<span>♥</span>' : ''}</button>`)
       .join('')}</div>
     ${d.likes.length ? `<div class="center pad"><button type="button" class="capsule glass" data-save-liked>Save ${d.likes.length} favorite${d.likes.length === 1 ? '' : 's'} to Photos</button></div>` : ''}
+    <p class="hint">Swipe to browse · hold the photo to save it</p>
     <nav class="toolbar">
       <button type="button" data-save-one>${ICON.share}<span>Save</span></button>
       <button type="button" data-like class="${liked ? 'liked' : ''}" aria-pressed="${liked}">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}<span>Favorite</span></button>
@@ -596,6 +595,97 @@ async function renderResult(): Promise<string> {
     </nav>
   </div>`;
 }
+
+function step(dir: number) {
+  const d = state.dev;
+  if (!d || !d.done) return;
+  state.view = (state.view + dir + d.done) % d.done;
+  return render();
+}
+
+/**
+ * Просмотр кадра: свайп влево/вправо — листать; долгое нажатие на кадр — системное меню «Поделиться»
+ * с полноразмерным JPEG («Сохранить изображение» кладёт его в Фото). Меню вызывается на отпускании пальца:
+ * Safari разрешает navigator.share только из жеста, а touchend им считается. Своё системное меню картинки
+ * отключено (-webkit-touch-callout: none), чтобы не всплывали два меню сразу.
+ */
+function bindViewer() {
+  const box = document.getElementById('viewer');
+  const img = box?.querySelector('img');
+  if (!box || !img) return;
+  let x0 = 0;
+  let y0 = 0;
+  let dx = 0;
+  let moved = false;
+  let held = false;
+  let timer = 0;
+  box.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length !== 1) return;
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      dx = 0;
+      moved = false;
+      held = false;
+      img.style.transition = 'none';
+      timer = window.setTimeout(() => {
+        held = true;
+        img.classList.add('held');
+      }, 450);
+    },
+    { passive: true },
+  );
+  box.addEventListener(
+    'touchmove',
+    (e) => {
+      dx = e.touches[0].clientX - x0;
+      const dy = e.touches[0].clientY - y0;
+      if (!moved && Math.hypot(dx, dy) > 10) {
+        moved = true;
+        clearTimeout(timer);
+        img.classList.remove('held');
+      }
+      if (moved && !held && Math.abs(dx) > Math.abs(dy)) img.style.transform = `translateX(${dx}px)`;
+    },
+    { passive: true },
+  );
+  box.addEventListener('touchend', (e) => {
+    clearTimeout(timer);
+    img.classList.remove('held');
+    if (held && !moved) {
+      e.preventDefault();
+      const save = document.querySelector<HTMLButtonElement>('[data-save-one]');
+      if (save) void shareFrames([state.view], save);
+      return;
+    }
+    img.style.transition = '';
+    if (moved && Math.abs(dx) > 50) {
+      img.style.transform = `translateX(${dx < 0 ? -110 : 110}%)`;
+      img.style.opacity = '0';
+      window.setTimeout(() => void step(dx < 0 ? 1 : -1), 160);
+    } else {
+      img.style.transform = '';
+    }
+  });
+  box.addEventListener('touchcancel', () => {
+    clearTimeout(timer);
+    img.classList.remove('held');
+    img.style.transform = '';
+  });
+  // мышь: клик по левой/правой половине кадра
+  box.addEventListener('click', (e) => {
+    if ((e as PointerEvent).pointerType === 'touch') return;
+    const r = box.getBoundingClientRect();
+    void step(e.clientX < r.left + r.width / 2 ? -1 : 1);
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (state.screen !== 'result' || state.sheet) return;
+  if (e.key === 'ArrowLeft') void step(-1);
+  if (e.key === 'ArrowRight') void step(1);
+});
 
 async function shareFrames(indices: number[], button: HTMLButtonElement) {
   const d = state.dev!;
@@ -676,6 +766,7 @@ function render(): Promise<void> {
     app.innerHTML = html + renderSheet();
     if (state.screen === 'mix') bindDial();
     if (state.screen === 'result') {
+      bindViewer();
       const fs = document.getElementById('filmstrip');
       const on = fs?.querySelector<HTMLElement>('.on');
       if (fs && strip !== undefined) fs.scrollLeft = strip;
@@ -814,11 +905,7 @@ app.addEventListener('click', async (e) => {
     await refresh();
     return go('home');
   }
-  if (ds.step) {
-    const d = state.dev!;
-    state.view = (state.view + Number(ds.step) + d.done) % d.done;
-    return render();
-  }
+  if (ds.step) return step(Number(ds.step));
   if (ds.view) {
     state.view = Number(ds.view);
     return render();

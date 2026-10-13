@@ -175,6 +175,7 @@ uniform float uHalSmall, uHalLarge, uBloom, uMottle, uExposure;
 uniform vec3 uHalTint;
 uniform vec3 uContrast, uOffset, uBlack, uWhite, uShadowTint, uHiTint;
 uniform float uSat, uHiSat, uClipLow, uClipHigh;
+uniform float uTone, uPunch; // uTone: 0 — кривая в логарифме экспозиции, 1 — «честная» (один проход = исходное фото)
 uniform float uGrain, uGrainMm, uGrainChroma, uSeed;
 uniform int uDustCount;
 uniform vec3 uDust[32];
@@ -211,8 +212,21 @@ void main() {
 
   vec3 e = log2(max(lin * uExposure, vec3(1e-5))) - log2(0.18);
   float dens = clamp((dot(e, LUMA) + 4.0) / 7.0, 0.0, 1.0); // 0 — тонкий негатив, 1 — плотный
-  e += grainAt(s) * mix(1.2, 0.5, dens);
-  vec3 y = 0.5 + 0.5 * tanh(0.5 * uContrast * (e - uOffset));
+  vec3 gr = grainAt(s) * mix(1.2, 0.5, dens);
+  vec3 y;
+  if (uTone < 0.5) {
+    y = 0.5 + 0.5 * tanh(0.5 * uContrast * (e + gr - uOffset));
+  } else {
+    // «Честная» кривая: свет одного прохода возвращается в sRGB как был — чёрное второго прохода
+    // ничего не меняет, это просто «дырка» для первого. Сумма двух проходов уходит в мягкое плечо
+    // (наложение светлеет, как screen), всё ярче белого сливается в белый. Зерно — в ступенях.
+    vec3 L = lin * uExposure * exp2(gr);
+    const float KNEE = 0.6;
+    vec3 sh = KNEE + (1.0 - KNEE) * (1.0 - exp(-(L - KNEE) / (1.0 - KNEE)));
+    L = mix(L, sh, step(KNEE, L));
+    y = mix(12.92 * L, 1.055 * pow(max(L, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, L));
+    y = mix(y, y * y * (3.0 - 2.0 * y), uPunch); // лёгкая S-кривая «плёночности»
+  }
   float ly = dot(y, LUMA);
   y = mix(vec3(ly), y, uSat * mix(1.0, uHiSat, smoothstep(0.65, 1.0, ly)));
   y += uShadowTint * (1.0 - ly) * (1.0 - ly) + uHiTint * ly * ly;

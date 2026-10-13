@@ -263,6 +263,8 @@ export class Developer {
     gl.uniform1f(u.uHiSat, look.highlightSaturation);
     gl.uniform1f(u.uClipLow, look.clipLow);
     gl.uniform1f(u.uClipHigh, look.clipHigh);
+    gl.uniform1f(u.uTone, look.tone === 'faithful' ? 1 : 0);
+    gl.uniform1f(u.uPunch, look.punch ?? 0);
     gl.uniform1f(u.uGrain, look.grain);
     gl.uniform1f(u.uGrainMm, look.grainMm);
     gl.uniform1f(u.uGrainChroma, look.grainChroma);
