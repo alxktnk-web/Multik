@@ -1,5 +1,5 @@
 // Прогон лаборатории в headless Chromium: собранный dist → две пачки фото → кадры в lab-out/.
-// node scripts/lab-shot.mjs --a a1.jpg,a2.jpg --b b1.jpg,b2.jpg [--seed 123] [--size 33] [--out lab-out] [--looks A,B,C]
+// node scripts/lab-shot.mjs --a a1.jpg,a2.jpg --b b1.jpg,b2.jpg [--seed 123] [--size 33] [--out lab-out] [--looks A,B,C] [--ev -0.7] [--white 4|off]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -40,6 +40,11 @@ if (args.size) await page.selectOption('#size', args.size);
 if (args.looks) {
   const want = args.looks.split(',');
   for (const id of ['A', 'B', 'C', 'D', 'E', 'F']) await page.setChecked(`#looks input[value="${id}"]`, want.includes(id));
+}
+if (args.ev) await page.$eval('#ev', (el, v) => (el.value = v), args.ev);
+if (args.white !== undefined) {
+  if (args.white === 'off') await page.setChecked('#whiteOn', false);
+  else await page.$eval('#white', (el, v) => (el.value = v), args.white);
 }
 if (args.seed) await page.evaluate((s) => window.__setSeed?.(Number(s)), args.seed);
 const t0 = Date.now();

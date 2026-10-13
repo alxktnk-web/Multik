@@ -33,6 +33,9 @@ void (window as Window & { claude?: { use(n: string): Promise<unknown> } }).clau
 $('version').textContent = `Pipeline version ${ALGO_VERSION}`;
 
 /** Та же лаборатория на claude.ai: там отметки попадают в хранилище, которое читает Claude. */
+// кнопка «назад в приложение» — только там, где лаборатория лежит рядом с приложением (Pages, dev), не на claude.ai
+if (/\/lab\/(index\.html)?$/.test(location.pathname)) $('backToApp').hidden = false;
+
 const CLAUDE_LAB_URL = 'https://claude.ai/artifact/BpQdeYrYDxU3kJsFPBLzS1';
 
 const feedback = new Feedback();
@@ -134,6 +137,11 @@ whiteOn.addEventListener('change', () => {
 });
 /** слияние белого, с которым проявлена текущая плёнка (null — у каждого варианта своё) */
 let whiteLevel: number | null = null;
+// поправка экспозиции поверх каждого варианта, в ступенях: 0 — как задумано в варианте
+const ev = $<HTMLInputElement>('ev');
+const evText = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v).toFixed(1)} EV`;
+ev.addEventListener('input', () => ($('evOut').textContent = evText(Number(ev.value))));
+let evLevel = 0;
 
 const shift = $<HTMLInputElement>('shift');
 const shiftOut = $('shiftOut');
@@ -316,7 +324,7 @@ function markControls(recipe: Recipe, frame: number, lookId: string, lookName: s
   box.innerHTML = `<button type="button" class="like" aria-pressed="false" aria-label="Like">👍</button><button type="button" class="dislike" aria-pressed="false" aria-label="Dislike">👎</button><input class="comment" id="c-${id}" type="text" placeholder="Comment" />`;
   const save = (verdict: Verdict, comment: string) =>
     feedback.save(
-      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) + (whiteLevel === null ? '' : ` · white merge ${whiteLevel}`) },
+      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) + (whiteLevel === null ? '' : ` · white merge ${whiteLevel}`) + (evLevel ? ` · exposure ${evText(evLevel)}` : '') },
       $<HTMLInputElement>('sendThumb').checked ? () => thumb : null,
     );
   const current = () => feedback.marks.get(id);
@@ -347,9 +355,10 @@ let urls: string[] = [];
 async function develop() {
   const n = frameCount();
   whiteLevel = whiteOn.checked ? Number(white.value) : null;
-  const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked).map((l) =>
-    whiteLevel === null ? l : withWhiteMerge(l, whiteLevel),
-  );
+  evLevel = Number(ev.value);
+  const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked)
+    .map((l) => (whiteLevel === null ? l : withWhiteMerge(l, whiteLevel)))
+    .map((l) => ({ ...l, exposure: l.exposure * 2 ** evLevel }));
   if (!n || !looks.length) return;
   state.busy = true;
   updateCounts();

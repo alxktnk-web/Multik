@@ -46,11 +46,41 @@ const PARAMS: Param[] = [
   { id: 'shift', label: 'Shift', title: 'SECOND ROLL SHIFT', min: -36, max: 36, major: 6, fmt: (v) => `${v > 0 ? '+' : ''}${v} mm`, short: (v) => `${v > 0 ? '+' : ''}${v}` },
   { id: 'white', label: 'Whites', title: 'WHITE MERGE', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v}/10 · ${v < 4 ? 'soft' : v < 8 ? 'merging' : 'solid white'}` : 'off'), short: String },
   { id: 'leaks', label: 'Leaks', title: 'LIGHT LEAKS', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v} in 10 frames` : 'none'), short: String },
-  { id: 'exposure', label: 'Exposure', title: 'OVEREXPOSURE', min: 0, max: 20, major: 5, fmt: (v) => `+${(v / 10).toFixed(1)} EV`, short: (v) => `+${(v / 10).toFixed(1)}` },
+  { id: 'exposure', label: 'Exposure', title: 'EXPOSURE', min: -15, max: 20, major: 5, fmt: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v / 10).toFixed(1)} EV`, short: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v / 10).toFixed(1)}` },
   { id: 'dust', label: 'Dust', title: 'DUST & HAIRS', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v}/10` : 'none'), short: String },
 ];
 
 type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result';
+
+const MIX_DEFAULTS = {
+  swap: false,
+  look: 'F',
+  param: 'shift' as Param['id'],
+  values: { shift: -12, white: 4, leaks: 2, exposure: -5, dust: 4 } as Record<Param['id'], number>,
+  randomShift: true,
+  flip: true,
+  full: false,
+};
+type MixState = typeof MIX_DEFAULTS;
+const MIX_KEY = 'multik-mix-v2';
+
+// последние настройки «Смешать» запоминаются на этом устройстве (удобство, не данные)
+function loadMix(): MixState {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MIX_KEY) ?? 'null') as Partial<MixState> | null;
+    if (saved) return { ...MIX_DEFAULTS, ...saved, values: { ...MIX_DEFAULTS.values, ...saved.values }, swap: false };
+  } catch {
+    // нет доступа к хранилищу — берём значения по умолчанию
+  }
+  return { ...MIX_DEFAULTS, values: { ...MIX_DEFAULTS.values } };
+}
+function saveMix() {
+  try {
+    localStorage.setItem(MIX_KEY, JSON.stringify(state.mix));
+  } catch {
+    // не страшно
+  }
+}
 
 const state = {
   screen: 'home' as Screen,
@@ -61,15 +91,7 @@ const state = {
   // новая плёнка
   draft: { name: '', length: 12, files: [] as File[], busy: '' },
   // смешать
-  mix: {
-    swap: false,
-    look: 'F',
-    param: 'shift' as Param['id'],
-    values: { shift: -12, white: 6, leaks: 2, exposure: 8, dust: 4 } as Record<Param['id'], number>,
-    randomShift: true,
-    flip: true,
-    full: false,
-  },
+  mix: loadMix(),
   dev: null as Development | null,
   developing: { stop: false, error: '' },
   view: 0,
@@ -113,6 +135,7 @@ const ICON = {
   share: '<svg width="24" height="26" viewBox="0 0 24 26" aria-hidden="true"><path d="M12 2v14M12 2l-4 4M12 2l4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M7 10H5.5A1.5 1.5 0 0 0 4 11.5v11A1.5 1.5 0 0 0 5.5 24h13a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 18.5 10H17" stroke="currentColor" stroke-width="1.9" fill="none"/></svg>',
   heart: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M13 22s-8.5-5.2-8.5-11.2A4.8 4.8 0 0 1 13 7.6a4.8 4.8 0 0 1 8.5 3.2C21.5 16.8 13 22 13 22z" stroke="currentColor" stroke-width="1.9" fill="FILL"/></svg>',
   again: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M21 13a8 8 0 1 1-2.4-5.7M21 4v4h-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+  adjust: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4 8h18M4 18h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="9" cy="8" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/><circle cx="17" cy="18" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/></svg>',
   check: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5l2.6 2.6L11 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
 };
 
@@ -386,7 +409,7 @@ async function renderMix(): Promise<string> {
     <div class="bar3">
       <button type="button" class="link white" data-home>Cancel</button>
       <b>Mix</b>
-      <span></span>
+      <button type="button" class="link white end" data-reset-mix>Reset</button>
     </div>
     <div class="pair">
       <figure class="pass p1"><img src="${ca}" alt=""><figcaption><small>PASS 1</small>${esc(a.name)} · ${a.length}</figcaption></figure>
@@ -452,6 +475,7 @@ async function startDevelopment(reuse?: Development) {
     if (!pair) return;
     const [a, b] = pair;
     const m = state.mix;
+    saveMix();
     dev = await createDev({
       rollA: a.id,
       rollB: b.id,
@@ -567,7 +591,8 @@ async function renderResult(): Promise<string> {
     <nav class="toolbar">
       <button type="button" data-save-one>${ICON.share}<span>Save</span></button>
       <button type="button" data-like class="${liked ? 'liked' : ''}" aria-pressed="${liked}">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}<span>Favorite</span></button>
-      <button type="button" data-again>${ICON.again}<span>Develop again</span></button>
+      <button type="button" data-adjust>${ICON.adjust}<span>Adjust</span></button>
+      <button type="button" data-again>${ICON.again}<span>Again</span></button>
     </nav>
   </div>`;
 }
@@ -807,6 +832,35 @@ app.addEventListener('click', async (e) => {
   }
   if (ds.saveOne !== undefined) return shareFrames([state.view], el as HTMLButtonElement);
   if (ds.saveLiked !== undefined) return shareFrames(state.dev!.likes, el as HTMLButtonElement);
+  if (ds.resetMix !== undefined) {
+    state.mix = { ...MIX_DEFAULTS, values: { ...MIX_DEFAULTS.values } };
+    saveMix();
+    return render();
+  }
+  if (ds.adjust !== undefined) {
+    // те же две плёнки и настройки этой проявки — поправить крутилки и проявить снова
+    const d = state.dev!;
+    const p = d.params;
+    const s = p.settings;
+    state.selection = [d.rollA, d.rollB];
+    state.mix = {
+      ...state.mix,
+      swap: false,
+      look: p.lookId,
+      values: {
+        shift: s.shiftMm,
+        white: p.whiteMerge ?? 0,
+        leaks: s.leaks ? Math.round(s.leakChance * 10) : 0,
+        exposure: p.exposureTenths,
+        dust: s.dust ? s.dustLevel : 0,
+      },
+      randomShift: s.shiftMode === 'random',
+      flip: s.swapRotate,
+      full: p.ppm > 56,
+    };
+    await refresh();
+    return go('mix');
+  }
   if (ds.again !== undefined) {
     const d = state.dev!;
     const [a, b] = await Promise.all([getRoll(d.rollA), getRoll(d.rollB)]);

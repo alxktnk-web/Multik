@@ -9,6 +9,7 @@
   <body>
     <main>
       <header>
+        <a id="backToApp" class="back" href="../" hidden>‹ Multik</a>
         <h1>Lab</h1>
         <p class="muted">Photos are processed right in this browser and never leave it.</p>
         <p class="muted small" id="version"></p>
@@ -59,6 +60,11 @@
         <div class="row">
           <input id="white" type="range" min="0" max="10" step="1" value="6" aria-label="White merge" />
           <output id="whiteOut">6 of 10</output>
+        </div>
+        <div class="row">
+          <span>Exposure, all looks</span>
+          <input id="ev" type="range" min="-2" max="1" step="0.1" value="0" aria-label="Exposure for all looks" />
+          <output id="evOut">±0.0 EV</output>
         </div>
         <div class="row">
           <label>Frame size

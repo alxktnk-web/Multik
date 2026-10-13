@@ -20,7 +20,7 @@ export interface Roll {
 export interface DevParams {
   lookId: string;
   settings: RecipeSettings;
-  /** пересвет в десятых ступени (0…20) поверх кривой вида */
+  /** экспозиция в десятых ступени (−15…+20): множитель 2^(x/10) вместо экспозиции вида */
   exposureTenths: number;
   /** слияние белого 0…10: выше — близкие к белому яркости сливаются в сплошной белый */
   whiteMerge?: number;
