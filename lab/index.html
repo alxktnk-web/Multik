@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Мультик · лаборатория</title>
+    <link rel="stylesheet" href="../src/lab/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Лаборатория</h1>
+        <p class="muted">Фото обрабатываются прямо в этом браузере и никуда не отправляются.</p>
+        <p class="muted small" id="version"></p>
+      </header>
+
+      <section class="card">
+        <label class="pick">
+          <span>Проход 1</span>
+          <input id="passA" type="file" accept="image/*" multiple />
+          <b id="countA">0 фото</b>
+        </label>
+        <label class="pick">
+          <span>Проход 2</span>
+          <input id="passB" type="file" accept="image/*" multiple />
+          <b id="countB">0 фото</b>
+        </label>
+        <p class="muted small" id="framesInfo">Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачке.</p>
+      </section>
+
+      <section class="card">
+        <h2>Варианты вида</h2>
+        <div id="looks"></div>
+      </section>
+
+      <section class="card">
+        <h2>Плёнка</h2>
+        <div class="row">
+          <label><input type="radio" name="shiftMode" value="random" checked /> Сдвиг случайно</label>
+          <label><input type="radio" name="shiftMode" value="manual" /> Задать</label>
+        </div>
+        <div class="row">
+          <input id="shift" type="range" min="-36" max="36" step="0.5" value="10" disabled />
+          <output id="shiftOut">10 мм</output>
+        </div>
+        <label class="check"><input id="swap" type="checkbox" checked /> Перевернуть вторую плёнку</label>
+        <label class="check"><input id="reverse" type="checkbox" /> Обратный порядок второй плёнки</label>
+        <label class="check"><input id="leaks" type="checkbox" checked /> Засветки</label>
+        <label class="check"><input id="fog" type="checkbox" checked /> Засветка концов плёнки</label>
+        <label class="check"><input id="dust" type="checkbox" checked /> Пыль и волоски</label>
+        <label class="check"><input id="jitter" type="checkbox" checked /> Разброс экспозиции</label>
+        <div class="row">
+          <label>Размер кадра
+            <select id="size">
+              <option value="33">1200 px — быстро</option>
+              <option value="56">2000 px</option>
+              <option value="111">4000 px — полный</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <span>Рецепт № <b id="seed"></b></span>
+          <button id="reroll" type="button" class="ghost">Новый рецепт</button>
+        </div>
+        <button id="develop" type="button" class="primary" disabled>Проявить</button>
+        <progress id="progress" value="0" max="1" hidden></progress>
+        <p class="error" id="error" hidden></p>
+      </section>
+
+      <section id="results"></section>
+    </main>
+    <script type="module" src="../src/lab/main.ts"></script>
+  </body>
+</html>

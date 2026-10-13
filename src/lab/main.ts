@@ -1,0 +1,197 @@
+// Лаборатория: выбор двух пачек фото, проявка в нескольких вариантах вида, сравнение рядом.
+
+import { ALGO_VERSION, DEFAULT_SETTINGS, makeRecipe, type Recipe, type RecipeSettings } from '../core/recipe';
+import { randomSeed } from '../core/rng';
+import { Developer, type Source } from '../gl/pipeline';
+import { LOOKS } from '../looks';
+
+/** Длинная сторона снимка: чуть больше ширины кадра, чтобы не тратить память телефона зря. */
+const sourcePx = (ppm: number) => Math.min(4000, Math.round(36 * ppm * 1.15));
+
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+const state = {
+  filesA: [] as File[],
+  filesB: [] as File[],
+  seed: randomSeed(),
+  busy: false,
+};
+
+$('version').textContent = `Версия конвейера ${ALGO_VERSION}`;
+
+const looksBox = $('looks');
+for (const look of LOOKS) {
+  const row = document.createElement('label');
+  row.className = 'look';
+  row.innerHTML = `<input type="checkbox" value="${look.id}" checked /><span><b>${look.id} · ${look.name}</b><small>${look.note}</small></span>`;
+  looksBox.append(row);
+}
+
+const showSeed = () => ($('seed').textContent = String(state.seed));
+showSeed();
+
+function updateCounts() {
+  $('countA').textContent = `${state.filesA.length} фото`;
+  $('countB').textContent = `${state.filesB.length} фото`;
+  const n = Math.min(state.filesA.length, state.filesB.length);
+  $('framesInfo').textContent = n
+    ? `Кадров на плёнке: ${n}.` + (state.filesA.length !== state.filesB.length ? ' Лишние фото большей пачки не используются.' : '')
+    : 'Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачки.';
+  ($('develop') as HTMLButtonElement).disabled = n === 0 || state.busy;
+}
+
+$<HTMLInputElement>('passA').addEventListener('change', (e) => {
+  state.filesA = [...((e.target as HTMLInputElement).files ?? [])];
+  updateCounts();
+});
+$<HTMLInputElement>('passB').addEventListener('change', (e) => {
+  state.filesB = [...((e.target as HTMLInputElement).files ?? [])];
+  updateCounts();
+});
+
+const shift = $<HTMLInputElement>('shift');
+const shiftOut = $('shiftOut');
+shift.addEventListener('input', () => (shiftOut.textContent = `${shift.value} мм`));
+document.querySelectorAll<HTMLInputElement>('input[name=shiftMode]').forEach((r) =>
+  r.addEventListener('change', () => (shift.disabled = r.value === 'random' && r.checked)),
+);
+
+$('reroll').addEventListener('click', () => {
+  state.seed = randomSeed();
+  showSeed();
+});
+
+function readSettings(): RecipeSettings {
+  const checked = (id: string) => $<HTMLInputElement>(id).checked;
+  const manual = document.querySelector<HTMLInputElement>('input[name=shiftMode]:checked')?.value === 'manual';
+  return {
+    ...DEFAULT_SETTINGS,
+    shiftMode: manual ? 'manual' : 'random',
+    shiftMm: Number(shift.value),
+    swapRotate: checked('swap'),
+    reverseOrder: checked('reverse'),
+    leaks: checked('leaks'),
+    endFog: checked('fog'),
+    dust: checked('dust'),
+    exposureJitter: checked('jitter'),
+  };
+}
+
+async function decode(file: File, maxPx: number): Promise<ImageBitmap | HTMLCanvasElement> {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
+  if (scale === 1) return bmp;
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * scale);
+  c.height = Math.round(bmp.height * scale);
+  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return c;
+}
+
+function toUrl(img: ImageData): Promise<string> {
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  c.getContext('2d')!.putImageData(img, 0, 0);
+  return new Promise((resolve) => c.toBlob((b) => resolve(URL.createObjectURL(b!)), 'image/jpeg', 0.9));
+}
+
+function describe(recipe: Recipe): string {
+  const parts = [`Рецепт № ${recipe.seed}`, `сдвиг ${recipe.shiftMm.toFixed(1)} мм`];
+  if (recipe.settings.swapRotate) parts.push('вторая плёнка перевёрнута');
+  if (recipe.leaks.length) {
+    parts.push(`засветки у кадров ${recipe.leaks.map((l) => l.frame + 1).join(', ')}`);
+  }
+  if (recipe.fogs.length) parts.push(`засвечены концы: ${recipe.fogs.map((f) => (f.dir === 1 ? 'начало' : 'конец')).join(', ')}`);
+  return parts.join(' · ');
+}
+
+let urls: string[] = [];
+
+async function develop() {
+  const n = Math.min(state.filesA.length, state.filesB.length);
+  const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked);
+  if (!n || !looks.length) return;
+  state.busy = true;
+  updateCounts();
+  const error = $('error');
+  error.hidden = true;
+  const progress = $<HTMLProgressElement>('progress');
+  progress.hidden = false;
+  progress.value = 0;
+  urls.forEach(URL.revokeObjectURL);
+  urls = [];
+  const results = $('results');
+  results.innerHTML = '';
+
+  const canvas = document.createElement('canvas');
+  let dev: Developer | null = null;
+  const sources: Source[] = [];
+  try {
+    dev = new Developer(canvas);
+    const recipe = makeRecipe(n, state.seed, readSettings());
+    const ppm = Number($<HTMLSelectElement>('size').value);
+    const total = n * 2 + n * looks.length;
+    let done = 0;
+    const tick = () => (progress.value = ++done / total);
+
+    const load = async (files: File[]) => {
+      const out: Source[] = [];
+      for (const f of files.slice(0, n)) {
+        const img = await decode(f, sourcePx(ppm));
+        const src = dev!.upload(img);
+        if (img instanceof ImageBitmap) img.close();
+        out.push(src);
+        sources.push(src);
+        tick();
+      }
+      return out;
+    };
+    const srcA = await load(state.filesA);
+    const srcB = await load(state.filesB);
+
+    const summary = document.createElement('p');
+    summary.className = 'summary';
+    summary.textContent = describe(recipe);
+    results.append(summary);
+
+    for (let i = 0; i < n; i++) {
+      const block = document.createElement('section');
+      block.className = 'frame';
+      block.innerHTML = `<h3>Кадр ${i + 1}</h3><div class="variants"></div>`;
+      results.append(block);
+      const grid = block.querySelector('.variants')!;
+      for (const look of looks) {
+        const img = dev.renderFrame(i, recipe, look, srcA, srcB, ppm);
+        const url = await toUrl(img);
+        urls.push(url);
+        const fig = document.createElement('figure');
+        fig.className = 'variant';
+        fig.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Кадр ${i + 1}, вариант ${look.id}" /></a><figcaption>Кадр ${i + 1} · вариант ${look.id} · рецепт ${recipe.seed}</figcaption>`;
+        grid.append(fig);
+        tick();
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+  } catch (e) {
+    error.hidden = false;
+    error.textContent = `Не получилось проявить: ${(e as Error).message}`;
+    console.error(e);
+  } finally {
+    sources.forEach((s) => dev?.release(s));
+    dev?.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    progress.hidden = true;
+    state.busy = false;
+    updateCounts();
+  }
+}
+
+$('develop').addEventListener('click', develop);
+updateCounts();
+
+// для автоматических прогонов лаборатории (scripts/lab-shot.mjs)
+(window as unknown as { __setSeed: (s: number) => void }).__setSeed = (s) => {
+  state.seed = s;
+  showSeed();
+};

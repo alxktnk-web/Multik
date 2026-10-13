@@ -1,2 +1,14 @@
-# Multik
-Multi exposure foto app with randomaser
+# Мультик
+
+Плёночная двойная экспозиция из фото с iPhone — PWA для телефона и компьютера.
+
+- [SPEC.md](SPEC.md) — техническое задание
+- [ARCHITECTURE.md](ARCHITECTURE.md) — архитектура и план работы
+- `lab/` — лаборатория для подбора вида (фото обрабатываются в браузере и никуда не отправляются)
+
+```sh
+npm install
+npm run dev      # локальный сервер
+npm test         # тесты логики
+npm run build    # сборка в dist/
+```

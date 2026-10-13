@@ -1,0 +1,51 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ec;
+  --card: #fffdf9;
+  --fg: #1d1b19;
+  --muted: #6b655e;
+  --line: #e2dcd2;
+  --accent: #c2410c;
+  --accent-fg: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141210;
+    --card: #1e1b18;
+    --fg: #ece6dd;
+    --muted: #9b948a;
+    --line: #34302b;
+    --accent: #fb923c;
+    --accent-fg: #1d1b19;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 -apple-system, system-ui, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0; font-size: 28px; }
+h2 { margin: 0 0 12px; font-size: 17px; }
+.muted { color: var(--muted); margin: 4px 0; }
+.small { font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 16px; max-width: 560px; }
+.pick { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pick input { min-width: 0; font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 8px 0; }
+.row input[type='range'] { flex: 1; min-width: 160px; }
+.check { display: block; margin: 6px 0; }
+select { font-size: 15px; margin-left: 6px; }
+button { font: inherit; border-radius: 10px; padding: 10px 16px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+button.primary { width: 100%; margin-top: 12px; background: var(--accent); color: var(--accent-fg); border: none; font-weight: 600; padding: 14px; }
+button:disabled { opacity: 0.45; cursor: default; }
+progress { width: 100%; margin-top: 12px; }
+.error { color: #dc2626; white-space: pre-wrap; }
+.look { display: flex; gap: 10px; align-items: flex-start; margin: 8px 0; }
+.look small { display: block; color: var(--muted); }
+
+#results { margin-top: 24px; }
+.summary { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+.frame { margin: 0 0 28px; }
+.frame h3 { margin: 0 0 8px; font-size: 15px; }
+.variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.variant { margin: 0; }
+.variant img { width: 100%; height: auto; display: block; border-radius: 6px; background: #000; }
+.variant figcaption { font-size: 13px; color: var(--muted); margin-top: 4px; }
