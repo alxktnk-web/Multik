@@ -16,6 +16,8 @@ export interface RecipeSettings {
   leakChance: number;
   endFog: boolean;
   dust: boolean;
+  /** количество пыли: 4 — обычное, 0 — нет, 10 — много */
+  dustLevel: number;
   exposureJitter: boolean;
 }
 
@@ -28,6 +30,7 @@ export const DEFAULT_SETTINGS: RecipeSettings = {
   leakChance: 0.2,
   endFog: true,
   dust: true,
+  dustLevel: 4,
   exposureJitter: true,
 };
 
@@ -147,7 +150,7 @@ export function makeRecipe(n: number, seed: number, settings: RecipeSettings = D
   const hairs: Hair[][] = [];
   for (let i = 0; i < n; i++) {
     const specks: Dust[] = [];
-    const count = 4 + rng.int(16);
+    const count = Math.round((4 + rng.int(16)) * (settings.dustLevel ?? 4) / 4);
     for (let k = 0; k < count; k++) {
       specks.push({ x: rng.range(0, FRAME_W), y: rng.range(0, FRAME_H), r: rng.range(0.03, 0.1) });
     }

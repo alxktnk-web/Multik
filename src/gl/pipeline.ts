@@ -1,7 +1,7 @@
 // Конвейер проявки одного кадра на WebGL2 (см. ARCHITECTURE.md, «Конвейер одного кадра»).
 
 import { FRAME_H, FRAME_W, expand, frameA, intersects, type Placement, type Rect } from '../core/geometry';
-import { placements, type Recipe } from '../core/recipe';
+import { placements, type PhotoShape, type Recipe } from '../core/recipe';
 import type { Look } from '../looks';
 import { BLUR, DOWN_BRIGHT, FILM, LEAKS, PLACE, VERT } from './shaders';
 
@@ -71,6 +71,16 @@ export class Developer {
     return { tex, width: image.width, height: image.height, portrait: image.height > image.width };
   }
 
+  /** Какие снимки каждого прохода нужны для кадра i (по пересечению с окном кадра). */
+  needed(i: number, recipe: Recipe, look: Look, shapes: { a: PhotoShape[]; b: PhotoShape[] }): { a: number[]; b: number[] } {
+    const { a, b } = placements(recipe, shapes.a, shapes.b);
+    const win = expand(frameA(i), marginMm(look));
+    return {
+      a: a.filter((p) => intersects(p.rect, win)).map((p) => p.photo),
+      b: b.filter((p) => intersects(p.rect, win)).map((p) => p.photo),
+    };
+  }
+
   release(src: Source): void {
     this.gl.deleteTexture(src.tex);
   }
@@ -79,9 +89,17 @@ export class Developer {
    * Проявляет кадр i плёнки A. Возвращает RGBA-пиксели кадра сверху вниз.
    * ppm — пикселей на миллиметр (111 ≈ 4000 px по ширине кадра).
    */
-  renderFrame(i: number, recipe: Recipe, look: Look, srcA: Source[], srcB: Source[], ppm: number): ImageData {
+  renderFrame(
+    i: number,
+    recipe: Recipe,
+    look: Look,
+    srcA: (Source | undefined)[],
+    srcB: (Source | undefined)[],
+    ppm: number,
+    shapes?: { a: PhotoShape[]; b: PhotoShape[] },
+  ): ImageData {
     const gl = this.gl;
-    const { a, b } = placements(recipe, srcA, srcB);
+    const { a, b } = placements(recipe, shapes?.a ?? (srcA as Source[]), shapes?.b ?? (srcB as Source[]));
     const frame = frameA(i);
     const win = expand(frame, marginMm(look));
     const winW = Math.round(win.w * ppm);
@@ -97,8 +115,8 @@ export class Developer {
     gl.blendFunc(gl.ONE, gl.ONE);
 
     // 1–2. каждый снимок, попадающий в окно, — свет складывается
-    const draw = (p: Placement, src: Source) => {
-      if (!intersects(p.rect, win)) return;
+    const draw = (p: Placement, src: Source | undefined) => {
+      if (!src || !intersects(p.rect, win)) return;
       this.drawPlaced(p, src, win, ppm, winW, winH, look);
     };
     a.forEach((p) => draw(p, srcA[p.photo]));

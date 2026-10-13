@@ -2,23 +2,21 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Мультик" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icon-180.png" />
+    <link rel="icon" href="./icon-192.png" />
     <title>Мультик</title>
-    <style>
-      :root { color-scheme: light dark; --bg: #f4f1ec; --fg: #1d1b19; --muted: #6b655e; --accent: #c2410c; }
-      @media (prefers-color-scheme: dark) { :root { --bg: #141210; --fg: #ece6dd; --muted: #9b948a; --accent: #fb923c; } }
-      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 -apple-system, system-ui, sans-serif; }
-      main { max-width: 560px; margin: 0 auto; padding: 48px 16px; }
-      h1 { margin: 0 0 8px; font-size: 32px; }
-      p { color: var(--muted); }
-      a.btn { display: inline-block; margin-top: 16px; padding: 12px 20px; border-radius: 12px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
-    </style>
+    <link rel="stylesheet" href="./src/app/style.css" />
   </head>
   <body>
-    <main>
-      <h1>Мультик</h1>
-      <p>Плёночная двойная экспозиция из фото с iPhone. Приложение ещё в работе — сейчас доступна лаборатория для подбора вида.</p>
-      <a class="btn" href="./lab/">Открыть лабораторию</a>
-    </main>
+    <div id="app"></div>
+    <script type="module" src="./src/app/main.ts"></script>
   </body>
 </html>
