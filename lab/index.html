@@ -67,6 +67,18 @@
         <p class="error" id="error" hidden></p>
       </section>
 
+      <section class="card" id="feedbackCard">
+        <h2>Отметки</h2>
+        <p class="muted small" id="fbStatus">Под каждым кадром — 👍 / 👎 и комментарий.</p>
+        <label class="check" id="thumbRow" hidden><input id="sendThumb" type="checkbox" checked /> Прикладывать к отметке маленькую копию кадра (640 px), чтобы Claude видел, о чём речь</label>
+        <label for="note" class="small">Общая заметка</label>
+        <textarea id="note" rows="3" placeholder="Например: везде слишком розово, засветки нравятся"></textarea>
+        <div class="row">
+          <button id="saveNote" type="button" class="ghost">Сохранить заметку</button>
+          <button id="copyMarks" type="button" class="ghost" hidden>Скопировать отзывы</button>
+        </div>
+      </section>
+
       <section id="results"></section>
     </main>
     <script type="module" src="../src/lab/main.ts"></script>

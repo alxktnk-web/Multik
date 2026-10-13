@@ -4,6 +4,7 @@ import { ALGO_VERSION, DEFAULT_SETTINGS, makeRecipe, type Recipe, type RecipeSet
 import { randomSeed } from '../core/rng';
 import { Developer, type Source } from '../gl/pipeline';
 import { LOOKS } from '../looks';
+import { Feedback, type Verdict } from './feedback';
 
 /** Длинная сторона снимка: чуть больше ширины кадра, чтобы не тратить память телефона зря. */
 const sourcePx = (ppm: number) => Math.min(4000, Math.round(36 * ppm * 1.15));
@@ -18,6 +19,60 @@ const state = {
 };
 
 $('version').textContent = `Версия конвейера ${ALGO_VERSION}`;
+
+/** Та же лаборатория на claude.ai: там отметки попадают в хранилище, которое читает Claude. */
+const CLAUDE_LAB_URL = 'https://claude.ai/artifact/BpQdeYrYDxU3kJsFPBLzS1';
+
+const feedback = new Feedback();
+let lastRecipe: Recipe | null = null;
+
+function showFeedbackMode() {
+  const claude = feedback.mode === 'claude';
+  const marked = [...feedback.marks.values()].filter((m) => m.verdict || m.comment).length;
+  const status = $('fbStatus');
+  if (claude) {
+    status.textContent = `Отметки сохраняются на этой странице, Claude их видит. Отмечено кадров: ${marked}.`;
+  } else {
+    status.innerHTML = `Отметки сохраняются только в этом браузере. Отмечено кадров: ${marked}. Чтобы Claude видел их сам, открывайте <a href="${CLAUDE_LAB_URL}" target="_blank" rel="noopener">лабораторию на claude.ai</a> — или нажмите «Скопировать отзывы» и пришлите текст.`;
+  }
+  $('copyMarks').hidden = claude;
+  $('thumbRow').hidden = !claude;
+  refreshMarks();
+}
+feedback.onChange(showFeedbackMode);
+void feedback.init().then(showFeedbackMode);
+
+function refreshMarks() {
+  document.querySelectorAll<HTMLElement>('.mark').forEach((el) => {
+    const m = feedback.marks.get(el.dataset.id!);
+    el.querySelector('.like')!.setAttribute('aria-pressed', String(m?.verdict === 'like'));
+    el.querySelector('.dislike')!.setAttribute('aria-pressed', String(m?.verdict === 'dislike'));
+    const input = el.querySelector<HTMLInputElement>('.comment')!;
+    if (document.activeElement !== input) input.value = m?.comment ?? '';
+  });
+}
+
+$('copyMarks').addEventListener('click', async () => {
+  const text = feedback.exportText() || 'Отметок пока нет.';
+  try {
+    await navigator.clipboard.writeText(text);
+    $('copyMarks').textContent = 'Скопировано';
+  } catch {
+    const ta = $<HTMLTextAreaElement>('note');
+    ta.value = text;
+    ta.select();
+  }
+});
+
+$('saveNote').addEventListener('click', async () => {
+  const ta = $<HTMLTextAreaElement>('note');
+  const text = ta.value.trim();
+  if (!text) return;
+  await feedback.note(text, { version: ALGO_VERSION, seed: lastRecipe?.seed ?? state.seed });
+  ta.value = '';
+  $('saveNote').textContent = 'Заметка сохранена';
+  setTimeout(() => ($('saveNote').textContent = 'Сохранить заметку'), 2000);
+});
 
 const looksBox = $('looks');
 for (const look of LOOKS) {
@@ -97,6 +152,44 @@ function toUrl(img: ImageData): Promise<string> {
   return new Promise((resolve) => c.toBlob((b) => resolve(URL.createObjectURL(b!)), 'image/jpeg', 0.9));
 }
 
+function thumbOf(img: ImageData): Promise<Blob> {
+  const w = 640;
+  const h = Math.round((img.height / img.width) * w);
+  const full = document.createElement('canvas');
+  full.width = img.width;
+  full.height = img.height;
+  full.getContext('2d')!.putImageData(img, 0, 0);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  c.getContext('2d')!.drawImage(full, 0, 0, w, h);
+  return new Promise((resolve) => c.toBlob((b) => resolve(b!), 'image/jpeg', 0.8));
+}
+
+function markControls(recipe: Recipe, frame: number, lookId: string, lookName: string, thumb: Promise<Blob>): HTMLElement {
+  const id = Feedback.id(recipe.seed, frame, lookId);
+  const box = document.createElement('div');
+  box.className = 'mark';
+  box.dataset.id = id;
+  box.innerHTML = `<button type="button" class="like" aria-pressed="false" aria-label="Нравится">👍</button><button type="button" class="dislike" aria-pressed="false" aria-label="Не нравится">👎</button><input class="comment" id="c-${id}" type="text" placeholder="Комментарий" />`;
+  const save = (verdict: Verdict, comment: string) =>
+    feedback.save(
+      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) },
+      $<HTMLInputElement>('sendThumb').checked ? () => thumb : null,
+    );
+  const current = () => feedback.marks.get(id);
+  const toggle = (v: Exclude<Verdict, null>) => save(current()?.verdict === v ? null : v, current()?.comment ?? '');
+  box.querySelector('.like')!.addEventListener('click', () => toggle('like'));
+  box.querySelector('.dislike')!.addEventListener('click', () => toggle('dislike'));
+  const input = box.querySelector<HTMLInputElement>('.comment')!;
+  const commit = () => {
+    if (input.value.trim() !== (current()?.comment ?? '')) void save(current()?.verdict ?? null, input.value.trim());
+  };
+  input.addEventListener('change', commit);
+  input.addEventListener('keydown', (e) => e.key === 'Enter' && input.blur());
+  return box;
+}
+
 function describe(recipe: Recipe): string {
   const parts = [`Рецепт № ${recipe.seed}`, `сдвиг ${recipe.shiftMm.toFixed(1)} мм`];
   if (recipe.settings.swapRotate) parts.push('вторая плёнка перевёрнута');
@@ -131,6 +224,7 @@ async function develop() {
   try {
     dev = new Developer(canvas);
     const recipe = makeRecipe(n, state.seed, readSettings());
+    lastRecipe = recipe;
     const ppm = Number($<HTMLSelectElement>('size').value);
     const total = n * 2 + n * looks.length;
     let done = 0;
@@ -169,7 +263,9 @@ async function develop() {
         const fig = document.createElement('figure');
         fig.className = 'variant';
         fig.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Кадр ${i + 1}, вариант ${look.id}" /></a><figcaption>Кадр ${i + 1} · вариант ${look.id} · рецепт ${recipe.seed}</figcaption>`;
+        fig.append(markControls(recipe, i + 1, look.id, look.name, thumbOf(img)));
         grid.append(fig);
+        refreshMarks();
         tick();
         await new Promise((r) => setTimeout(r, 0));
       }

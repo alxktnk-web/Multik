@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "lab:shot": "node scripts/lab-shot.mjs"
+    "lab:shot": "node scripts/lab-shot.mjs",
+    "build:artifact": "npm run build && node scripts/build-artifact.mjs"
   },
   "devDependencies": {
     "playwright": "1.56.1",
