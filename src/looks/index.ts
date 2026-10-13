@@ -56,6 +56,13 @@ export interface Look {
   tone?: 'log' | 'faithful';
   /** сила S-кривой в модели 'faithful', 0…1 */
   punch?: number;
+  /**
+   * Модель 'faithful' (lab-0.7): начало плеча по яркости и переход в чистый белый w0…w1 (линейная яркость,
+   * белый одного прохода = 1). w1 ≤ w0 — без принудительного белого.
+   */
+  shoulder?: number;
+  w0?: number;
+  w1?: number;
 }
 
 const portraSoft: Look = {
@@ -232,12 +239,27 @@ const natural: Look = {
 export const LOOKS: Look[] = [meltedClean, natural, merged, blown, burnt, portraPunchy, portraSoft, faded];
 
 /**
- * «Слияние белого» 0…10: верх кривой обрезается в чистый белый тем раньше, чем выше значение.
- * 0 — без обрезки, 6 ≈ вариант F, 10 — всё светлее ~¾ шкалы уходит в сплошной белый.
+ * «Слияние белого» 0…10.
+ * Модель 'log' (A–F): верх кривой обрезается в чистый белый тем раньше, чем выше значение.
+ * Модель 'faithful' (M, N; lab-0.7): переход в белое по яркости — плечо сохраняет цвет, а в чистый белый
+ * уходит только то, что ярче w0…w1; чем выше значение, тем раньше. Цветная кайма засветок остаётся.
  * При слиянии света выцветают в нейтральный белый, без кремового оттенка.
  */
 export function withWhiteMerge(look: Look, level: number): Look {
   const t = Math.max(0, Math.min(10, level)) / 10;
+  if (look.tone === 'faithful') {
+    const shoulder = 0.6;
+    const w1 = 0.75 + 2.25 * (1 - t) ** 2;
+    return {
+      ...look,
+      shoulder,
+      w0: t > 0 ? shoulder + (w1 - shoulder) * 0.35 : 0,
+      w1: t > 0 ? w1 : 0,
+      clipHigh: 1,
+      white: look.white.map((c) => c + (1 - c) * t) as Vec3,
+      highlightSaturation: look.highlightSaturation * (1 - 0.4 * t),
+    };
+  }
   return {
     ...look,
     clipHigh: 1 - 0.25 * t,

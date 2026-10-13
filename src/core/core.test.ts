@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FRAME_W, PITCH, expand, frameA, intersects } from './geometry';
-import { DEFAULT_SETTINGS, makeRecipe, placements, sampleShift } from './recipe';
+import { baseEdit, countChanges, curveTable, editedRecipe, leakEdge, moveLeak } from './edit';
+import { DEFAULT_SETTINGS, balanceGains, makeRecipe, placements, sampleShift } from './recipe';
 import { Rng } from './rng';
 
 describe('Rng', () => {
@@ -48,12 +49,25 @@ describe('Рецепт', () => {
     expect(makeRecipe(12, 99)).toEqual(makeRecipe(12, 99));
   });
 
-  it('засветки примерно на каждом пятом кадре', () => {
+  it('засветки примерно на половине кадров, трёх типов, разной силы', () => {
     let leaks = 0;
-    for (let s = 0; s < 200; s++) leaks += makeRecipe(36, s).leaks.length;
+    const kinds = new Set<string>();
+    const strengths: number[] = [];
+    for (let s = 0; s < 200; s++) {
+      for (const l of makeRecipe(36, s).leaks) {
+        leaks++;
+        kinds.add(l.kind);
+        strengths.push(l.strength);
+      }
+    }
     const perFrame = leaks / (200 * 36);
-    expect(perFrame).toBeGreaterThan(0.15);
-    expect(perFrame).toBeLessThan(0.25);
+    expect(perFrame).toBeGreaterThan(0.45);
+    expect(perFrame).toBeLessThan(0.55);
+    expect([...kinds].sort()).toEqual(['burn', 'glow', 'stripe']);
+    strengths.sort((a, b) => a - b);
+    // много слабых, редко очень сильные
+    expect(strengths[Math.floor(strengths.length / 2)]).toBeLessThan(1.6);
+    expect(strengths[strengths.length - 1]).toBeGreaterThan(3);
   });
 
   it('выключенные эффекты не попадают в рецепт', () => {
@@ -104,5 +118,55 @@ describe('Независимые потоки случайности', () => {
     expect(off.orderA).toEqual(on.orderA);
     expect(off.orderB).toEqual(on.orderB);
     expect(off.shiftMm).toBe(on.shiftMm);
+  });
+});
+
+describe('Правка кадра', () => {
+  it('баланс A ↔ B не меняет сумму света и меняет отношение в 2^b раз', () => {
+    for (const b of [-2, -0.7, 0, 1, 2]) {
+      const g = balanceGains(b);
+      expect(g.a + g.b).toBeCloseTo(2, 10);
+      expect(g.a / g.b).toBeCloseTo(2 ** b, 10);
+    }
+  });
+
+  it('кривая проходит через точки и монотонна', () => {
+    const t = curveTable([
+      [0, 0.05],
+      [0.3, 0.2],
+      [0.5, 0.6],
+      [1, 0.95],
+    ]);
+    expect(t[0]).toBeCloseTo(0.05, 5);
+    expect(t[255]).toBeCloseTo(0.95, 5);
+    expect(t[Math.round(0.5 * 255)]).toBeCloseTo(0.6, 1);
+    for (let k = 1; k < 256; k++) expect(t[k]).toBeGreaterThanOrEqual(t[k - 1] - 1e-6);
+    const id = curveTable([
+      [0, 0],
+      [1, 1],
+    ]);
+    expect(id[128]).toBeCloseTo(128 / 255, 5);
+  });
+
+  it('правка без изменений не меняет рецепт кадра', () => {
+    const r = makeRecipe(12, 31);
+    for (let i = 0; i < 12; i++) {
+      const base = baseEdit(r, i, 4);
+      expect(countChanges(base, base)).toBe(0);
+      const e = editedRecipe(r, i, base);
+      expect(e.leaks.length).toBe(r.leaks.length);
+      expect(e.shiftMm).toBeCloseTo(r.shiftMm, 1);
+    }
+  });
+
+  it('засветка переносится к другому краю того же кадра', () => {
+    const r = makeRecipe(6, 8);
+    const base = baseEdit(r, 2, 4);
+    const leak = { ...r.leaks[0], frame: 2, x: frameA(2).x - 0.5, dir: 1 as const };
+    expect(leakEdge(leak, 2)).toBe('left');
+    const moved = moveLeak(leak, 2, 'right');
+    expect(leakEdge(moved, 2)).toBe('right');
+    expect(moved.dir).toBe(-1);
+    expect(base.flip).toBe(r.settings.swapRotate);
   });
 });

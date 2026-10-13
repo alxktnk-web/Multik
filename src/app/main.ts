@@ -5,6 +5,7 @@
 import { ALGO_VERSION, DEFAULT_SETTINGS } from '../core/recipe';
 import { randomSeed } from '../core/rng';
 import { runDevelopment } from './develop';
+import { openEditor } from './edit';
 import {
   createDev,
   createRoll,
@@ -50,19 +51,20 @@ const PARAMS: Param[] = [
   { id: 'dust', label: 'Dust', title: 'DUST & HAIRS', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v}/10` : 'none'), short: String },
 ];
 
-type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result';
+type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result' | 'edit';
 
 const MIX_DEFAULTS = {
   swap: false,
   look: 'M',
   param: 'shift' as Param['id'],
-  values: { shift: -12, white: 4, leaks: 2, exposure: 0, dust: 4 } as Record<Param['id'], number>,
+  values: { shift: -12, white: 4, leaks: 5, exposure: 0, dust: 4 } as Record<Param['id'], number>,
   randomShift: true,
   flip: true,
   full: false,
 };
 type MixState = typeof MIX_DEFAULTS;
-const MIX_KEY = 'multik-mix-v3';
+// v4: засветки по умолчанию на половине кадров (решение Александра 13.10.2026) — старые сохранённые значения не подхватываем
+const MIX_KEY = 'multik-mix-v4';
 
 // последние настройки «Смешать» запоминаются на этом устройстве (удобство, не данные)
 function loadMix(): MixState {
@@ -135,6 +137,7 @@ const ICON = {
   share: '<svg width="24" height="26" viewBox="0 0 24 26" aria-hidden="true"><path d="M12 2v14M12 2l-4 4M12 2l4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M7 10H5.5A1.5 1.5 0 0 0 4 11.5v11A1.5 1.5 0 0 0 5.5 24h13a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 18.5 10H17" stroke="currentColor" stroke-width="1.9" fill="none"/></svg>',
   heart: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M13 22s-8.5-5.2-8.5-11.2A4.8 4.8 0 0 1 13 7.6a4.8 4.8 0 0 1 8.5 3.2C21.5 16.8 13 22 13 22z" stroke="currentColor" stroke-width="1.9" fill="FILL"/></svg>',
   again: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M21 13a8 8 0 1 1-2.4-5.7M21 4v4h-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+  edit: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="1.9" fill="none"/><path d="M13 4a9 9 0 0 1 0 18Z" fill="currentColor"/></svg>',
   adjust: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4 8h18M4 18h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="9" cy="8" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/><circle cx="17" cy="18" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/></svg>',
   check: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5l2.6 2.6L11 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
 };
@@ -590,6 +593,7 @@ async function renderResult(): Promise<string> {
     <nav class="toolbar">
       <button type="button" data-save-one>${ICON.share}<span>Save</span></button>
       <button type="button" data-like class="${liked ? 'liked' : ''}" aria-pressed="${liked}">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}<span>Favorite</span></button>
+      <button type="button" data-edit>${ICON.edit}<span>Edit</span></button>
       <button type="button" data-adjust>${ICON.adjust}<span>Adjust</span></button>
       <button type="button" data-again>${ICON.again}<span>Again</span></button>
     </nav>
@@ -752,6 +756,7 @@ function renderSheet(): string {
 let rendering = Promise.resolve();
 function render(): Promise<void> {
   rendering = rendering.then(async () => {
+    if (state.screen === 'edit') return; // экран правки рисует себя сам (edit.ts)
     const html =
       state.screen === 'home'
         ? await renderHome()
@@ -923,6 +928,27 @@ app.addEventListener('click', async (e) => {
     state.mix = { ...MIX_DEFAULTS, values: { ...MIX_DEFAULTS.values } };
     saveMix();
     return render();
+  }
+  if (ds.edit !== undefined) {
+    const d = state.dev!;
+    const frame = state.view;
+    state.screen = 'edit';
+    state.sheet = null;
+    await rendering;
+    return openEditor({
+      app,
+      dev: d,
+      frame,
+      onClose: async (next, changed) => {
+        state.dev = next;
+        if (changed) {
+          dropUrl(`ff:${next.id}:${frame}`);
+          dropUrl(`ft:${next.id}:${frame}`);
+        }
+        await refresh();
+        go('result');
+      },
+    });
   }
   if (ds.adjust !== undefined) {
     // те же две плёнки и настройки этой проявки — поправить крутилки и проявить снова

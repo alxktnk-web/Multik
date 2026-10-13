@@ -1,6 +1,7 @@
 // Хранилище приложения на устройстве (IndexedDB): плёнки со снимками, проявки с готовыми кадрами.
 // Модель SPEC 1.3: плёнка — один проход; проявка смешивает две любые плёнки.
 
+import type { FrameEdit } from '../core/edit';
 import type { RecipeSettings } from '../core/recipe';
 
 export interface PhotoMeta {
@@ -41,6 +42,8 @@ export interface Development {
   /** сколько кадров уже проявлено и сохранено (проявка продолжается с этого места) */
   done: number;
   likes: number[];
+  /** правки отдельных кадров (панель Edit); исходный кадр хранится рядом с ключом «…:orig» */
+  edits?: Record<number, FrameEdit>;
 }
 
 const DB_NAME = 'multik-app';
@@ -186,6 +189,62 @@ export async function saveFrame(dev: Development, i: number, full: Blob, thumb: 
   return next;
 }
 
+/**
+ * Сохраняет правку кадра: новый JPEG и миниатюра вместо прежних; исходный кадр проявки при первой правке
+ * откладывается под ключом «…:orig» — Reset возвращает его без пересчёта.
+ */
+export async function saveEditedFrame(dev: Development, i: number, edit: FrameEdit, full: Blob, thumb: Blob): Promise<Development> {
+  const next: Development = { ...dev, edits: { ...dev.edits, [i]: edit } };
+  const key = `${dev.id}:${i}`;
+  await tx(['devs', 'frames', 'frameThumbs'], 'readwrite', (t) => {
+    const frames = t.objectStore('frames');
+    const thumbs = t.objectStore('frameThumbs');
+    frames.getKey(`${key}:orig`).onsuccess = (e) => {
+      if ((e.target as IDBRequest).result !== undefined) {
+        frames.put(full, key);
+        thumbs.put(thumb, key);
+        return;
+      }
+      frames.get(key).onsuccess = (g) => {
+        frames.put((g.target as IDBRequest<Blob>).result, `${key}:orig`);
+        frames.put(full, key);
+      };
+      thumbs.get(key).onsuccess = (g) => {
+        thumbs.put((g.target as IDBRequest<Blob>).result, `${key}:orig`);
+        thumbs.put(thumb, key);
+      };
+    };
+    t.objectStore('devs').put(next);
+  });
+  return next;
+}
+
+/** Возвращает кадр к исходной проявке. */
+export async function resetEditedFrame(dev: Development, i: number): Promise<Development> {
+  const edits = { ...dev.edits };
+  delete edits[i];
+  const next: Development = { ...dev, edits };
+  const key = `${dev.id}:${i}`;
+  await tx(['devs', 'frames', 'frameThumbs'], 'readwrite', (t) => {
+    for (const name of ['frames', 'frameThumbs'] as const) {
+      const store = t.objectStore(name);
+      store.get(`${key}:orig`).onsuccess = (e) => {
+        const orig = (e.target as IDBRequest<Blob | undefined>).result;
+        if (!orig) return;
+        store.put(orig, key);
+        store.delete(`${key}:orig`);
+      };
+    }
+    t.objectStore('devs').put(next);
+  });
+  return next;
+}
+
+/** Кадр, каким его дала проявка (до правок). */
+export async function devOriginal(devId: string, i: number): Promise<Blob | undefined> {
+  return (await get<Blob>('frames', `${devId}:${i}:orig`)) ?? get<Blob>('frames', `${devId}:${i}`);
+}
+
 export function devFrame(devId: string, i: number): Promise<Blob | undefined> {
   return get<Blob>('frames', `${devId}:${i}`);
 }
@@ -198,8 +257,10 @@ export async function deleteDev(dev: Development): Promise<void> {
   await tx(['devs', 'frames', 'frameThumbs'], 'readwrite', (t) => {
     t.objectStore('devs').delete(dev.id);
     for (let i = 0; i < dev.n; i++) {
-      t.objectStore('frames').delete(`${dev.id}:${i}`);
-      t.objectStore('frameThumbs').delete(`${dev.id}:${i}`);
+      for (const key of [`${dev.id}:${i}`, `${dev.id}:${i}:orig`]) {
+        t.objectStore('frames').delete(key);
+        t.objectStore('frameThumbs').delete(key);
+      }
     }
   });
 }

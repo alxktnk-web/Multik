@@ -1,12 +1,25 @@
 // Конвейер проявки одного кадра на WebGL2 (см. ARCHITECTURE.md, «Конвейер одного кадра»).
 
 import { FRAME_H, FRAME_W, expand, frameA, intersects, type Placement, type Rect } from '../core/geometry';
-import { placements, type PhotoShape, type Recipe } from '../core/recipe';
+import { LEAK_KINDS, placements, type PhotoShape, type Recipe } from '../core/recipe';
 import type { Look } from '../looks';
 import { BLUR, DOWN_BRIGHT, FILM, LEAKS, PLACE, VERT } from './shaders';
 
 /** Запас вокруг кадра на радиус самого широкого размытия (3σ), чтобы на краях не было швов, мм. */
 const marginMm = (look: Look) => Math.max(3, 3 * look.halSigmaLargeMm + 0.5);
+
+/** Правка кадра: баланс проходов и тон после основной кривой (панель Edit). */
+export interface FrameOptions {
+  gainA?: number;
+  gainB?: number;
+  /** таблица кривых 256 × RGBA8 (R, G, B — каналы, A — яркость) */
+  curveLut?: Uint8Array;
+  /** −1…+1 */
+  black?: number;
+  contrast?: number;
+  saturation?: number;
+  warmth?: number;
+}
 
 export interface Source {
   tex: WebGLTexture;
@@ -38,6 +51,7 @@ export class Developer {
   private blur: Program;
   private film: Program;
   private targets = new Map<string, Target>();
+  private curveTex: WebGLTexture;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -53,6 +67,7 @@ export class Developer {
     this.down = this.program(DOWN_BRIGHT);
     this.blur = this.program(BLUR);
     this.film = this.program(FILM);
+    this.curveTex = gl.createTexture()!;
   }
 
   /** Загружает снимок в текстуру sRGB8 — выборка из неё сразу даёт линейный свет. */
@@ -97,6 +112,7 @@ export class Developer {
     srcB: (Source | undefined)[],
     ppm: number,
     shapes?: { a: PhotoShape[]; b: PhotoShape[] },
+    opts: FrameOptions = {},
   ): ImageData {
     const gl = this.gl;
     const { a, b } = placements(recipe, shapes?.a ?? (srcA as Source[]), shapes?.b ?? (srcB as Source[]));
@@ -115,24 +131,30 @@ export class Developer {
     gl.blendFunc(gl.ONE, gl.ONE);
 
     // 1–2. каждый снимок, попадающий в окно, — свет складывается
-    const draw = (p: Placement, src: Source | undefined) => {
-      if (!src || !intersects(p.rect, win)) return;
-      this.drawPlaced(p, src, win, ppm, winW, winH, look);
-    };
-    a.forEach((p) => draw(p, srcA[p.photo]));
-    b.forEach((p) => draw(p, srcB[p.photo]));
+    const gains = { a: opts.gainA ?? 1, b: opts.gainB ?? 1 };
+    const visible = [
+      ...a.map((p) => [p, srcA[p.photo], gains.a] as const),
+      ...b.map((p) => [p, srcB[p.photo], gains.b] as const),
+    ].filter(([p, src]) => src && intersects(p.rect, win)) as [Placement, Source, number][];
+    for (const [p, src, g] of visible) this.drawPlaced(p, src, win, ppm, winW, winH, look, g, false);
 
     // 3. засветки и засвеченные концы
-    this.drawLeaks(recipe, win, ppm, winW, winH, look);
+    this.drawLeaks(recipe, win, ppm, winW, winH, look, false);
+
+    // 4. ореол: свет выделяется на каждом проходе отдельно (в половинном разрешении, по полноразмерным
+    // отсчётам), затем сумма уменьшается ещё вдвое и размывается двумя радиусами
+    const half = this.target('half', Math.ceil(winW / 2), Math.ceil(winH / 2), true);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, half.fbo);
+    gl.viewport(0, 0, half.w, half.h);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    for (const [p, src, g] of visible) this.drawPlaced(p, src, win, ppm / 2, half.w, half.h, look, g, true);
+    this.drawLeaks(recipe, win, ppm / 2, half.w, half.h, look, true);
     gl.disable(gl.BLEND);
 
-    // 4. ореол: выделение светов на ½ и ¼ разрешения, два размытия
-    const half = this.target('half', Math.ceil(winW / 2), Math.ceil(winH / 2), true);
     const q1 = this.target('q1', Math.ceil(half.w / 2), Math.ceil(half.h / 2), true);
     const q2 = this.target('q2', q1.w, q1.h, true);
     const hs = this.target('hs', q1.w, q1.h, true);
     const hl = this.target('hl', q1.w, q1.h, true);
-    this.downsample(acc, half, look.halThreshold, true);
     this.downsample(half, q1, 0, false);
     const qppm = ppm / 4;
     this.blurPass(q1, q2, [1, 0], look.halSigmaSmallMm * qppm);
@@ -144,7 +166,7 @@ export class Developer {
     const outW = Math.round(FRAME_W * ppm);
     const outH = Math.round(FRAME_H * ppm);
     const out = this.target('out', outW, outH, false);
-    this.drawFilm(i, recipe, look, frame, win, ppm, acc, hs, hl, out);
+    this.drawFilm(i, recipe, look, frame, win, ppm, acc, hs, hl, out, opts);
 
     const pixels = new Uint8ClampedArray(outW * outH * 4);
     gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
@@ -152,7 +174,7 @@ export class Developer {
     return new ImageData(flipRows(pixels, outW, outH), outW, outH);
   }
 
-  private drawPlaced(p: Placement, src: Source, win: Rect, ppm: number, winW: number, winH: number, look: Look) {
+  private drawPlaced(p: Placement, src: Source, win: Rect, ppm: number, winW: number, winH: number, look: Look, gain: number, extract: boolean) {
     const gl = this.gl;
     const { prog, u } = this.place;
     gl.useProgram(prog);
@@ -164,18 +186,20 @@ export class Developer {
     gl.uniform2f(u.uImgSize, src.width, src.height);
     gl.uniform1i(u.uTurn, p.turn);
     gl.uniform2f(u.uFrame, FRAME_W, FRAME_H);
-    gl.uniform1f(u.uGain, p.gain * look.passGain);
+    gl.uniform1f(u.uGain, p.gain * look.passGain * gain);
     gl.uniform1f(u.uCorner, look.cornerMm);
     gl.uniform1f(u.uSoft, look.softMm);
     gl.uniform1f(u.uVig, look.vignette);
     gl.uniform1f(u.uHLStart, look.hlStart);
     gl.uniform1f(u.uHLBoost, look.hlBoost);
-    gl.uniform1f(u.uLensSoft, look.lensSoftness);
+    gl.uniform1f(u.uGradScale, 2 ** look.lensSoftness * (extract ? 0.5 : 1));
+    gl.uniform1f(u.uThreshold, look.halThreshold);
+    gl.uniform1i(u.uExtract, extract ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  private drawLeaks(recipe: Recipe, win: Rect, ppm: number, winW: number, winH: number, look: Look) {
-    const leaks = recipe.leaks.filter((l) => Math.abs(l.x - (win.x + win.w / 2)) < win.w / 2 + l.width * 4).slice(0, 8);
+  private drawLeaks(recipe: Recipe, win: Rect, ppm: number, winW: number, winH: number, look: Look, extract: boolean) {
+    const leaks = recipe.leaks.filter((l) => !l.off && Math.abs(l.x - (win.x + win.w / 2)) < win.w / 2 + l.width * 4).slice(0, 8);
     const fogs = recipe.fogs.filter((f) => (f.dir === 1 ? win.x < f.edge + 30 : win.x + win.w > f.edge - 30));
     if (!leaks.length && !fogs.length) return;
     const gl = this.gl;
@@ -189,7 +213,9 @@ export class Developer {
     gl.uniform1f(u.uGain, look.leakGain);
     gl.uniform1i(u.uLeakCount, leaks.length);
     gl.uniform4fv(u['uLeakA[0]'], pad(leaks.flatMap((l) => [l.x, l.dir, l.width, l.strength]), 32));
-    gl.uniform4fv(u['uLeakB[0]'], pad(leaks.flatMap((l) => [l.hue, l.yCenter, l.seed, 0]), 32));
+    gl.uniform4fv(u['uLeakB[0]'], pad(leaks.flatMap((l) => [l.hue, l.yCenter, l.seed, LEAK_KINDS.indexOf(l.kind ?? 'stripe')]), 32));
+    gl.uniform1f(u.uThreshold, look.halThreshold);
+    gl.uniform1i(u.uExtract, extract ? 1 : 0);
     gl.uniform1i(u.uFogCount, fogs.length);
     gl.uniform4fv(u['uFog[0]'], pad(fogs.flatMap((f) => [f.edge, f.dir, f.strength, f.seed]), 8));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -228,7 +254,7 @@ export class Developer {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  private drawFilm(i: number, recipe: Recipe, look: Look, frame: Rect, win: Rect, ppm: number, acc: Target, hs: Target, hl: Target, out: Target) {
+  private drawFilm(i: number, recipe: Recipe, look: Look, frame: Rect, win: Rect, ppm: number, acc: Target, hs: Target, hl: Target, out: Target, opts: FrameOptions) {
     const gl = this.gl;
     const { prog, u } = this.film;
     gl.useProgram(prog);
@@ -265,6 +291,24 @@ export class Developer {
     gl.uniform1f(u.uClipHigh, look.clipHigh);
     gl.uniform1f(u.uTone, look.tone === 'faithful' ? 1 : 0);
     gl.uniform1f(u.uPunch, look.punch ?? 0);
+    gl.uniform1f(u.uShoulder, look.shoulder ?? 0.6);
+    gl.uniform1f(u.uW0, look.w0 ?? 0);
+    gl.uniform1f(u.uW1, look.w1 ?? 0);
+    const user = !!(opts.curveLut || opts.black || opts.contrast || opts.saturation || opts.warmth);
+    gl.uniform1f(u.uUserOn, user ? 1 : 0);
+    gl.uniform1f(u.uUBlack, opts.black ?? 0);
+    gl.uniform1f(u.uUContrast, opts.contrast ?? 0);
+    gl.uniform1f(u.uUSat, opts.saturation ?? 0);
+    gl.uniform1f(u.uUWarm, opts.warmth ?? 0);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, opts.curveLut ?? IDENTITY_LUT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(u.uCurve, 3);
     gl.uniform1f(u.uGrain, look.grain);
     gl.uniform1f(u.uGrainMm, look.grainMm);
     gl.uniform1f(u.uGrainChroma, look.grainChroma);
@@ -341,6 +385,12 @@ export class Developer {
     return vao;
   }
 }
+
+const IDENTITY_LUT = (() => {
+  const t = new Uint8Array(256 * 4);
+  for (let k = 0; k < 256; k++) t.fill(k, k * 4, k * 4 + 4);
+  return t;
+})();
 
 function pad(values: number[], length: number): Float32Array {
   const a = new Float32Array(length);

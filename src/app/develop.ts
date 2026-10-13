@@ -1,10 +1,11 @@
 // Проявка в приложении: кадр за кадром, в памяти только снимки, нужные текущему кадру.
 // Каждый готовый кадр сразу сохраняется — после прерывания проявка продолжается с того же места.
 
-import { makeRecipe } from '../core/recipe';
-import { Developer, type Source } from '../gl/pipeline';
+import { curveLut, editedRecipe, isIdentity, type FrameEdit } from '../core/edit';
+import { balanceGains, makeRecipe, type PhotoShape, type Recipe } from '../core/recipe';
+import { Developer, type FrameOptions, type Source } from '../gl/pipeline';
 import { LOOKS, withWhiteMerge, type Look } from '../looks';
-import { getRoll, rollPhoto, saveFrame, type Development } from './store';
+import { getRoll, rollPhoto, saveFrame, type Development, type Roll } from './store';
 
 export function lookFor(dev: Development): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
@@ -99,4 +100,97 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
     developer.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
   return dev;
+}
+
+// --- правка кадра (панель Edit) ---
+
+/** Вид проявки с правками кадра: экспозиция, слияние белого, ореол, «дыхание», зерно. */
+export function editLook(dev: Development, edit: FrameEdit): Look {
+  const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
+  const look = withWhiteMerge({ ...base, exposure: 2 ** (dev.params.exposureTenths / 10 + edit.exposure) }, edit.whites);
+  return {
+    ...look,
+    halSmall: look.halSmall * edit.halation,
+    halLarge: look.halLarge * edit.halation,
+    bloom: look.bloom * edit.glow,
+    grain: look.grain * edit.grain,
+  };
+}
+
+export function editOptions(edit: FrameEdit): FrameOptions {
+  const g = balanceGains(edit.balance);
+  return {
+    gainA: g.a,
+    gainB: g.b,
+    curveLut: isIdentity(edit.curves) ? undefined : curveLut(edit.curves),
+    black: edit.black / 100,
+    contrast: edit.contrast / 100,
+    saturation: edit.saturation / 100,
+    warmth: edit.warmth / 100,
+  };
+}
+
+/**
+ * Пересчёт одного кадра из исходных снимков: держит свой контекст WebGL и снимки, нужные кадру.
+ * Для живого предпросмотра снимки грузятся уменьшенными (maxPx), для сохранения — в полном размере проявки.
+ */
+export class FrameRenderer {
+  readonly recipe: Recipe;
+  private canvas = document.createElement('canvas');
+  private developer: Developer;
+  private cache = new Map<string, Source>();
+  private shapes: { a: PhotoShape[]; b: PhotoShape[] };
+  lost = false;
+
+  private constructor(
+    readonly dev: Development,
+    private rolls: [Roll, Roll],
+    private maxPx: number,
+  ) {
+    this.recipe = makeRecipe(dev.n, dev.seed, dev.params.settings);
+    this.shapes = {
+      a: rolls[0].photos.map((p) => ({ portrait: p.h > p.w })),
+      b: rolls[1].photos.map((p) => ({ portrait: p.h > p.w })),
+    };
+    this.developer = new Developer(this.canvas);
+    this.canvas.addEventListener('webglcontextlost', () => (this.lost = true));
+  }
+
+  static async open(dev: Development, maxPx: number): Promise<FrameRenderer> {
+    const [a, b] = await Promise.all([getRoll(dev.rollA), getRoll(dev.rollB)]);
+    if (!a || !b) throw new Error('One of the rolls was deleted — this frame can’t be re-developed');
+    return new FrameRenderer(dev, [a, b], maxPx);
+  }
+
+  async render(i: number, edit: FrameEdit, ppm: number): Promise<ImageData> {
+    const recipe = editedRecipe(this.recipe, i, edit);
+    const look = editLook(this.dev, edit);
+    const need = this.developer.needed(i, recipe, look, this.shapes);
+    const keys = new Set([...need.a.map((k) => `a${k}`), ...need.b.map((k) => `b${k}`)]);
+    for (const key of keys) {
+      if (this.cache.has(key)) continue;
+      const roll = key[0] === 'a' ? this.rolls[0] : this.rolls[1];
+      const blob = await rollPhoto(roll, Number(key.slice(1)));
+      if (!blob) throw new Error(`A photo from “${roll.name}” is missing`);
+      const img = await decode(blob, this.maxPx);
+      this.cache.set(key, this.developer.upload(img));
+      if (img instanceof ImageBitmap) img.close();
+    }
+    const srcA: (Source | undefined)[] = [];
+    const srcB: (Source | undefined)[] = [];
+    for (const [key, src] of this.cache) if (keys.has(key)) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
+    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, editOptions(edit));
+    if (this.lost) throw new Error('The phone interrupted rendering — try again');
+    return img;
+  }
+
+  private disposed = false;
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.cache.forEach((src) => this.developer.release(src));
+    this.cache.clear();
+    this.developer.gl.getExtension('WEBGL_lose_context')?.loseContext();
+  }
 }

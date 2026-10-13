@@ -4,7 +4,7 @@
 import { FRAME_H, FRAME_W, PITCH, frameA, type Placement, type Rect } from './geometry';
 import { Rng } from './rng';
 
-export const ALGO_VERSION = 'lab-0.6';
+export const ALGO_VERSION = 'lab-0.7';
 
 export interface RecipeSettings {
   shiftMode: 'random' | 'manual';
@@ -27,16 +27,24 @@ export const DEFAULT_SETTINGS: RecipeSettings = {
   swapRotate: true,
   reverseOrder: false,
   leaks: true,
-  leakChance: 0.2,
+  leakChance: 0.5,
   endFog: true,
   dust: true,
   dustLevel: 4,
   exposureJitter: true,
 };
 
+/**
+ * Тип засветки (lab-0.7, по разбору ChatGPT): «glow» — широкий бледный подсвет, «stripe» — насыщенная
+ * красно-малиновая полоса от края, «burn» — выжженная область с рваной цветной границей.
+ */
+export type LeakKind = 'glow' | 'stripe' | 'burn';
+export const LEAK_KINDS: LeakKind[] = ['glow', 'stripe', 'burn'];
+
 export interface Leak {
   /** кадр плёнки A, у края которого засветка */
   frame: number;
+  kind: LeakKind;
   /** край, от которого входит засветка, мм вдоль плёнки */
   x: number;
   /** +1 — засветка уходит вправо от края, −1 — влево */
@@ -48,6 +56,36 @@ export interface Leak {
   /** −1 — по всей высоте, иначе центр по высоте 0…1 */
   yCenter: number;
   seed: number;
+  /** выключена в правке кадра (форма сохраняется) */
+  off?: boolean;
+}
+
+/**
+ * Случайная засветка у края кадра i. Сила: много слабых, несколько заметных, редко разрушительные.
+ * Каждая четвёртая садится на перемычку и заходит на соседний кадр — одно событие на ленте.
+ */
+export function randomLeak(rng: Rng, i: number, kind?: LeakKind): Leak {
+  const k = kind ?? (rng.chance(0.4) ? 'glow' : rng.chance(0.75) ? 'stripe' : 'burn');
+  const dir: 1 | -1 = rng.chance(0.5) ? 1 : -1;
+  const f = frameA(i);
+  const onGap = rng.chance(0.25);
+  const edge = dir === 1 ? f.x : f.x + FRAME_W;
+  const x = onGap ? edge - dir * (1 + rng.range(0, 1.5)) : edge - dir * rng.range(0, 1.5);
+  const r = rng.next();
+  const strength =
+    k === 'glow' ? 0.4 + 1.6 * r : k === 'stripe' ? 0.5 + 3.5 * r * r : 1 + 1.5 * r;
+  const width = k === 'glow' ? rng.range(10, 26) : k === 'stripe' ? rng.range(4, 14) : rng.range(3, 9);
+  return {
+    frame: i,
+    kind: k,
+    x,
+    dir,
+    width,
+    strength,
+    hue: rng.chance(0.5) ? rng.range(0, 0.35) : rng.range(0.45, 1),
+    yCenter: k === 'burn' || rng.chance(0.5) ? -1 : rng.range(0, 1),
+    seed: rng.range(0, 100),
+  };
 }
 
 export interface Fog {
@@ -91,6 +129,16 @@ export interface Recipe {
   hairs: Hair[][];
 }
 
+/**
+ * Баланс проходов A ↔ B (формула ChatGPT): отношение A/B меняется в 2^b раз, а сумма весов остаётся 2 —
+ * баланс не меняет общую яркость. b в ступенях, −2…+2.
+ */
+export function balanceGains(b: number): { a: number; b: number } {
+  const u = 2 ** (b / 2);
+  const v = 2 ** (-b / 2);
+  return { a: (2 * u) / (u + v), b: (2 * v) / (u + v) };
+}
+
 /** Чаще 5–15 мм (как на референсах), изредка любой сдвиг до длины кадра. */
 export function sampleShift(rng: Rng): number {
   const mag = rng.chance(0.2) ? rng.range(0, FRAME_W) : rng.range(5, 15);
@@ -121,18 +169,7 @@ export function makeRecipe(n: number, seed: number, settings: RecipeSettings = D
   const leaks: Leak[] = [];
   for (let i = 0; i < n; i++) {
     const hit = rng.chance(settings.leakChance);
-    const dir: 1 | -1 = rng.chance(0.5) ? 1 : -1;
-    const f = frameA(i);
-    const leak: Leak = {
-      frame: i,
-      x: dir === 1 ? f.x - rng.range(0, 1.5) : f.x + FRAME_W + rng.range(0, 1.5),
-      dir,
-      width: rng.range(5, 18),
-      strength: rng.range(0.6, 3),
-      hue: rng.chance(0.5) ? rng.range(0, 0.3) : rng.range(0.5, 1),
-      yCenter: rng.chance(0.5) ? -1 : rng.range(0, 1),
-      seed: rng.range(0, 100),
-    };
+    const leak = randomLeak(rng, i);
     if (settings.leaks && hit) leaks.push(leak);
   }
 
