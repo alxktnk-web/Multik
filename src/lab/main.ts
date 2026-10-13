@@ -78,7 +78,7 @@ const looksBox = $('looks');
 for (const look of LOOKS) {
   const row = document.createElement('label');
   row.className = 'look';
-  row.innerHTML = `<input type="checkbox" value="${look.id}" checked /><span><b>${look.id} · ${look.name}</b><small>${look.note}</small></span>`;
+  row.innerHTML = `<input type="checkbox" value="${look.id}"${look.defaultOn ? ' checked' : ''} /><span><b>${look.id} · ${look.name}</b><small>${look.note}</small></span>`;
   looksBox.append(row);
 }
 

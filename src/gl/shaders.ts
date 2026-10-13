@@ -38,7 +38,7 @@ uniform sampler2D uImg;
 uniform vec2 uImgSize;
 uniform int uTurn;
 uniform vec2 uFrame;
-uniform float uGain, uCorner, uSoft, uVig, uHLStart, uHLBoost;
+uniform float uGain, uCorner, uSoft, uVig, uHLStart, uHLBoost, uLensSoft;
 float sdRoundBox(vec2 p, vec2 b, float r) {
   vec2 q = abs(p) - b + r;
   return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
@@ -57,7 +57,7 @@ void main() {
   else if (uTurn == 1) uv = vec2(1.0 - q.y, q.x);
   else if (uTurn == 2) uv = 1.0 - q;
   else uv = vec2(q.y, 1.0 - q.x);
-  vec3 col = texture(uImg, uv).rgb; // текстура sRGB8 -> уже линейный свет
+  vec3 col = texture(uImg, uv, uLensSoft).rgb; // sRGB8 -> линейный свет; сдвиг мип-уровня смягчает резкость iPhone
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   float h = smoothstep(uHLStart, 1.0, l);
   col *= 1.0 + uHLBoost * h * h;

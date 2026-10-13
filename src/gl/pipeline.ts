@@ -152,6 +152,7 @@ export class Developer {
     gl.uniform1f(u.uVig, look.vignette);
     gl.uniform1f(u.uHLStart, look.hlStart);
     gl.uniform1f(u.uHLBoost, look.hlBoost);
+    gl.uniform1f(u.uLensSoft, look.lensSoftness);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 

@@ -39,7 +39,7 @@ await page.setInputFiles('#passB', filesB);
 if (args.size) await page.selectOption('#size', args.size);
 if (args.looks) {
   const want = args.looks.split(',');
-  for (const id of ['A', 'B', 'C']) await page.setChecked(`#looks input[value="${id}"]`, want.includes(id));
+  for (const id of ['A', 'B', 'C', 'D', 'E']) await page.setChecked(`#looks input[value="${id}"]`, want.includes(id));
 }
 if (args.seed) await page.evaluate((s) => window.__setSeed?.(Number(s)), args.seed);
 const t0 = Date.now();

@@ -6,12 +6,16 @@ export interface Look {
   id: string;
   name: string;
   note: string;
+  /** включён ли вариант в лаборатории по умолчанию */
+  defaultOn: boolean;
   /** множитель света каждого прохода: 1 — пересвет (без компенсации), 0.5 — −1 EV */
   passGain: number;
   /** с какой яркости снимка начинается расширение светов и во сколько раз (1 + hlBoost) */
   hlStart: number;
   hlBoost: number;
   vignette: number;
+  /** мягкость объектива: сдвиг уровня мип-карты при выборке снимка (0 — резко, как iPhone) */
+  lensSoftness: number;
   /** радиус скругления углов кадрового окна и мягкость края, мм */
   cornerMm: number;
   softMm: number;
@@ -47,10 +51,12 @@ const portraSoft: Look = {
   id: 'A',
   name: 'Portra · мягкая',
   note: 'тёплая, мягкий контраст, ореол умеренный',
+  defaultOn: false,
   passGain: 1,
   hlStart: 0.8,
   hlBoost: 3,
   vignette: 0.25,
+  lensSoftness: 0,
   cornerMm: 0.8,
   softMm: 0.12,
   halThreshold: 1.6,
@@ -80,7 +86,8 @@ const portraPunchy: Look = {
   ...portraSoft,
   id: 'B',
   name: 'Portra · контраст + ореол',
-  note: 'плотнее тени, сильнее красный ореол',
+  note: 'плотнее тени, сильнее красный ореол (понравился в lab-0.2)',
+  defaultOn: true,
   halThreshold: 1.3,
   halSmall: 0.5,
   halLarge: 0.7,
@@ -96,6 +103,7 @@ const faded: Look = {
   id: 'C',
   name: 'Выцветшая',
   note: 'низкий контраст, приподнятый чёрный, лёгкий малиново-голубой оттенок',
+  defaultOn: false,
   contrast: [0.6, 0.58, 0.56],
   offsetStops: [-0.05, 0.05, 0.05],
   black: [0.13, 0.12, 0.14],
@@ -106,4 +114,40 @@ const faded: Look = {
   grain: 0.14,
 };
 
-export const LOOKS: Look[] = [portraSoft, portraPunchy, faded];
+// lab-0.3: по отметкам Александра — B лучше всех, но белое не выгорает и наложение «вялое».
+// Белое небо iPhone (≈0.9 sRGB) теперь попадает в усиление светов и выжигается почти в белый,
+// чёрный глубже, контраст выше, объектив мягче — меньше «цифровой» резкости.
+const burnt: Look = {
+  ...portraPunchy,
+  id: 'D',
+  name: 'Плотная · белое выгорает',
+  note: 'как B, но яркое небо выжигает второй кадр почти до белого, глубже чёрный, мягче резкость',
+  defaultOn: true,
+  hlStart: 0.55,
+  hlBoost: 5,
+  exposure: 1.3,
+  lensSoftness: 0.6,
+  contrast: [1.05, 1.02, 1],
+  black: [0.03, 0.028, 0.032],
+  white: [0.985, 0.975, 0.95],
+  highlightSaturation: 0.6,
+};
+
+const blown: Look = {
+  ...burnt,
+  id: 'E',
+  name: 'Сильный пересвет',
+  note: 'ещё на ⅔ ступени светлее: света сгорают целиком, тени держат картинку, ореол сильнее',
+  exposure: 1.7,
+  hlStart: 0.5,
+  hlBoost: 6,
+  lensSoftness: 0.8,
+  contrast: [1.15, 1.12, 1.08],
+  black: [0.025, 0.024, 0.028],
+  saturation: 1.12,
+  highlightSaturation: 0.5,
+  halSmall: 0.6,
+  halLarge: 0.9,
+};
+
+export const LOOKS: Look[] = [portraPunchy, burnt, blown, portraSoft, faded];
