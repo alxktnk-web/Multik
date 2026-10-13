@@ -5,8 +5,8 @@ import { placements, type Recipe } from '../core/recipe';
 import type { Look } from '../looks';
 import { BLUR, DOWN_BRIGHT, FILM, LEAKS, PLACE, VERT } from './shaders';
 
-/** Запас вокруг кадра, чтобы ореол и засветки соседей попадали в кадр без швов, мм. */
-const MARGIN_MM = 3;
+/** Запас вокруг кадра на радиус самого широкого размытия (3σ), чтобы на краях не было швов, мм. */
+const marginMm = (look: Look) => Math.max(3, 3 * look.halSigmaLargeMm + 0.5);
 
 export interface Source {
   tex: WebGLTexture;
@@ -83,7 +83,7 @@ export class Developer {
     const gl = this.gl;
     const { a, b } = placements(recipe, srcA, srcB);
     const frame = frameA(i);
-    const win = expand(frame, MARGIN_MM);
+    const win = expand(frame, marginMm(look));
     const winW = Math.round(win.w * ppm);
     const winH = Math.round(win.h * ppm);
     const acc = this.target('acc', winW, winH, true);

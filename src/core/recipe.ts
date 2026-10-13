@@ -4,7 +4,7 @@
 import { FRAME_H, FRAME_W, PITCH, frameA, type Placement, type Rect } from './geometry';
 import { Rng } from './rng';
 
-export const ALGO_VERSION = 'lab-0.1';
+export const ALGO_VERSION = 'lab-0.2';
 
 export interface RecipeSettings {
   shiftMode: 'random' | 'manual';
@@ -94,19 +94,27 @@ export function sampleShift(rng: Rng): number {
   return rng.chance(0.5) ? mag : -mag;
 }
 
+/** Отдельный поток случайности на каждый эффект: например, число пылинок не влияет на порядок кадров. */
+function stream(seed: number, salt: number): Rng {
+  return new Rng(Math.imul(seed ^ 0x5bd1e995, 0x01000193) ^ Math.imul(salt, 0x9e3779b1));
+}
+
 export function makeRecipe(n: number, seed: number, settings: RecipeSettings = DEFAULT_SETTINGS): Recipe {
-  const rng = new Rng(seed);
+  let rng = stream(seed, 1);
   const orderA = rng.permutation(n);
   const orderB = rng.permutation(n);
+  rng = stream(seed, 2);
   const randomShift = sampleShift(rng);
   const shiftMm =
     settings.shiftMode === 'manual' ? Math.max(-FRAME_W, Math.min(FRAME_W, settings.shiftMm)) : randomShift;
   const vShiftMm = rng.range(-0.3, 0.3);
   const jitterB = Array.from({ length: n }, () => ({ dx: rng.range(-0.7, 0.7), dy: rng.range(-0.15, 0.15) }));
+  rng = stream(seed, 3);
   const ev = () => (settings.exposureJitter ? rng.range(-1 / 3, 1 / 3) : 0);
   const evA = Array.from({ length: n }, ev);
   const evB = Array.from({ length: n }, ev);
 
+  rng = stream(seed, 4);
   const leaks: Leak[] = [];
   for (let i = 0; i < n; i++) {
     const hit = rng.chance(settings.leakChance);
@@ -125,6 +133,7 @@ export function makeRecipe(n: number, seed: number, settings: RecipeSettings = D
     if (settings.leaks && hit) leaks.push(leak);
   }
 
+  rng = stream(seed, 5);
   const fogs: Fog[] = [];
   const startFog = rng.chance(0.7);
   const endFog = rng.chance(0.5);
@@ -133,6 +142,7 @@ export function makeRecipe(n: number, seed: number, settings: RecipeSettings = D
   if (settings.endFog && startFog) fogs.push({ edge: startEdge, dir: 1, strength: rng.range(0.8, 1.2), seed: rng.range(0, 100) });
   if (settings.endFog && endFog) fogs.push({ edge: endEdge, dir: -1, strength: rng.range(0.8, 1.2), seed: rng.range(0, 100) });
 
+  rng = stream(seed, 6);
   const dust: Dust[][] = [];
   const hairs: Hair[][] = [];
   for (let i = 0; i < n; i++) {

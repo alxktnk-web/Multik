@@ -96,3 +96,13 @@ describe('Раскладка', () => {
     expect(b.filter((p) => intersects(p.rect, win))).toHaveLength(2);
   });
 });
+
+describe('Независимые потоки случайности', () => {
+  it('отключение пыли и засветок не меняет порядок кадров и сдвиг', () => {
+    const on = makeRecipe(12, 77);
+    const off = makeRecipe(12, 77, { ...DEFAULT_SETTINGS, dust: false, leaks: false, endFog: false, exposureJitter: false });
+    expect(off.orderA).toEqual(on.orderA);
+    expect(off.orderB).toEqual(on.orderB);
+    expect(off.shiftMm).toBe(on.shiftMm);
+  });
+});

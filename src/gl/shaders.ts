@@ -124,11 +124,17 @@ uniform float uThreshold;
 uniform int uExtract;
 void main() {
   vec2 uv = vec2(vUV.x, 1.0 - vUV.y);
-  vec3 c = 0.25 * (texture(uSrc, uv + uSrcTexel * vec2(-0.5, -0.5)).rgb + texture(uSrc, uv + uSrcTexel * vec2(0.5, -0.5)).rgb
-                 + texture(uSrc, uv + uSrcTexel * vec2(-0.5, 0.5)).rgb + texture(uSrc, uv + uSrcTexel * vec2(0.5, 0.5)).rgb);
-  if (uExtract == 1) {
-    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    c *= max(l - uThreshold, 0.0) / max(l, 1e-4);
+  // каждый отсчёт попадает ровно в центр текселя источника: выделение светов идёт
+  // в полном разрешении, поэтому маленькая яркая точка не теряется при уменьшении
+  vec3 c = vec3(0.0);
+  for (int k = 0; k < 4; k++) {
+    vec2 off = vec2(k == 0 || k == 2 ? -0.5 : 0.5, k < 2 ? -0.5 : 0.5);
+    vec3 t = texture(uSrc, uv + uSrcTexel * off).rgb;
+    if (uExtract == 1) {
+      float l = dot(t, vec3(0.2126, 0.7152, 0.0722));
+      t *= max(l - uThreshold, 0.0) / max(l, 1e-4);
+    }
+    c += 0.25 * t;
   }
   o = vec4(c, 1.0);
 }`;
