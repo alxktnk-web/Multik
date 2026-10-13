@@ -25,7 +25,13 @@
           <input id="passB" type="file" accept="image/*" multiple />
           <b id="countB">0 фото</b>
         </label>
+        <p class="muted small" id="rollInfo" hidden></p>
         <p class="muted small" id="framesInfo">Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачке.</p>
+      </section>
+
+      <section class="card">
+        <h2>Библиотека плёнок</h2>
+        <div id="library"></div>
       </section>
 
       <section class="card">
@@ -81,6 +87,15 @@
 
       <section id="results"></section>
     </main>
+    <div id="viewer" class="viewer" hidden>
+      <img id="viewerImg" alt="" />
+      <div class="viewer-bar">
+        <span id="viewerCaption"></span>
+        <button id="viewerSave" type="button" class="primary-sm">Сохранить</button>
+        <button id="viewerClose" type="button" class="ghost">Закрыть</button>
+      </div>
+      <p class="viewer-hint">На iPhone можно также зажать картинку → «Сохранить в Фото».</p>
+    </div>
     <script type="module" src="../src/lab/main.ts"></script>
   </body>
 </html>

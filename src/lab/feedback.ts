@@ -105,6 +105,11 @@ export class Feedback {
     return next;
   }
 
+  /** Плёнка из библиотеки — чтобы Claude видел, какие плёнки и рецепты проявлялись. */
+  async roll(id: string, data: Record<string, unknown>): Promise<void> {
+    if (this.mode === 'claude' && this.db) await this.db.collection('rolls').doc(id).set(data);
+  }
+
   async note(text: string, context: Record<string, unknown>): Promise<void> {
     const entry = { text, at: new Date().toISOString(), ...context };
     if (this.mode === 'claude' && this.db) {

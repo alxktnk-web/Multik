@@ -5,6 +5,7 @@ import { randomSeed } from '../core/rng';
 import { Developer, type Source } from '../gl/pipeline';
 import { LOOKS } from '../looks';
 import { Feedback, type Verdict } from './feedback';
+import { Library, type Roll } from './library';
 
 /** Длинная сторона снимка: чуть больше ширины кадра, чтобы не тратить память телефона зря. */
 const sourcePx = (ppm: number) => Math.min(4000, Math.round(36 * ppm * 1.15));
@@ -14,9 +15,18 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const state = {
   filesA: [] as File[],
   filesB: [] as File[],
+  /** плёнка из библиотеки, если фото взяты оттуда */
+  roll: null as Roll | null,
   seed: randomSeed(),
   busy: false,
 };
+
+const library = new Library();
+const blobs = new Map<string, Blob>();
+let downloads: { save(r: { filename: string; data: Blob }): Promise<unknown> } | null = null;
+void (window as Window & { claude?: { use(n: string): Promise<unknown> } }).claude
+  ?.use('downloads')
+  .then((d) => (downloads = d as typeof downloads));
 
 $('version').textContent = `Версия конвейера ${ALGO_VERSION}`;
 
@@ -85,10 +95,16 @@ for (const look of LOOKS) {
 const showSeed = () => ($('seed').textContent = String(state.seed));
 showSeed();
 
+function frameCount(): number {
+  return state.roll ? state.roll.n : Math.min(state.filesA.length, state.filesB.length);
+}
+
 function updateCounts() {
-  $('countA').textContent = `${state.filesA.length} фото`;
-  $('countB').textContent = `${state.filesB.length} фото`;
-  const n = Math.min(state.filesA.length, state.filesB.length);
+  $('countA').textContent = state.roll ? `${state.roll.namesA.length} фото` : `${state.filesA.length} фото`;
+  $('countB').textContent = state.roll ? `${state.roll.namesB.length} фото` : `${state.filesB.length} фото`;
+  const n = frameCount();
+  $('rollInfo').hidden = !state.roll;
+  if (state.roll) $('rollInfo').textContent = `Фото взяты из библиотеки: плёнка №${state.roll.number}. Выберите новые фото, чтобы начать другую плёнку.`;
   $('framesInfo').textContent = n
     ? `Кадров на плёнке: ${n}.` + (state.filesA.length !== state.filesB.length ? ' Лишние фото большей пачки не используются.' : '')
     : 'Выберите фото для обоих проходов. Кадров будет столько, сколько фото в меньшей пачки.';
@@ -97,10 +113,12 @@ function updateCounts() {
 
 $<HTMLInputElement>('passA').addEventListener('change', (e) => {
   state.filesA = [...((e.target as HTMLInputElement).files ?? [])];
+  state.roll = null;
   updateCounts();
 });
 $<HTMLInputElement>('passB').addEventListener('change', (e) => {
   state.filesB = [...((e.target as HTMLInputElement).files ?? [])];
+  state.roll = null;
   updateCounts();
 });
 
@@ -132,7 +150,7 @@ function readSettings(): RecipeSettings {
   };
 }
 
-async function decode(file: File, maxPx: number): Promise<ImageBitmap | HTMLCanvasElement> {
+async function decode(file: Blob, maxPx: number): Promise<ImageBitmap | HTMLCanvasElement> {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const scale = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
   if (scale === 1) return bmp;
@@ -149,8 +167,119 @@ function toUrl(img: ImageData): Promise<string> {
   c.width = img.width;
   c.height = img.height;
   c.getContext('2d')!.putImageData(img, 0, 0);
-  return new Promise((resolve) => c.toBlob((b) => resolve(URL.createObjectURL(b!)), 'image/jpeg', 0.9));
+  return new Promise((resolve) =>
+    c.toBlob(
+      (b) => {
+        const url = URL.createObjectURL(b!);
+        blobs.set(url, b!);
+        resolve(url);
+      },
+      'image/jpeg',
+      0.92,
+    ),
+  );
 }
+
+/** Снимок для библиотеки: уже повёрнутый по EXIF и уменьшенный до 4000 px JPEG. */
+async function toStored(file: File): Promise<Blob> {
+  const img = await decode(file, 4000);
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  c.getContext('2d')!.drawImage(img, 0, 0);
+  if (img instanceof ImageBitmap) img.close();
+  return new Promise((resolve) => c.toBlob((b) => resolve(b!), 'image/jpeg', 0.92));
+}
+
+// --- сохранение кадра ---
+async function saveImage(url: string, filename: string, button: HTMLButtonElement) {
+  const blob = blobs.get(url);
+  if (!blob) return;
+  const label = button.textContent;
+  try {
+    if (downloads) {
+      await downloads.save({ filename, data: blob });
+    } else {
+      const file = new File([blob], filename, { type: 'image/jpeg' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+      }
+    }
+    button.textContent = 'Сохранено';
+  } catch {
+    button.textContent = 'Не сохранилось';
+  }
+  setTimeout(() => (button.textContent = label), 2000);
+}
+
+const viewer = $('viewer');
+const viewerImg = $<HTMLImageElement>('viewerImg');
+let viewerFile = '';
+function openViewer(url: string, caption: string, filename: string) {
+  viewerImg.src = url;
+  viewerImg.alt = caption;
+  viewerFile = filename;
+  $('viewerCaption').textContent = caption;
+  viewer.hidden = false;
+}
+$('viewerClose').addEventListener('click', () => (viewer.hidden = true));
+viewer.addEventListener('click', (e) => e.target === viewer && (viewer.hidden = true));
+document.addEventListener('keydown', (e) => e.key === 'Escape' && (viewer.hidden = true));
+$('viewerSave').addEventListener('click', (e) => saveImage(viewerImg.src, viewerFile, e.currentTarget as HTMLButtonElement));
+
+// --- библиотека плёнок ---
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+async function renderLibrary() {
+  const box = $('library');
+  if (!library.available) {
+    box.innerHTML = '<p class="muted small">Библиотека недоступна в этом браузере.</p>';
+    return;
+  }
+  const rolls = await library.list();
+  if (!rolls.length) {
+    box.innerHTML = '<p class="muted small">Здесь появятся проявленные плёнки. Фото хранятся только на этом устройстве, в памяти браузера.</p>';
+    return;
+  }
+  box.innerHTML = '';
+  for (const roll of rolls) {
+    const likes = [...feedback.marks.values()].filter((m) => roll.seeds.includes(m.seed) && m.verdict === 'like').length;
+    const row = document.createElement('div');
+    row.className = 'roll' + (state.roll?.id === roll.id ? ' current' : '');
+    row.innerHTML = `<div class="roll-info"><b>Плёнка №${roll.number}</b><span>${roll.n} кадров · ${formatDate(roll.createdAt)} · проявок ${roll.seeds.length}${likes ? ` · 👍 ${likes}` : ''}</span><span class="roll-seeds">рецепты: ${roll.seeds.join(', ') || '—'}</span></div><div class="roll-actions"><button type="button" class="ghost again">Проявить снова</button><button type="button" class="ghost fresh">Новый рецепт</button><button type="button" class="ghost danger remove">Удалить</button></div>`;
+    const pick = async (seed: number) => {
+      state.roll = roll;
+      state.seed = seed;
+      showSeed();
+      updateCounts();
+      await develop();
+    };
+    row.querySelector('.again')!.addEventListener('click', () => pick(roll.seeds.at(-1) ?? randomSeed()));
+    row.querySelector('.fresh')!.addEventListener('click', () => pick(randomSeed()));
+    const remove = row.querySelector<HTMLButtonElement>('.remove')!;
+    remove.addEventListener('click', async () => {
+      if (remove.dataset.confirm !== '1') {
+        remove.dataset.confirm = '1';
+        remove.textContent = 'Точно удалить?';
+        return;
+      }
+      await library.remove(roll);
+      if (state.roll?.id === roll.id) state.roll = null;
+      updateCounts();
+      void renderLibrary();
+    });
+    box.append(row);
+  }
+}
+void library.init().then(renderLibrary);
+feedback.onChange(() => void renderLibrary());
 
 function thumbOf(img: ImageData): Promise<Blob> {
   const w = 640;
@@ -203,7 +332,7 @@ function describe(recipe: Recipe): string {
 let urls: string[] = [];
 
 async function develop() {
-  const n = Math.min(state.filesA.length, state.filesB.length);
+  const n = frameCount();
   const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked);
   if (!n || !looks.length) return;
   state.busy = true;
@@ -230,7 +359,29 @@ async function develop() {
     let done = 0;
     const tick = () => (progress.value = ++done / total);
 
-    const load = async (files: File[]) => {
+    // фото: из библиотеки или новые — тогда сначала сохраняем их как новую плёнку
+    let photosA: Blob[];
+    let photosB: Blob[];
+    if (state.roll) {
+      ({ a: photosA, b: photosB } = await library.photos(state.roll));
+    } else {
+      photosA = [];
+      photosB = [];
+      for (const f of state.filesA) photosA.push(await toStored(f));
+      for (const f of state.filesB) photosB.push(await toStored(f));
+      if (library.available) {
+        state.roll = await library.create(photosA, photosB, state.filesA.map((f) => f.name), state.filesB.map((f) => f.name));
+      }
+    }
+    if (state.roll) {
+      state.roll = await library.addSeed(state.roll, state.seed);
+      const r = state.roll;
+      void feedback.roll(r.id, { number: r.number, createdAt: r.createdAt, n: r.n, seeds: r.seeds, namesA: r.namesA, namesB: r.namesB, version: ALGO_VERSION });
+      updateCounts();
+      void renderLibrary();
+    }
+
+    const load = async (files: Blob[]) => {
       const out: Source[] = [];
       for (const f of files.slice(0, n)) {
         const img = await decode(f, sourcePx(ppm));
@@ -242,8 +393,8 @@ async function develop() {
       }
       return out;
     };
-    const srcA = await load(state.filesA);
-    const srcB = await load(state.filesB);
+    const srcA = await load(photosA);
+    const srcB = await load(photosB);
 
     const summary = document.createElement('p');
     summary.className = 'summary';
@@ -262,8 +413,18 @@ async function develop() {
         urls.push(url);
         const fig = document.createElement('figure');
         fig.className = 'variant';
-        fig.innerHTML = `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Кадр ${i + 1}, вариант ${look.id}" /></a><figcaption>Кадр ${i + 1} · вариант ${look.id} · рецепт ${recipe.seed}</figcaption>`;
-        fig.append(markControls(recipe, i + 1, look.id, look.name, thumbOf(img)));
+        const caption = `Кадр ${i + 1} · вариант ${look.id} · рецепт ${recipe.seed}`;
+        const filename = `multik-${recipe.seed}-${i + 1}${look.id}.jpg`;
+        fig.innerHTML = `<img src="${url}" alt="Кадр ${i + 1}, вариант ${look.id}" /><figcaption>${caption}</figcaption>`;
+        fig.querySelector('img')!.addEventListener('click', () => openViewer(url, caption, filename));
+        const controls = markControls(recipe, i + 1, look.id, look.name, thumbOf(img));
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'save';
+        saveBtn.textContent = 'Сохранить';
+        saveBtn.addEventListener('click', () => saveImage(url, filename, saveBtn));
+        controls.append(saveBtn);
+        fig.append(controls);
         grid.append(fig);
         refreshMarks();
         tick();

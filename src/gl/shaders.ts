@@ -174,7 +174,7 @@ uniform float uPpm;
 uniform float uHalSmall, uHalLarge, uBloom, uMottle, uExposure;
 uniform vec3 uHalTint;
 uniform vec3 uContrast, uOffset, uBlack, uWhite, uShadowTint, uHiTint;
-uniform float uSat, uHiSat;
+uniform float uSat, uHiSat, uClipLow, uClipHigh;
 uniform float uGrain, uGrainMm, uGrainChroma, uSeed;
 uniform int uDustCount;
 uniform vec3 uDust[32];
@@ -216,6 +216,7 @@ void main() {
   float ly = dot(y, LUMA);
   y = mix(vec3(ly), y, uSat * mix(1.0, uHiSat, smoothstep(0.65, 1.0, ly)));
   y += uShadowTint * (1.0 - ly) * (1.0 - ly) + uHiTint * ly * ly;
+  y = (y - uClipLow) / max(uClipHigh - uClipLow, 1e-3);
   vec3 col = mix(uBlack, uWhite, clamp(y, 0.0, 1.0));
 
   for (int i = 0; i < 32; i++) {

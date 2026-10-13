@@ -37,6 +37,9 @@ export interface Look {
   offsetStops: Vec3;
   black: Vec3;
   white: Vec3;
+  /** обрезка кривой: всё ниже clipLow — чистый чёрный, выше clipHigh — чистый белый (0 и 1 — без обрезки) */
+  clipLow: number;
+  clipHigh: number;
   saturation: number;
   highlightSaturation: number;
   shadowTint: Vec3;
@@ -72,6 +75,8 @@ const portraSoft: Look = {
   offsetStops: [0, 0.05, 0.18],
   black: [0.07, 0.06, 0.065],
   white: [0.975, 0.96, 0.92],
+  clipLow: 0,
+  clipHigh: 1,
   saturation: 1,
   highlightSaturation: 0.7,
   shadowTint: [-0.01, 0, 0.015],
@@ -150,4 +155,25 @@ const blown: Look = {
   halLarge: 0.9,
 };
 
-export const LOOKS: Look[] = [portraPunchy, burnt, blown, portraSoft, faded];
+// lab-0.4: кадр с чайкой (1-E, рецепт 519064) — «белое на белом должно сливаться в одно,
+// видно только чёрное, никаких белых окантовок; контраст выше, чёрное — чёрное».
+// Верх кривой обрезается в чистый белый (без кремового оттенка), низ — в чёрный:
+// граница кадра второго прохода внутри выгоревшей области исчезает.
+const merged: Look = {
+  ...blown,
+  id: 'F',
+  name: 'Белое сливается · чёрное чёрное',
+  note: 'выгоревшее сливается в один чистый белый без окантовок, чёрный без подъёма, контраст выше',
+  defaultOn: true,
+  contrast: [1.3, 1.27, 1.24],
+  black: [0.008, 0.008, 0.01],
+  white: [1, 1, 1],
+  clipLow: 0.04,
+  clipHigh: 0.86,
+  highlightSaturation: 0.3,
+  highlightTint: [0.01, 0.004, -0.008],
+  bloom: 0.06,
+  halLarge: 0.7,
+};
+
+export const LOOKS: Look[] = [merged, blown, burnt, portraPunchy, portraSoft, faded];
