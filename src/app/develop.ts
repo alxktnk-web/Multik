@@ -3,12 +3,13 @@
 
 import { makeRecipe } from '../core/recipe';
 import { Developer, type Source } from '../gl/pipeline';
-import { LOOKS, type Look } from '../looks';
+import { LOOKS, withWhiteMerge, type Look } from '../looks';
 import { getRoll, rollPhoto, saveFrame, type Development } from './store';
 
 export function lookFor(dev: Development): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
-  return { ...base, exposure: 2 ** (dev.params.exposureTenths / 10) };
+  const look = { ...base, exposure: 2 ** (dev.params.exposureTenths / 10) };
+  return dev.params.whiteMerge === undefined ? look : withWhiteMerge(look, dev.params.whiteMerge);
 }
 
 async function decode(blob: Blob, maxPx: number): Promise<ImageBitmap | HTMLCanvasElement> {

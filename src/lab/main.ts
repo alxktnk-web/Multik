@@ -3,7 +3,7 @@
 import { ALGO_VERSION, DEFAULT_SETTINGS, makeRecipe, type Recipe, type RecipeSettings } from '../core/recipe';
 import { randomSeed } from '../core/rng';
 import { Developer, type Source } from '../gl/pipeline';
-import { LOOKS } from '../looks';
+import { LOOKS, withWhiteMerge } from '../looks';
 import { Feedback, type Verdict } from './feedback';
 import { Library, type Roll } from './library';
 
@@ -121,6 +121,17 @@ $<HTMLInputElement>('passB').addEventListener('change', (e) => {
   state.roll = null;
   updateCounts();
 });
+
+const white = $<HTMLInputElement>('white');
+const whiteOn = $<HTMLInputElement>('whiteOn');
+const whiteLabel = () => ($('whiteOut').textContent = whiteOn.checked ? `${white.value} из 10` : 'как в варианте');
+white.addEventListener('input', whiteLabel);
+whiteOn.addEventListener('change', () => {
+  white.disabled = !whiteOn.checked;
+  whiteLabel();
+});
+/** слияние белого, с которым проявлена текущая плёнка (null — у каждого варианта своё) */
+let whiteLevel: number | null = null;
 
 const shift = $<HTMLInputElement>('shift');
 const shiftOut = $('shiftOut');
@@ -303,7 +314,7 @@ function markControls(recipe: Recipe, frame: number, lookId: string, lookName: s
   box.innerHTML = `<button type="button" class="like" aria-pressed="false" aria-label="Нравится">👍</button><button type="button" class="dislike" aria-pressed="false" aria-label="Не нравится">👎</button><input class="comment" id="c-${id}" type="text" placeholder="Комментарий" />`;
   const save = (verdict: Verdict, comment: string) =>
     feedback.save(
-      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) },
+      { version: ALGO_VERSION, seed: recipe.seed, frame, look: lookId, lookName, verdict, comment, shiftMm: Number(recipe.shiftMm.toFixed(1)), details: describe(recipe) + (whiteLevel === null ? '' : ` · слияние белого ${whiteLevel}`) },
       $<HTMLInputElement>('sendThumb').checked ? () => thumb : null,
     );
   const current = () => feedback.marks.get(id);
@@ -333,7 +344,10 @@ let urls: string[] = [];
 
 async function develop() {
   const n = frameCount();
-  const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked);
+  whiteLevel = whiteOn.checked ? Number(white.value) : null;
+  const looks = LOOKS.filter((l) => looksBox.querySelector<HTMLInputElement>(`input[value="${l.id}"]`)!.checked).map((l) =>
+    whiteLevel === null ? l : withWhiteMerge(l, whiteLevel),
+  );
   if (!n || !looks.length) return;
   state.busy = true;
   updateCounts();

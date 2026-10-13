@@ -55,6 +55,11 @@
         <label class="check"><input id="fog" type="checkbox" checked /> Засветка концов плёнки</label>
         <label class="check"><input id="dust" type="checkbox" checked /> Пыль и волоски</label>
         <label class="check"><input id="jitter" type="checkbox" checked /> Разброс экспозиции</label>
+        <label class="check"><input id="whiteOn" type="checkbox" checked /> Слияние белого для всех вариантов</label>
+        <div class="row">
+          <input id="white" type="range" min="0" max="10" step="1" value="6" aria-label="Слияние белого" />
+          <output id="whiteOut">6 из 10</output>
+        </div>
         <div class="row">
           <label>Размер кадра
             <select id="size">

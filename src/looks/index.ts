@@ -177,3 +177,18 @@ const merged: Look = {
 };
 
 export const LOOKS: Look[] = [merged, blown, burnt, portraPunchy, portraSoft, faded];
+
+/**
+ * «Слияние белого» 0…10: верх кривой обрезается в чистый белый тем раньше, чем выше значение.
+ * 0 — без обрезки, 6 ≈ вариант F, 10 — всё светлее ~¾ шкалы уходит в сплошной белый.
+ * При слиянии света выцветают в нейтральный белый, без кремового оттенка.
+ */
+export function withWhiteMerge(look: Look, level: number): Look {
+  const t = Math.max(0, Math.min(10, level)) / 10;
+  return {
+    ...look,
+    clipHigh: 1 - 0.25 * t,
+    white: look.white.map((c) => c + (1 - c) * t) as Vec3,
+    highlightSaturation: look.highlightSaturation * (1 - 0.6 * t),
+  };
+}

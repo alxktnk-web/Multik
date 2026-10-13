@@ -166,9 +166,9 @@ h1.large { margin: 2px 0 0; font-size: 34px; font-weight: 700; letter-spacing: 0
 .ticks i::after { content: ''; width: 1.5px; height: 14px; border-radius: 1px; background: #636366; }
 .ticks i.major::after { width: 2px; height: 26px; background: #fff; }
 .needle { position: absolute; left: 50%; top: 4px; margin-left: -1.5px; width: 3px; height: 36px; border-radius: 2px; background: var(--yellow); pointer-events: none; }
-.params { display: flex; justify-content: center; gap: 20px; }
+.params { display: flex; justify-content: center; gap: 12px; }
 .params button { border: none; background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #c7c7cc; }
-.params span { width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid #48484a; display: flex; align-items: center; justify-content: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.params span { width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid #48484a; display: flex; align-items: center; justify-content: center; font-size: 12px; font-variant-numeric: tabular-nums; }
 .params small { font-size: 11px; color: var(--d-muted); }
 .params .on span { border: 2px solid var(--yellow); color: var(--yellow); font-weight: 600; }
 .params .on small { color: var(--yellow); }

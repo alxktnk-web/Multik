@@ -31,7 +31,7 @@ const MIX_LOOKS = ['F', 'E', 'D', 'B'];
 const LOOK_NAMES: Record<string, string> = { F: 'Белое сливается', E: 'Пересвет', D: 'Плотная', B: 'Portra' };
 
 interface Param {
-  id: 'shift' | 'leaks' | 'exposure' | 'dust';
+  id: 'shift' | 'white' | 'leaks' | 'exposure' | 'dust';
   label: string;
   title: string;
   min: number;
@@ -43,6 +43,7 @@ interface Param {
 
 const PARAMS: Param[] = [
   { id: 'shift', label: 'Сдвиг', title: 'СДВИГ ВТОРОЙ ПЛЁНКИ', min: -36, max: 36, major: 6, fmt: (v) => `${v > 0 ? '+' : ''}${v} мм`, short: (v) => `${v > 0 ? '+' : ''}${v}` },
+  { id: 'white', label: 'Белое', title: 'СЛИЯНИЕ БЕЛОГО', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v} из 10 — ${v < 4 ? 'мягко' : v < 8 ? 'сливается' : 'сплошное белое'}` : 'выкл'), short: String },
   { id: 'leaks', label: 'Засветки', title: 'ЗАСВЕТКИ', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v} из 10 кадров` : 'нет'), short: String },
   { id: 'exposure', label: 'Пересвет', title: 'ПЕРЕСВЕТ', min: 0, max: 20, major: 5, fmt: (v) => `+${(v / 10).toFixed(1)} EV`, short: (v) => `+${(v / 10).toFixed(1)}` },
   { id: 'dust', label: 'Пыль', title: 'ПЫЛЬ И ВОЛОСКИ', min: 0, max: 10, major: 5, fmt: (v) => (v ? String(v) : 'нет'), short: String },
@@ -63,7 +64,7 @@ const state = {
     swap: false,
     look: 'F',
     param: 'shift' as Param['id'],
-    values: { shift: -12, leaks: 2, exposure: 8, dust: 4 } as Record<Param['id'], number>,
+    values: { shift: -12, white: 6, leaks: 2, exposure: 8, dust: 4 } as Record<Param['id'], number>,
     randomShift: true,
     flip: true,
     full: false,
@@ -378,6 +379,7 @@ async function startDevelopment(reuse?: Development) {
       params: {
         lookId: m.look,
         exposureTenths: m.values.exposure,
+        whiteMerge: m.values.white,
         ppm: m.full ? 111 : 56,
         settings: {
           ...DEFAULT_SETTINGS,

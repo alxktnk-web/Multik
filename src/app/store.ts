@@ -22,6 +22,8 @@ export interface DevParams {
   settings: RecipeSettings;
   /** пересвет в десятых ступени (0…20) поверх кривой вида */
   exposureTenths: number;
+  /** слияние белого 0…10: выше — близкие к белому яркости сливаются в сплошной белый */
+  whiteMerge?: number;
   ppm: number;
 }
 
