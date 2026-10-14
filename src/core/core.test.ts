@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FRAME_W, PITCH, expand, frameA, intersects } from './geometry';
-import { baseEdit, countChanges, curveTable, editedRecipe, leakEdge, moveLeak } from './edit';
+import { baseEdit, composeKey, countChanges, curveTable, editedRecipe, storedEdit } from './edit';
 import { DEFAULT_SETTINGS, balanceGains, makeRecipe, placements, sampleShift } from './recipe';
 import { Rng } from './rng';
 
@@ -159,22 +159,29 @@ describe('Правка кадра', () => {
     }
   });
 
-  it('поворот первого прохода на 180° касается только снимка этого кадра', () => {
+  it('поворот нижнего снимка на 180° касается только этого кадра, верхний — по правке', () => {
     const r = makeRecipe(6, 3, { ...DEFAULT_SETTINGS, exposureJitter: false });
     const shapes = Array.from({ length: 6 }, () => ({ portrait: false }));
-    const e = editedRecipe(r, 2, { ...baseEdit(r, 2, 4), rotateA: true });
-    const { a } = placements(e, shapes, shapes);
+    const base = baseEdit(r, 2, 4);
+    const e = editedRecipe(r, 2, { ...base, bottom: { ...base.bottom, rotate: true }, top: { ...base.top, rotate: false } });
+    const { a, b } = placements(e, shapes, shapes);
     expect(a.map((p) => p.turn)).toEqual([0, 0, 2, 0, 0, 0]);
+    expect(b.every((p) => p.turn === 0)).toBe(true);
   });
 
-  it('засветка переносится к другому краю того же кадра', () => {
-    const r = makeRecipe(6, 8);
-    const base = baseEdit(r, 2, 4);
-    const leak = { ...r.leaks[0], frame: 2, x: frameA(2).x - 0.5, dir: 1 as const };
-    expect(leakEdge(leak, 2)).toBe('left');
-    const moved = moveLeak(leak, 2, 'right');
-    expect(leakEdge(moved, 2)).toBe('right');
-    expect(moved.dir).toBe(-1);
-    expect(base.flip).toBe(r.settings.swapRotate);
+  it('настройки последнего шага не требуют повторного сложения снимков', () => {
+    const r = makeRecipe(6, 9);
+    const base = baseEdit(r, 1, 4);
+    const film = { ...base, mix: { ...base.mix, whites: 8, halo: 1.5, grain: 0, contrast: 0.3 } };
+    expect(composeKey(film)).toBe(composeKey(base));
+    const photo = { ...base, bottom: { ...base.bottom, contrast: 0.4 } };
+    expect(composeKey(photo)).not.toBe(composeKey(base));
+    expect(countChanges(photo, base)).toBe(1);
+  });
+
+  it('правки первой панели (v1) не подхватываются', () => {
+    expect(storedEdit({ balance: 1 })).toBeNull();
+    const r = makeRecipe(6, 9);
+    expect(storedEdit(baseEdit(r, 0, 4))).not.toBeNull();
   });
 });

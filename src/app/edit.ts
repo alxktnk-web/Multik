@@ -1,31 +1,30 @@
-// Панель правки готового кадра (макет «Multik — Edit panel», утверждён Александром 13.10.2026).
-// Пять разделов: Basic (крутилки), Overlay (наложение и свет), Leaks, Tone (кривые), Texture.
-// Пока крутишь — кадр пересчитывается из исходных снимков в уменьшенном размере; Done — полный размер.
+// Правка кадра — «пульт» (макет «Multik — Edit panel», v2, утверждён Александром 14.10.2026).
+// Сверху превью, ниже три канала: Bottom (снимок первой плёнки), Top (снимок второй), Mix (общее).
+// У снимков — свет, контраст, чёрное, белое, свечение, цвет, тепло, мягкость, поворот: всё до наложения,
+// поэтому в превью сразу видно, как меняется их взаимодействие. Done — кадр в полном размере.
 
 import {
-  EDIT_SECTIONS,
-  LEAK_KIND_NAMES,
   baseEdit,
   countChanges,
-  curveTable,
-  leakEdge,
-  moveLeak,
-  resetKeys,
+  editedRecipe,
+  storedEdit,
   type Channel,
-  type CurvePoint,
   type FrameEdit,
+  type MixEdit,
+  type PhotoEdit,
 } from '../core/edit';
 import { FRAME_W, frameA } from '../core/geometry';
-import { LEAK_KINDS, randomLeak, type LeakKind } from '../core/recipe';
+import { placements, randomLeak } from '../core/recipe';
 import { Rng, randomSeed } from '../core/rng';
 import { FrameRenderer, encode } from './develop';
-import { devOriginal, resetEditedFrame, saveEditedFrame, type Development } from './store';
+import { devOriginal, resetEditedFrame, rollThumb, saveEditedFrame, type Development } from './store';
 
-type Tab = keyof typeof EDIT_SECTIONS;
+type IconId = 'sun' | 'contrast' | 'black' | 'white' | 'halo' | 'leak' | 'grain' | 'dust' | 'drop' | 'warm' | 'soft';
 
-interface Slider {
-  key: string;
+interface Control {
+  id: string;
   label: string;
+  icon: IconId;
   min: number;
   max: number;
   step: number;
@@ -33,41 +32,91 @@ interface Slider {
   get: (e: FrameEdit) => number;
   set: (e: FrameEdit, v: number) => void;
   fmt: (v: number) => string;
-  ends?: [string, string];
+  /** цвет дуги крутилки */
+  tint?: string;
 }
 
-const signed = (v: number, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
-const pct = (v: number) => `${Math.round(v * 100)}`;
-
-const ICON = {
-  basic: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v16"/></svg>',
-  overlay: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="12" height="10" rx="1.5"/><rect x="9" y="9" width="12" height="10" rx="1.5"/></svg>',
-  leaks: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M20 3v18"/><path d="M20 6c-5 1-9 3-12 6 3 3 7 5 12 6"/></svg>',
-  tone: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 20C9 20 8 4 21 4"/><circle cx="9" cy="14" r="1.6" fill="currentColor"/></svg>',
-  texture: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="7" r="1.3"/><circle cx="12" cy="5" r="1"/><circle cx="17" cy="9" r="1.4"/><circle cx="8" cy="13" r="1"/><circle cx="14" cy="14" r="1.3"/><circle cx="19" cy="17" r="1"/><circle cx="7" cy="19" r="1.4"/><circle cx="13" cy="20" r="1"/></svg>',
-  balance: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>',
-  exposure: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
-  whites: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></svg>',
-  original: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>',
-  undo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
-  redo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>',
-  rotate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
-  plus: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
-  dice: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>',
+const ICONS: Record<IconId | 'x' | 'check' | 'undo' | 'original' | 'rotate' | 'shift' | 'dice' | 'mix', string> = {
+  sun: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+  contrast: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></svg>',
+  black: '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>',
+  white: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></svg>',
+  halo: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/></svg>',
+  leak: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M20 3v18"/><path d="M20 6c-5 1-9 3-12 6 3 3 7 5 12 6"/></svg>',
+  grain: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="7" r="1.4"/><circle cx="12" cy="5" r="1"/><circle cx="17" cy="9" r="1.5"/><circle cx="8" cy="13" r="1"/><circle cx="14" cy="14" r="1.4"/><circle cx="19" cy="17" r="1"/><circle cx="7" cy="19" r="1.5"/><circle cx="13" cy="20" r="1"/></svg>',
+  dust: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="6" r="0.9" fill="currentColor"/><path d="M5 18c4-2 8 1 14-3"/></svg>',
+  drop: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>',
+  warm: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/></svg>',
+  soft: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="9" stroke-opacity="0.4"/></svg>',
+  x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  check: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  undo: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
+  original: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>',
+  rotate: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
+  shift: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>',
+  dice: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>',
+  mix: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>',
 };
 
-/** Крутилки раздела Basic: значения шкалы — целые шаги (как у «Смешать»). */
-interface Dial {
-  id: 'balance' | 'exposure' | 'whites' | 'leakGain';
-  label: string;
-  title: string;
-  icon: string;
-  min: number;
-  max: number;
-  major: number;
-  toStep: (e: FrameEdit) => number;
-  fromStep: (e: FrameEdit, s: number) => void;
-  fmt: (e: FrameEdit) => string;
+const sign = (v: number, d = 0) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(d)}`;
+const pct = (v: number) => `${Math.round(v * 100)}`;
+const hundred = (v: number) => sign(v * 100);
+
+function photoControls(ch: 'bottom' | 'top'): { faders: Control[]; knobs: Control[] } {
+  const p = (e: FrameEdit): PhotoEdit => e[ch];
+  const c = (id: keyof PhotoEdit, label: string, icon: IconId, min: number, max: number, step: number, fmt: (v: number) => string, bipolar = false, tint?: string): Control => ({
+    id: `${ch}.${id}`,
+    label,
+    icon,
+    min,
+    max,
+    step,
+    bipolar,
+    tint,
+    fmt,
+    get: (e) => p(e)[id] as number,
+    set: (e, v) => ((p(e) as unknown as Record<string, number>)[id] = v),
+  });
+  return {
+    faders: [
+      c('light', 'Light', 'sun', -2, 2, 0.1, (v) => sign(v, 1), true),
+      c('contrast', 'Contrast', 'contrast', -1, 1, 0.01, hundred, true),
+      c('black', 'Black', 'black', -1, 1, 0.01, hundred, true),
+      c('whites', 'Whites', 'white', -1, 1, 0.01, hundred, true),
+      c('glow', 'Glow', 'halo', 0, 2, 0.05, pct),
+    ],
+    knobs: [
+      c('color', 'Colour', 'drop', -1, 1, 0.01, hundred, true, ch === 'top' ? '#64d2ff' : '#ffb340'),
+      c('warmth', 'Warmth', 'warm', -1, 1, 0.01, hundred, true, '#ff9f0a'),
+      c('soft', 'Soft', 'soft', 0, 1, 0.01, pct, false, '#ffffff'),
+    ],
+  };
+}
+
+function mixControls(): { faders: Control[]; knobs: Control[] } {
+  const c = (id: keyof MixEdit, label: string, icon: IconId, min: number, max: number, step: number, fmt: (v: number) => string, bipolar = false): Control => ({
+    id: `mix.${id}`,
+    label,
+    icon,
+    min,
+    max,
+    step,
+    bipolar,
+    tint: '#ffffff',
+    fmt,
+    get: (e) => e.mix[id],
+    set: (e, v) => (e.mix[id] = v),
+  });
+  return {
+    faders: [
+      c('whites', 'Whites', 'white', 0, 10, 1, (v) => String(v)),
+      c('halo', 'Halo', 'halo', 0, 2, 0.05, pct),
+      c('leaks', 'Leaks', 'leak', 0, 2, 0.05, pct),
+      c('contrast', 'Contrast', 'contrast', -1, 1, 0.01, hundred, true),
+      c('black', 'Black', 'black', -1, 1, 0.01, hundred, true),
+    ],
+    knobs: [c('grain', 'Grain', 'grain', 0, 2, 0.05, pct), c('dust', 'Dust', 'dust', 0, 1, 0.05, pct), c('glow', 'Glow', 'soft', 0, 2, 0.05, pct)],
+  };
 }
 
 export interface EditorHost {
@@ -81,70 +130,47 @@ export async function openEditor(host: EditorHost): Promise<void> {
   const { app, frame: i } = host;
   let dev = host.dev;
   const fullPpm = dev.params.ppm;
-  app.innerHTML = `<div class="screen dark edit"><div class="edit-busy"><span class="spinner"></span>Opening frame…</div></div>`;
+  app.innerHTML = `<div class="screen dark mixer"><div class="edit-busy"><span class="spinner"></span></div></div>`;
 
   let renderer: FrameRenderer;
   try {
     renderer = await FrameRenderer.open(dev, 1700);
   } catch (e) {
-    app.innerHTML = `<div class="screen dark edit"><div class="edit-busy">${(e as Error).message}<button type="button" class="capsule glass" data-ed="close">Back</button></div></div>`;
-    app.querySelector('[data-ed="close"]')?.addEventListener('click', () => host.onClose(dev, false));
+    app.innerHTML = `<div class="screen dark mixer"><div class="edit-busy">${esc((e as Error).message)}<button type="button" class="capsule glass" data-ed="cancel">Back</button></div></div>`;
+    app.querySelector('[data-ed="cancel"]')?.addEventListener('click', () => host.onClose(dev, false));
     return;
   }
   const recipe = renderer.recipe;
   const base = baseEdit(recipe, i, dev.params.whiteMerge ?? 0);
-  // правка из старой версии могла не знать новых полей — дополняем значениями проявки
-  let edit: FrameEdit = structuredClone({ ...base, ...dev.edits?.[i] });
+  const saved = storedEdit(dev.edits?.[i]);
+  let edit: FrameEdit = structuredClone(saved ?? base);
   const hadEdit = !!dev.edits?.[i];
   const undo: FrameEdit[] = [];
-  const redo: FrameEdit[] = [];
   let snapshot = structuredClone(edit);
-  let tab: Tab = 'basic';
-  let dial: Dial['id'] = 'balance';
-  let leakSel = 0;
-  let channel: Channel = 'l';
-  const nameA = dev.titleA;
-  const nameB = dev.titleB;
+  let channel: Channel = 'bottom';
+  const rng = new Rng(randomSeed());
+
+  // миниатюры снимков этого кадра: нижний — кадр первой плёнки, верхний — тот кадр второй, что больше всего в окне
+  const shapes = {
+    a: renderer.rolls[0].photos.map((p) => ({ portrait: p.h > p.w })),
+    b: renderer.rolls[1].photos.map((p) => ({ portrait: p.h > p.w })),
+  };
+  const { b: placedB } = placements(editedRecipe(recipe, i, base), shapes.a, shapes.b);
+  const f = frameA(i);
+  const mainB = placedB.reduce((best, p) => {
+    const ov = Math.max(0, Math.min(p.rect.x + p.rect.w, f.x + f.w) - Math.max(p.rect.x, f.x));
+    return ov > best.ov ? { ov, photo: p.photo } : best;
+  }, { ov: -1, photo: 0 }).photo;
+  const [thumbA, thumbB] = await Promise.all([rollThumb(dev.rollA, recipe.orderA[i]), rollThumb(dev.rollB, mainB)]);
+  const urlA = thumbA ? URL.createObjectURL(thumbA) : '';
+  const urlB = thumbB ? URL.createObjectURL(thumbB) : '';
 
   const previewPx = Math.min(1400, Math.round(Math.min(window.innerWidth, 760) * Math.min(window.devicePixelRatio || 1, 3)));
   const ppm = previewPx / FRAME_W;
 
-  const DIALS: Dial[] = [
-    { id: 'balance', label: 'Balance', title: 'BALANCE A ↔ B', icon: ICON.balance, min: -20, max: 20, major: 5,
-      toStep: (e) => Math.round(e.balance * 10), fromStep: (e, s) => (e.balance = s / 10),
-      fmt: (e) => (e.balance === 0 ? 'even' : `${e.balance > 0 ? 'A' : 'B'} +${Math.abs(e.balance).toFixed(1)}`) },
-    { id: 'exposure', label: 'Exposure', title: 'EXPOSURE', icon: ICON.exposure, min: -20, max: 20, major: 5,
-      toStep: (e) => Math.round(e.exposure * 10), fromStep: (e, s) => (e.exposure = s / 10), fmt: (e) => `${signed(e.exposure)} EV` },
-    { id: 'whites', label: 'Whites', title: 'WHITE MERGE', icon: ICON.whites, min: 0, max: 10, major: 5,
-      toStep: (e) => e.whites, fromStep: (e, s) => (e.whites = s), fmt: (e) => (e.whites ? `${e.whites}/10` : 'off') },
-    { id: 'leakGain', label: 'Leak', title: 'LEAK STRENGTH', icon: ICON.leaks, min: 0, max: 20, major: 5,
-      toStep: (e) => Math.round(e.leakGain * 10), fromStep: (e, s) => (e.leakGain = s / 10), fmt: (e) => `${pct(e.leakGain)}%` },
-  ];
-
-  const SLIDERS: Record<string, Slider> = {
-    balance: { key: 'balance', label: 'Balance', min: -2, max: 2, step: 0.1, bipolar: true, get: (e) => e.balance, set: (e, v) => (e.balance = v),
-      fmt: (v) => (v === 0 ? 'even' : `${v > 0 ? 'A' : 'B'} +${Math.abs(v).toFixed(1)}`), ends: [nameA, nameB] },
-    shiftMm: { key: 'shiftMm', label: 'Shift of 2nd pass', min: -36, max: 36, step: 0.5, bipolar: true, get: (e) => e.shiftMm, set: (e, v) => (e.shiftMm = v), fmt: (v) => `${signed(v)} mm` },
-    exposure: { key: 'exposure', label: 'Exposure', min: -2, max: 2, step: 0.1, bipolar: true, get: (e) => e.exposure, set: (e, v) => (e.exposure = v), fmt: (v) => `${signed(v)} EV` },
-    whites: { key: 'whites', label: 'Whites merge', min: 0, max: 10, step: 1, get: (e) => e.whites, set: (e, v) => (e.whites = v), fmt: (v) => (v ? `${v}` : 'off') },
-    halation: { key: 'halation', label: 'Halation', min: 0, max: 2, step: 0.05, get: (e) => e.halation, set: (e, v) => (e.halation = v), fmt: pct },
-    glow: { key: 'glow', label: 'Glow', min: 0, max: 2, step: 0.05, get: (e) => e.glow, set: (e, v) => (e.glow = v), fmt: pct },
-    black: { key: 'black', label: 'Black point', min: -100, max: 100, step: 1, bipolar: true, get: (e) => e.black, set: (e, v) => (e.black = v), fmt: (v) => signed(v, 0) },
-    contrast: { key: 'contrast', label: 'Contrast', min: -100, max: 100, step: 1, bipolar: true, get: (e) => e.contrast, set: (e, v) => (e.contrast = v), fmt: (v) => signed(v, 0) },
-    saturation: { key: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, bipolar: true, get: (e) => e.saturation, set: (e, v) => (e.saturation = v), fmt: (v) => signed(v, 0) },
-    warmth: { key: 'warmth', label: 'Highlight warmth', min: -100, max: 100, step: 1, bipolar: true, get: (e) => e.warmth, set: (e, v) => (e.warmth = v), fmt: (v) => signed(v, 0) },
-    grain: { key: 'grain', label: 'Grain', min: 0, max: 2, step: 0.05, get: (e) => e.grain, set: (e, v) => (e.grain = v), fmt: pct },
-    dust: { key: 'dust', label: 'Dust & hairs', min: 0, max: 1, step: 0.05, get: (e) => e.dust, set: (e, v) => (e.dust = v), fmt: pct },
-    leakStrength: { key: 'leakStrength', label: 'Strength', min: 0, max: 4, step: 0.05, get: (e) => e.leaks[leakSel]?.strength ?? 0, set: (e, v) => e.leaks[leakSel] && (e.leaks[leakSel].strength = v), fmt: (v) => `${Math.round(v * 25)}` },
-    leakWidth: { key: 'leakWidth', label: 'Width', min: 2, max: 30, step: 0.5, get: (e) => e.leaks[leakSel]?.width ?? 0, set: (e, v) => e.leaks[leakSel] && (e.leaks[leakSel].width = v), fmt: (v) => `${v.toFixed(1)} mm` },
-    leakHue: { key: 'leakHue', label: 'Colour', min: 0, max: 1, step: 0.01, get: (e) => e.leaks[leakSel]?.hue ?? 0, set: (e, v) => e.leaks[leakSel] && (e.leaks[leakSel].hue = v),
-      fmt: (v) => (v < 0.3 ? 'orange' : v < 0.65 ? 'red' : 'magenta') },
-  };
-
-  // --- предпросмотр ---
+  // --- предпросмотр: не больше одного пересчёта одновременно, последний запрос не теряется ---
   let busy = false;
   let pending = false;
-  let failed = '';
   let lastImg: ImageData | null = null;
   async function draw() {
     if (busy) {
@@ -153,21 +179,11 @@ export async function openEditor(host: EditorHost): Promise<void> {
     }
     busy = true;
     try {
-      const img = await renderer.render(i, edit, ppm);
-      lastImg = img;
-      const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas');
-      if (cv) {
-        if (cv.width !== img.width || cv.height !== img.height) {
-          cv.width = img.width;
-          cv.height = img.height;
-        }
-        cv.getContext('2d')!.putImageData(img, 0, 0);
-      }
-      failed = '';
+      lastImg = await renderer.render(i, edit, ppm);
+      putPreview();
     } catch (e) {
-      failed = (e as Error).message;
-      const n = app.querySelector('.edit-count');
-      if (n) n.textContent = failed;
+      const c = app.querySelector('.edit-count');
+      if (c) c.textContent = (e as Error).message;
     }
     busy = false;
     if (pending) {
@@ -175,301 +191,232 @@ export async function openEditor(host: EditorHost): Promise<void> {
       void draw();
     }
   }
+  function putPreview() {
+    const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas');
+    if (!cv || !lastImg) return;
+    if (cv.width !== lastImg.width || cv.height !== lastImg.height) {
+      cv.width = lastImg.width;
+      cv.height = lastImg.height;
+    }
+    cv.getContext('2d')!.putImageData(lastImg, 0, 0);
+  }
 
-  // --- история ---
   function commit() {
     if (JSON.stringify(snapshot) === JSON.stringify(edit)) return;
     undo.push(snapshot);
-    redo.length = 0;
     snapshot = structuredClone(edit);
-    updateMeta();
-  }
-  function setEdit(next: FrameEdit) {
-    edit = next;
-    snapshot = structuredClone(edit);
-    leakSel = Math.min(leakSel, Math.max(0, edit.leaks.length - 1));
-    paint();
-    void draw();
+    const u = app.querySelector<HTMLButtonElement>('[data-ed="undo"]');
+    if (u) u.disabled = false;
   }
 
-  function updateMeta() {
-    const n = countChanges(edit, base);
-    const c = app.querySelector('.edit-count');
-    if (c && !failed) c.textContent = n ? `${n} edit${n === 1 ? '' : 's'}` : 'No edits';
-    app.querySelector<HTMLButtonElement>('[data-ed="undo"]')!.disabled = !undo.length;
-    app.querySelector<HTMLButtonElement>('[data-ed="redo"]')!.disabled = !redo.length;
-  }
+  const controls = () => (channel === 'mix' ? mixControls() : photoControls(channel));
+  const all = () => {
+    const c = controls();
+    return [...c.faders, ...c.knobs];
+  };
+  const changed = (c: Control) => Math.abs(c.get(edit) - c.get(base)) > 1e-6;
+  const frac = (c: Control, v: number) => (v - c.min) / (c.max - c.min);
 
-  // --- разметка ---
-  function sliderHtml(s: Slider): string {
-    const v = s.get(edit);
-    const changed = s.key.startsWith('leak') ? false : v !== s.get(base);
-    return `<div class="eslider${changed ? ' changed' : ''}" data-slider="${s.key}">
-      <label><span>${s.label}</span><output>${s.fmt(v)}</output></label>
-      <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${v}" aria-label="${s.label}" style="${trackStyle(s, v, changed)}">
-      ${s.ends ? `<div class="eends"><span>${esc(s.ends[0])} (A)</span><span>${esc(s.ends[1])} (B)</span></div>` : ''}
+  function faderHtml(c: Control): string {
+    return `<div class="fader${changed(c) ? ' on' : ''}" data-c="${c.id}">
+      <output>${c.fmt(c.get(edit))}</output>
+      <div class="ftrack" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
+        ${c.bipolar ? '<i class="fzero"></i>' : ''}<i class="ffill"></i><i class="fcap"></i>
+      </div>
+      <span class="ficon">${ICONS[c.icon]}</span><small>${c.label}</small>
     </div>`;
   }
-  function trackStyle(s: Slider, v: number, changed: boolean): string {
-    const at = ((v - s.min) / (s.max - s.min)) * 100;
-    const from = s.bipolar ? Math.min(50, at) : 0;
-    const to = s.bipolar ? Math.max(50, at) : at;
-    const fill = changed ? '#ffd60a' : 'rgba(255,255,255,0.75)';
-    const rest = 'rgba(118,118,128,0.32)';
-    return `--track: linear-gradient(90deg, ${rest} ${from}%, ${fill} ${from}%, ${fill} ${to}%, ${rest} ${to}%)`;
-  }
-  function group(title: string, keys: string[], resetKeys: (keyof FrameEdit)[], extra = ''): string {
-    return `<section class="egroup">
-      <div class="egroup-head"><h2>${title}</h2><button type="button" data-ed="reset" data-arg="${resetKeys.join(',')}">Reset</button></div>
-      ${keys.map((k) => sliderHtml(SLIDERS[k])).join('')}${extra}
-    </section>`;
-  }
-  function toggle(label: string, on: boolean, action: string): string {
-    return `<div class="etoggle"><span>${label}</span><button type="button" role="switch" aria-checked="${on}" aria-label="${label}" data-ed="${action}"><i></i></button></div>`;
+  function knobHtml(c: Control): string {
+    return `<div class="knob${changed(c) ? ' on' : ''}" data-c="${c.id}" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
+      <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true">
+        <circle cx="27" cy="27" r="23" fill="#1c1c1e" stroke="rgba(255,255,255,0.10)" stroke-width="4"/>
+        <circle class="karc" cx="27" cy="27" r="23" fill="none" stroke="${c.tint ?? '#fff'}" stroke-width="4" stroke-linecap="round"/>
+        <line class="kptr" x1="27" y1="27" x2="27" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="27" cy="27" r="4" fill="#fff"/>
+      </svg>
+      <small>${c.label}</small>
+    </div>`;
   }
 
-  function panelHtml(): string {
-    if (tab === 'basic') {
-      const d = DIALS.find((x) => x.id === dial)!;
-      const ticks = Array.from({ length: d.max - d.min + 1 }, (_, k) => `<i class="${k % d.major === 0 ? 'major' : ''}"></i>`).join('');
-      return `<div class="ebasic">
-        <div class="ebasic-head"><small>${d.title}</small><b id="dial-value">${d.fmt(edit)}</b></div>
-        <div class="edials">${DIALS.map((x) => dialHtml(x)).join('')}</div>
-        <div class="dial-wrap"><div class="dial" id="edit-dial"><div class="ticks">${ticks}</div></div><div class="needle"></div></div>
-        <div class="erotate">
-          <button type="button" data-ed="rotateA" aria-pressed="${edit.rotateA}">${ICON.rotate}<span>Rotate A 180°</span></button>
-          <button type="button" data-ed="flip" aria-pressed="${edit.flip}">${ICON.rotate}<span>Rotate B 180°</span></button>
-        </div>
-        <div class="center"><button type="button" class="ereset" data-ed="reset" data-arg="${EDIT_SECTIONS.basic.join(',')}">Reset Basic</button></div>
+  /** Обновляет вид одного регулятора без перерисовки экрана (иначе оборвётся жест). */
+  function updateControl(c: Control) {
+    const el = app.querySelector<HTMLElement>(`[data-c="${c.id}"]`);
+    if (!el) return;
+    const v = c.get(edit);
+    el.classList.toggle('on', changed(c));
+    const slider = el.matches('[role="slider"]') ? el : el.querySelector<HTMLElement>('[role="slider"]');
+    slider?.setAttribute('aria-valuenow', String(v));
+    const t = frac(c, v);
+    if (el.classList.contains('fader')) {
+      el.querySelector('output')!.textContent = c.fmt(v);
+      const fill = el.querySelector<HTMLElement>('.ffill')!;
+      if (c.bipolar) {
+        fill.style.top = `${Math.min(50, (1 - t) * 100)}%`;
+        fill.style.height = `${Math.abs(t - 0.5) * 100}%`;
+        fill.style.bottom = '';
+      } else {
+        fill.style.top = '';
+        fill.style.bottom = '0';
+        fill.style.height = `${t * 100}%`;
+      }
+      el.querySelector<HTMLElement>('.fcap')!.style.top = `${(1 - t) * 100}%`;
+    } else {
+      const C = 2 * Math.PI * 23;
+      const arc = el.querySelector<SVGCircleElement>('.karc')!;
+      if (c.bipolar) {
+        const len = Math.abs(t - 0.5) * 0.75 * C;
+        arc.setAttribute('stroke-dasharray', `${len.toFixed(1)} ${C.toFixed(1)}`);
+        arc.setAttribute('transform', `rotate(${t >= 0.5 ? 270 : 270 - (0.5 - t) * 270} 27 27)`);
+      } else {
+        arc.setAttribute('stroke-dasharray', `${(t * 0.75 * C).toFixed(1)} ${C.toFixed(1)}`);
+        arc.setAttribute('transform', 'rotate(135 27 27)');
+      }
+      const ang = ((135 + t * 270) * Math.PI) / 180;
+      const ptr = el.querySelector('.kptr')!;
+      ptr.setAttribute('x2', (27 + 15 * Math.cos(ang)).toFixed(1));
+      ptr.setAttribute('y2', (27 + 15 * Math.sin(ang)).toFixed(1));
+    }
+  }
+
+  function actionsHtml(): string {
+    if (channel === 'mix') {
+      return `<div class="mactions">
+        <button type="button" class="mpill shift${Math.abs(edit.mix.shiftMm - base.mix.shiftMm) > 1e-6 ? ' on' : ''}" data-ed="shift" aria-label="Shift the top photo: drag left or right">${ICONS.shift}<span>${sign(edit.mix.shiftMm)} mm</span></button>
+        <button type="button" class="mpill" data-ed="dice" aria-label="New random light leak">${ICONS.dice}<span>Leak</span></button>
       </div>`;
     }
-    if (tab === 'overlay') {
-      return group('OVERLAY', ['balance', 'shiftMm'], ['balance', 'shiftMm', 'rotateA', 'flip'],
-        toggle(`Rotate 1st pass 180° · ${esc(nameA)}`, edit.rotateA, 'rotateA') + toggle(`Rotate 2nd pass 180° · ${esc(nameB)}`, edit.flip, 'flip')) +
-        group('LIGHT', ['exposure', 'whites', 'halation', 'glow'], ['exposure', 'whites', 'halation', 'glow']);
-    }
-    if (tab === 'texture') return group('TEXTURE', ['grain', 'dust'], ['grain', 'dust']);
-    if (tab === 'tone') {
-      return `<section class="egroup">
-          <div class="egroup-head"><h2>CURVE</h2>
-            <div class="echannels" role="radiogroup" aria-label="Curve channel">
-              ${(['l', 'r', 'g', 'b'] as Channel[]).map((c) => `<button type="button" role="radio" aria-checked="${c === channel}" aria-label="${{ l: 'Luminance', r: 'Red', g: 'Green', b: 'Blue' }[c]} curve" class="ch-${c}" data-ed="channel" data-arg="${c}"></button>`).join('')}
-            </div>
-            <button type="button" data-ed="reset" data-arg="curves">Reset</button>
-          </div>
-          <div class="ecurve" id="edit-curve">${curveSvg()}</div>
-          <p class="ehint">Tap to add a point · drag to move · drag off the box to remove</p>
-        </section>` + group('TONE', ['black', 'contrast', 'saturation', 'warmth'], ['black', 'contrast', 'saturation', 'warmth']);
-    }
-    // засветки
-    const chips = edit.leaks
-      .map((l, k) => `<button type="button" class="echip${k === leakSel ? ' on' : ''}${l.off ? ' off' : ''}" aria-pressed="${k === leakSel}" data-ed="leak" data-arg="${k}">${k + 1} · ${LEAK_KIND_NAMES[l.kind]}</button>`)
-      .join('');
-    const l = edit.leaks[leakSel];
-    const card = l
-      ? `<section class="egroup">
-        ${toggle(`Leak ${leakSel + 1} on`, !l.off, 'leakOn')}
-        <div class="eseg" role="radiogroup" aria-label="Leak type">${LEAK_KINDS.map((k) => `<button type="button" role="radio" aria-checked="${k === l.kind}" data-ed="kind" data-arg="${k}">${LEAK_KIND_NAMES[k]}</button>`).join('')}</div>
-        ${sliderHtml(SLIDERS.leakStrength)}${sliderHtml(SLIDERS.leakWidth)}
-        <div class="eslider hue" data-slider="leakHue"><label><span>Colour</span><output>${SLIDERS.leakHue.fmt(l.hue)}</output></label>
-          <input type="range" min="0" max="1" step="0.01" value="${l.hue}" aria-label="Leak colour"></div>
-        <div class="erow"><span>Edge</span><div class="eseg small" role="radiogroup" aria-label="Edge">${(['left', 'right'] as const).map((e) => `<button type="button" role="radio" aria-checked="${leakEdge(l, i) === e}" data-ed="edge" data-arg="${e}">${e === 'left' ? 'Left' : 'Right'}</button>`).join('')}</div></div>
-        <div class="ebuttons"><button type="button" data-ed="variant">${ICON.dice}Another variant</button><button type="button" class="danger" data-ed="removeLeak">Remove</button></div>
-      </section>`
-      : `<p class="ehint big">No light leaks on this frame. Add one — it comes out random each time.</p>`;
-    return `<div class="echips">${chips}<button type="button" class="echip add" data-ed="addLeak">${ICON.plus}Add leak</button></div>${card}`;
+    const on = edit[channel].rotate;
+    return `<div class="mactions"><button type="button" class="mpill${on ? ' on' : ''}" data-ed="rotate" aria-pressed="${on}" aria-label="Rotate this photo 180°">${ICONS.rotate}<span>180°</span></button></div>`;
   }
 
-  function dialHtml(d: Dial): string {
-    const s = d.toStep(edit);
-    const zero = d.toStep(base);
-    const frac = Math.abs(s - zero) / (d.max - d.min);
-    const on = d.id === dial;
-    const color = on ? '#ffd60a' : d.id === 'leakGain' ? '#ff5a36' : '#ffffff';
-    const ring = frac > 0 ? `<circle cx="28" cy="28" r="25" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${(frac * 157).toFixed(1)} 157" transform="rotate(-90 28 28)"/>` : '';
-    return `<button type="button" class="edial${on ? ' on' : ''}" data-ed="dial" data-arg="${d.id}" aria-pressed="${on}">
-      <span><svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="25" fill="${on ? 'rgba(255,214,10,0.12)' : 'rgba(118,118,128,0.24)'}" stroke="${on ? 'rgba(255,214,10,0.25)' : 'rgba(255,255,255,0.12)'}" stroke-width="3"/>${ring}</svg>${d.icon}</span>
-      <small>${d.label}</small></button>`;
-  }
-
-  // кривая: 300 × 180 в координатах SVG
-  const CW = 300;
-  const CH = 180;
-  function curveSvg(): string {
-    const pts = edit.curves[channel];
-    const table = curveTable(pts);
-    const color = { l: '#ffffff', r: '#ff453a', g: '#30d158', b: '#0a84ff' }[channel];
-    let d = '';
-    for (let k = 0; k <= 60; k++) {
-      const x = k / 60;
-      const y = table[Math.round(x * 255)];
-      d += `${k ? 'L' : 'M'}${(x * CW).toFixed(1)} ${((1 - y) * CH).toFixed(1)}`;
-    }
-    const grid = [0.25, 0.5, 0.75].map((g) => `M${g * CW} 0V${CH}M0 ${g * CH}H${CW}`).join('');
-    return `<svg viewBox="-8 -8 ${CW + 16} ${CH + 16}" role="img" aria-label="Tone curve">
-      <path d="${grid}" stroke="rgba(235,235,245,0.1)" stroke-width="1"/>
-      <path d="M0 ${CH}L${CW} 0" stroke="rgba(235,235,245,0.22)" stroke-dasharray="4 4"/>
-      <path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"/>
-      ${pts.map(([x, y], k) => `<circle cx="${x * CW}" cy="${(1 - y) * CH}" r="${k === dragIdx ? 9 : 7}" fill="${k === dragIdx ? '#ffd60a' : color}" stroke="#000" stroke-width="1.5"/>`).join('')}
-    </svg>`;
-  }
-  let dragIdx = -1;
-
-  function overlayMarks(): string {
-    if (tab !== 'leaks') return '';
-    const used: Record<string, number[]> = { left: [], right: [] };
-    return edit.leaks
-      .map((l, k) => {
-        const side = leakEdge(l, i);
-        let top = l.yCenter < 0 ? 6 : Math.max(4, Math.min(86, l.yCenter * 100 - 5));
-        // метки у одного края не должны закрывать друг друга
-        while (used[side].some((t) => Math.abs(t - top) < 9)) top = top + 10 > 90 ? top - 10 : top + 10;
-        used[side].push(top);
-        return `<span class="emark${k === leakSel ? ' on' : ''}${l.off ? ' off' : ''}" style="${side}: 8px; top: ${top}%">${k + 1}</span>`;
-      })
-      .join('');
+  function tabHtml(ch: Channel): string {
+    const on = ch === channel;
+    const label = { bottom: 'Bottom', top: 'Top', mix: 'Mix' }[ch];
+    const url = ch === 'bottom' ? urlA : urlB;
+    const rot = ch === 'bottom' ? edit.bottom.rotate : ch === 'top' ? edit.top.rotate : false;
+    const art = ch === 'mix' ? ICONS.mix : url ? `<img src="${url}" alt="" class="${rot ? 'rot' : ''}">` : '';
+    return `<button type="button" role="tab" aria-selected="${on}" class="mtab${on ? ' on' : ''}" data-ed="channel" data-arg="${ch}"><span class="mthumb">${art}</span><small>${label}</small></button>`;
   }
 
   function paint() {
-    const n = countChanges(edit, base);
-    app.innerHTML = `<div class="screen dark edit">
-      <div class="bar3">
-        <button type="button" class="link white" data-ed="cancel">Cancel</button>
-        <div class="title2"><b>Frame ${i + 1}</b><small>${esc(nameA)} × ${esc(nameB)}</small></div>
-        <button type="button" class="done end" data-ed="done">Done</button>
+    const c = controls();
+    app.innerHTML = `<div class="screen dark mixer">
+      <div class="mbar">
+        <button type="button" class="round-btn big" data-ed="cancel" aria-label="Cancel">${ICONS.x}</button>
+        <div class="mbar-mid">
+          <button type="button" class="round-btn big" data-ed="original" aria-label="Hold to see the frame before edits">${ICONS.original}</button>
+          <button type="button" class="round-btn big" data-ed="undo" aria-label="Undo" ${undo.length ? '' : 'disabled'}>${ICONS.undo}</button>
+        </div>
+        <button type="button" class="round-btn big yes" data-ed="done" aria-label="Done">${ICONS.check}</button>
       </div>
       <div class="epreview">
-        <canvas id="edit-canvas" width="${previewPx}" height="${Math.round((previewPx * 3) / 4)}" aria-label="Frame preview"></canvas>
+        <canvas id="edit-canvas" width="${previewPx}" height="${Math.round((previewPx * 3) / 4)}" aria-label="Frame ${i + 1} preview"></canvas>
         <img id="edit-original" alt="" hidden>
-        ${overlayMarks()}
       </div>
-      <div class="etools">
-        <button type="button" class="pill-btn" data-ed="original" aria-label="Hold to see the frame before edits">${ICON.original}Original</button>
-        <span class="edit-count">${failed || (n ? `${n} edit${n === 1 ? '' : 's'}` : 'No edits')}</span>
-        <div><button type="button" class="round-btn" data-ed="undo" aria-label="Undo" ${undo.length ? '' : 'disabled'}>${ICON.undo}</button>
-        <button type="button" class="round-btn" data-ed="redo" aria-label="Redo" ${redo.length ? '' : 'disabled'}>${ICON.redo}</button></div>
-      </div>
-      <div class="epanel">${panelHtml()}</div>
-      <nav class="etabs" aria-label="Edit sections">
-        ${(['basic', 'overlay', 'leaks', 'tone', 'texture'] as Tab[]).map((t) => `<button type="button" data-ed="tab" data-arg="${t}" class="${t === tab ? 'on' : ''}" aria-pressed="${t === tab}">${ICON[t]}<span>${t[0].toUpperCase() + t.slice(1)}</span></button>`).join('')}
-      </nav>
+      <p class="edit-count" aria-live="polite"></p>
+      <div class="mtabs" role="tablist" aria-label="Channel">${(['bottom', 'top', 'mix'] as Channel[]).map(tabHtml).join('')}</div>
+      <div class="mknobs">${c.knobs.map(knobHtml).join('')}</div>
+      <div class="mfaders">${c.faders.map(faderHtml).join('')}</div>
+      ${actionsHtml()}
     </div>`;
-    if (lastImg) {
-      const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas')!;
-      cv.width = lastImg.width;
-      cv.height = lastImg.height;
-      cv.getContext('2d')!.putImageData(lastImg, 0, 0);
-    }
-    bindDial();
-    bindCurve();
+    all().forEach(updateControl);
+    putPreview();
     bindOriginal();
     void draw();
   }
 
-  // --- крутилка Basic ---
-  function bindDial() {
-    const el = app.querySelector<HTMLElement>('#edit-dial');
-    if (!el) return;
-    const d = DIALS.find((x) => x.id === dial)!;
-    el.scrollLeft = (d.toStep(edit) - d.min) * 8;
-    let touched = false;
-    for (const ev of ['pointerdown', 'touchstart', 'wheel']) el.addEventListener(ev, () => (touched = true), { passive: true });
-    let raf = 0;
-    let settle = 0;
-    el.addEventListener('scroll', () => {
-      if (!touched) return;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const s = Math.max(d.min, Math.min(d.max, d.min + Math.round(el.scrollLeft / 8)));
-        if (s === d.toStep(edit)) return;
-        d.fromStep(edit, s);
-        const v = app.querySelector('#dial-value');
-        if (v) v.textContent = d.fmt(edit);
-        const btn = app.querySelector(`[data-ed="dial"][data-arg="${d.id}"]`);
-        if (btn) btn.outerHTML = dialHtml(d);
-        updateMeta();
-        void draw();
-      });
-      clearTimeout(settle);
-      settle = window.setTimeout(commit, 400);
-    });
+  // --- жесты: фейдер — палец по высоте; крутилка — вверх/вправо больше; двойное касание — сброс ---
+  let drag: null | { c: Control; el: HTMLElement; kind: 'fader' | 'knob' | 'shift'; x0: number; y0: number; v0: number; id: number } = null;
+  let lastTap = { id: '', t: 0 };
+  const snap = (c: Control, v: number) => Math.max(c.min, Math.min(c.max, Math.round(v / c.step) * c.step));
+  const shiftControl: Control = {
+    id: 'mix.shiftMm', label: 'Shift', icon: 'leak', min: -36, max: 36, step: 0.5,
+    get: (e) => e.mix.shiftMm, set: (e, v) => (e.mix.shiftMm = v), fmt: (v) => `${sign(v)} mm`,
+  };
+
+  function valueAt(e: PointerEvent): number {
+    const d = drag!;
+    if (d.kind === 'fader') {
+      const r = d.el.querySelector('.ftrack')!.getBoundingClientRect();
+      const t = 1 - (e.clientY - r.top) / r.height;
+      return snap(d.c, d.c.min + Math.max(0, Math.min(1, t)) * (d.c.max - d.c.min));
+    }
+    if (d.kind === 'knob') {
+      const delta = (e.clientX - d.x0 - (e.clientY - d.y0)) / 180;
+      return snap(d.c, d.v0 + delta * (d.c.max - d.c.min));
+    }
+    return snap(d.c, d.v0 + (e.clientX - d.x0) / 6);
   }
 
-  // --- кривая ---
-  function bindCurve() {
-    const box = app.querySelector<HTMLElement>('#edit-curve');
-    if (!box) return;
-    const toCurve = (e: PointerEvent) => {
-      const svg = box.querySelector('svg')!;
-      const r = svg.getBoundingClientRect();
-      const sx = (CW + 16) / r.width;
-      const sy = (CH + 16) / r.height;
-      return { x: ((e.clientX - r.left) * sx - 8) / CW, y: 1 - ((e.clientY - r.top) * sy - 8) / CH };
-    };
-    let removing = false;
-    box.addEventListener('pointerdown', (e) => {
-      const p = toCurve(e);
-      const pts = edit.curves[channel];
-      let best = -1;
-      let dist = 0.06;
-      pts.forEach(([x, y], k) => {
-        const dd = Math.hypot(x - p.x, (y - p.y) * 0.6);
-        if (dd < dist) {
-          dist = dd;
-          best = k;
-        }
-      });
-      if (best < 0) {
-        const x = Math.max(0.02, Math.min(0.98, p.x));
-        const y = curveTable(pts)[Math.round(x * 255)];
-        const next: CurvePoint[] = [...pts, [x, Math.abs(p.y - y) < 0.12 ? y : Math.max(0, Math.min(1, p.y))]];
-        next.sort((a, b) => a[0] - b[0]);
-        edit.curves[channel] = next;
-        best = next.findIndex((q) => q[0] === x);
-      }
-      dragIdx = best;
-      box.setPointerCapture(e.pointerId);
-      box.innerHTML = curveSvg();
-      void draw();
-    });
-    box.addEventListener('pointermove', (e) => {
-      if (dragIdx < 0) return;
-      const p = toCurve(e);
-      const pts = edit.curves[channel].map((q) => [...q] as CurvePoint);
-      const end = dragIdx === 0 || dragIdx === pts.length - 1;
-      removing = !end && (p.y < -0.15 || p.y > 1.15);
-      const lo = dragIdx > 0 ? pts[dragIdx - 1][0] + 0.02 : 0;
-      const hi = dragIdx < pts.length - 1 ? pts[dragIdx + 1][0] - 0.02 : 1;
-      pts[dragIdx] = [end ? pts[dragIdx][0] : Math.max(lo, Math.min(hi, p.x)), Math.max(0, Math.min(1, p.y))];
-      edit.curves[channel] = pts;
-      box.innerHTML = curveSvg();
-      box.classList.toggle('removing', removing);
-      void draw();
-    });
-    const up = () => {
-      if (dragIdx < 0) return;
-      if (removing) edit.curves[channel] = edit.curves[channel].filter((_, k) => k !== dragIdx);
-      removing = false;
-      dragIdx = -1;
-      box.classList.remove('removing');
-      box.innerHTML = curveSvg();
+  const onDown = (e: PointerEvent) => {
+    const target = e.target as HTMLElement;
+    const shiftBtn = target.closest<HTMLElement>('[data-ed="shift"]');
+    const el = target.closest<HTMLElement>('[data-c]');
+    if (!el && !shiftBtn) return;
+    const c = shiftBtn ? shiftControl : all().find((x) => x.id === el!.dataset.c);
+    if (!c) return;
+    e.preventDefault();
+    const now = performance.now();
+    if (lastTap.id === c.id && now - lastTap.t < 320) {
+      c.set(edit, c.get(base)); // двойное касание — значение проявки
+      lastTap = { id: '', t: 0 };
+      afterChange(c, shiftBtn ?? el!);
       commit();
-      void draw();
-    };
-    box.addEventListener('pointerup', up);
-    box.addEventListener('pointercancel', up);
+      return;
+    }
+    lastTap = { id: c.id, t: now };
+    const kind = shiftBtn ? 'shift' : el!.classList.contains('fader') ? 'fader' : 'knob';
+    drag = { c, el: (shiftBtn ?? el)!, kind, x0: e.clientX, y0: e.clientY, v0: c.get(edit), id: e.pointerId };
+    drag.el.setPointerCapture(e.pointerId);
+    if (kind === 'fader') {
+      c.set(edit, valueAt(e));
+      afterChange(c, drag.el);
+    }
+  };
+  const onMove = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const v = valueAt(e);
+    if (v === drag.c.get(edit)) return;
+    drag.c.set(edit, v);
+    afterChange(drag.c, drag.el);
+  };
+  const onUp = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag = null;
+    commit();
+  };
+  function afterChange(c: Control, el: HTMLElement) {
+    if (c === shiftControl) {
+      el.classList.toggle('on', Math.abs(edit.mix.shiftMm - base.mix.shiftMm) > 1e-6);
+      el.querySelector('span')!.textContent = `${sign(edit.mix.shiftMm)} mm`;
+    } else updateControl(c);
+    void draw();
   }
+  // клавиатура: стрелки двигают регулятор в фокусе
+  const onKey = (e: KeyboardEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-c]');
+    if (!el || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const c = all().find((x) => x.id === el.dataset.c);
+    if (!c) return;
+    e.preventDefault();
+    const dir = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? 1 : -1;
+    c.set(edit, snap(c, c.get(edit) + dir * Math.max(c.step, (c.max - c.min) / 40)));
+    afterChange(c, el);
+    commit();
+  };
 
   // --- «Original»: держишь — видишь кадр до правок ---
+  let originalUrl = '';
   function bindOriginal() {
     const btn = app.querySelector<HTMLButtonElement>('[data-ed="original"]');
     const img = app.querySelector<HTMLImageElement>('#edit-original');
     if (!btn || !img) return;
     const show = async () => {
-      if (!img.src) {
+      if (!originalUrl) {
         const blob = await devOriginal(dev.id, i);
-        if (blob) img.src = URL.createObjectURL(blob);
+        if (blob) originalUrl = URL.createObjectURL(blob);
       }
+      img.src = originalUrl;
       img.hidden = false;
     };
     const hide = () => (img.hidden = true);
@@ -478,108 +425,31 @@ export async function openEditor(host: EditorHost): Promise<void> {
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  // --- события ---
-  const onInput = (e: Event) => {
-    const t = e.target as HTMLInputElement;
-    const box = t.closest<HTMLElement>('[data-slider]');
-    if (!box || t.type !== 'range') return;
-    const s = SLIDERS[box.dataset.slider!];
-    const v = Number(t.value);
-    s.set(edit, v);
-    const changed = !s.key.startsWith('leak') && v !== s.get(base);
-    box.classList.toggle('changed', changed);
-    box.querySelector('output')!.textContent = s.fmt(v);
-    if (box.dataset.slider !== 'leakHue') t.setAttribute('style', trackStyle(s, v, changed));
-    updateMeta();
-    void draw();
-  };
-  const onChange = (e: Event) => {
-    if ((e.target as HTMLInputElement).type === 'range') commit();
-  };
-  const rng = new Rng(randomSeed());
   const onClick = async (e: Event) => {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-ed]');
     if (!el) return;
-    const act = el.dataset.ed!;
     const arg = el.dataset.arg ?? '';
-    switch (act) {
-      case 'tab':
-        tab = arg as Tab;
-        return paint();
-      case 'dial':
-        dial = arg as Dial['id'];
-        return paint();
+    switch (el.dataset.ed) {
       case 'channel':
         channel = arg as Channel;
         return paint();
-      case 'leak':
-        leakSel = Number(arg);
-        return paint();
-      case 'reset':
-        edit = resetKeys(edit, base, arg.split(',') as (keyof FrameEdit)[]);
-        if (arg.includes('leaks')) leakSel = 0;
+      case 'rotate':
+        if (channel !== 'mix') edit[channel].rotate = !edit[channel].rotate;
         commit();
         return paint();
-      case 'rotateA':
-        edit.rotateA = !edit.rotateA;
-        commit();
-        return paint();
-      case 'flip':
-        edit.flip = !edit.flip;
-        commit();
-        return paint();
-      case 'leakOn': {
-        const l = edit.leaks[leakSel];
-        if (l) l.off = !l.off;
+      case 'dice': {
+        // новая случайная засветка вместо прежних у этого кадра
+        edit.leaks = [randomLeak(rng, i)];
+        if (edit.mix.leaks === 0) edit.mix.leaks = 1;
         commit();
         return paint();
       }
-      case 'kind': {
-        const l = edit.leaks[leakSel];
-        if (l) l.kind = arg as LeakKind;
-        commit();
-        return paint();
-      }
-      case 'edge': {
-        const l = edit.leaks[leakSel];
-        if (l) edit.leaks[leakSel] = moveLeak(l, i, arg as 'left' | 'right');
-        commit();
-        return paint();
-      }
-      case 'variant': {
-        // другой рисунок той же засветки: тип, сила и край остаются
-        const l = edit.leaks[leakSel];
-        if (!l) return;
-        const fresh = randomLeak(rng, i, l.kind);
-        edit.leaks[leakSel] = { ...l, seed: fresh.seed, yCenter: fresh.yCenter, width: fresh.width };
-        commit();
-        return paint();
-      }
-      case 'addLeak': {
-        const leak = randomLeak(rng, i);
-        const f = frameA(i);
-        if (Math.abs(leak.x - (leak.dir === 1 ? f.x : f.x + FRAME_W)) > 1.5) leak.x = leak.dir === 1 ? f.x - 0.5 : f.x + FRAME_W + 0.5;
-        edit.leaks = [...edit.leaks, leak];
-        leakSel = edit.leaks.length - 1;
-        commit();
-        return paint();
-      }
-      case 'removeLeak':
-        edit.leaks = edit.leaks.filter((_, k) => k !== leakSel);
-        leakSel = Math.max(0, leakSel - 1);
-        commit();
-        return paint();
       case 'undo': {
         const prev = undo.pop();
         if (!prev) return;
-        redo.push(structuredClone(edit));
-        return setEdit(prev);
-      }
-      case 'redo': {
-        const next = redo.pop();
-        if (!next) return;
-        undo.push(structuredClone(edit));
-        return setEdit(next);
+        edit = prev;
+        snapshot = structuredClone(edit);
+        return paint();
       }
       case 'cancel':
         return close(false);
@@ -587,16 +457,28 @@ export async function openEditor(host: EditorHost): Promise<void> {
         return save();
     }
   };
-  app.addEventListener('input', onInput);
-  app.addEventListener('change', onChange);
+
+  app.addEventListener('pointerdown', onDown);
+  app.addEventListener('pointermove', onMove);
+  app.addEventListener('pointerup', onUp);
+  app.addEventListener('pointercancel', onUp);
+  app.addEventListener('keydown', onKey);
   app.addEventListener('click', onClick);
 
-  function close(changed: boolean) {
-    app.removeEventListener('input', onInput);
-    app.removeEventListener('change', onChange);
+  function detach() {
+    app.removeEventListener('pointerdown', onDown);
+    app.removeEventListener('pointermove', onMove);
+    app.removeEventListener('pointerup', onUp);
+    app.removeEventListener('pointercancel', onUp);
+    app.removeEventListener('keydown', onKey);
     app.removeEventListener('click', onClick);
+    for (const u of [urlA, urlB, originalUrl]) if (u) URL.revokeObjectURL(u);
+  }
+
+  function close(changedFrame: boolean) {
+    detach();
     renderer.dispose();
-    host.onClose(dev, changed);
+    host.onClose(dev, changedFrame);
   }
 
   async function save() {
@@ -604,8 +486,8 @@ export async function openEditor(host: EditorHost): Promise<void> {
     if (unchanged && !hadEdit) return close(false);
     const busyBox = document.createElement('div');
     busyBox.className = 'edit-busy overlay-busy';
-    busyBox.innerHTML = '<span class="spinner"></span>Developing the full frame…';
-    app.querySelector('.edit')?.append(busyBox);
+    busyBox.innerHTML = '<span class="spinner"></span>';
+    app.querySelector('.mixer')?.append(busyBox);
     try {
       if (unchanged) {
         dev = await resetEditedFrame(dev, i);
@@ -622,7 +504,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
       }
       close(true);
     } catch (e) {
-      busyBox.innerHTML = `Couldn’t save: ${esc((e as Error).message)}`;
+      busyBox.textContent = `Couldn’t save: ${(e as Error).message}`;
       setTimeout(() => busyBox.remove(), 3000);
       renderer = await FrameRenderer.open(dev, 1700);
     }

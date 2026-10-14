@@ -45,6 +45,26 @@ uniform int uTurn;
 uniform vec2 uFrame;
 uniform float uGain, uCorner, uSoft, uVig, uHLStart, uHLBoost, uGradScale, uThreshold;
 uniform int uExtract;
+// тон этого снимка (пульт, каналы Bottom / Top): контраст, чёрное, белое, насыщенность (−1…+1), тепло, свечение
+uniform vec4 uPassTone;
+uniform float uPassWarm, uPassGlow;
+vec3 toDisplay(vec3 c) { return mix(12.92 * c, 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((max(c, vec3(0.04045)) + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+// правка снимка до наложения — в видимой шкале, как в редакторе фото; потом снова линейный свет
+vec3 passTone(vec3 lin) {
+  if (uPassTone == vec4(0.0) && uPassWarm == 0.0) return lin;
+  vec3 s = toDisplay(lin);
+  float c = uPassTone.x;
+  s = c >= 0.0 ? mix(s, s * s * (3.0 - 2.0 * s), c) : mix(s, 0.5 + (s - 0.5) * 0.5, -c);
+  float b = uPassTone.y * 0.2;
+  s = b >= 0.0 ? max(s - b, 0.0) / (1.0 - b) : vec3(-b) + s * (1.0 + b);
+  float lum = dot(s, vec3(0.2126, 0.7152, 0.0722));
+  s += uPassTone.z * 0.35 * smoothstep(0.35, 1.0, lum) * (uPassTone.z > 0.0 ? (1.0 - s) : s);
+  lum = dot(s, vec3(0.2126, 0.7152, 0.0722));
+  s = mix(vec3(lum), s, 1.0 + uPassTone.w);
+  s *= vec3(1.0 + 0.09 * uPassWarm, 1.0 + 0.015 * uPassWarm, 1.0 - 0.09 * uPassWarm);
+  return toLinear(clamp(s, 0.0, 1.0));
+}
 float sdRoundBox(vec2 p, vec2 b, float r) {
   vec2 q = abs(p) - b + r;
   return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
@@ -70,7 +90,7 @@ vec3 light(vec2 p, vec2 gx, vec2 gy) {
   float d = sdRoundBox(p - c, c - uSoft, uCorner);
   float gate = 1.0 - smoothstep(-uSoft, uSoft, d);
   // sRGB8 -> линейный свет; увеличенный шаг выборки (как сдвиг мип-уровня) смягчает резкость iPhone
-  vec3 col = textureGrad(uImg, q.xy, gx, gy).rgb;
+  vec3 col = passTone(textureGrad(uImg, q.xy, gx, gy).rgb);
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   float h = smoothstep(uHLStart, 1.0, l);
   col *= 1.0 + uHLBoost * h * h;
@@ -96,7 +116,7 @@ void main() {
     float l = dot(t, vec3(0.2126, 0.7152, 0.0722));
     acc += 0.25 * t * max(l - uThreshold, 0.0) / max(l, 1e-4);
   }
-  o = vec4(acc, 1.0);
+  o = vec4(acc * uPassGlow, 1.0);
 }`;
 
 /**

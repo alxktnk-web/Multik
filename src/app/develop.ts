@@ -1,9 +1,9 @@
 // Проявка в приложении: кадр за кадром, в памяти только снимки, нужные текущему кадру.
 // Каждый готовый кадр сразу сохраняется — после прерывания проявка продолжается с того же места.
 
-import { curveLut, editedRecipe, isIdentity, type FrameEdit } from '../core/edit';
-import { balanceGains, makeRecipe, type PhotoShape, type Recipe } from '../core/recipe';
-import { Developer, type FrameOptions, type Source } from '../gl/pipeline';
+import { composeKey, editedRecipe, type FrameEdit, type PhotoEdit } from '../core/edit';
+import { makeRecipe, type PhotoShape, type Recipe } from '../core/recipe';
+import { Developer, type FrameOptions, type PassTone, type Source } from '../gl/pipeline';
 import { LOOKS, withWhiteMerge, type Look } from '../looks';
 import { getRoll, rollPhoto, saveFrame, type Development, type Roll } from './store';
 
@@ -102,49 +102,55 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
   return dev;
 }
 
-// --- правка кадра (панель Edit) ---
+// --- правка кадра (пульт) ---
 
-/** Вид проявки с правками кадра: экспозиция, слияние белого, ореол, «дыхание», зерно. */
+/** Вид проявки с правками канала Mix: слияние белого, ореол, мягкое свечение, зерно. */
 export function editLook(dev: Development, edit: FrameEdit): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
-  const look = withWhiteMerge({ ...base, exposure: 2 ** (dev.params.exposureTenths / 10 + edit.exposure) }, edit.whites);
+  const look = withWhiteMerge({ ...base, exposure: 2 ** (dev.params.exposureTenths / 10) }, edit.mix.whites);
   return {
     ...look,
-    halSmall: look.halSmall * edit.halation,
-    halLarge: look.halLarge * edit.halation,
-    bloom: look.bloom * edit.glow,
-    grain: look.grain * edit.grain,
+    halSmall: look.halSmall * edit.mix.halo,
+    halLarge: look.halLarge * edit.mix.halo,
+    bloom: look.bloom * edit.mix.glow,
+    grain: look.grain * edit.mix.grain,
   };
 }
 
+const passTone = (p: PhotoEdit): PassTone => ({
+  gain: 2 ** p.light,
+  contrast: p.contrast,
+  black: p.black,
+  whites: p.whites,
+  saturation: p.color,
+  warmth: p.warmth,
+  glow: p.glow,
+  soft: p.soft * 2,
+});
+
 export function editOptions(edit: FrameEdit): FrameOptions {
-  const g = balanceGains(edit.balance);
-  return {
-    gainA: g.a,
-    gainB: g.b,
-    curveLut: isIdentity(edit.curves) ? undefined : curveLut(edit.curves),
-    black: edit.black / 100,
-    contrast: edit.contrast / 100,
-    saturation: edit.saturation / 100,
-    warmth: edit.warmth / 100,
-  };
+  return { passA: passTone(edit.bottom), passB: passTone(edit.top), contrast: edit.mix.contrast, black: edit.mix.black };
 }
 
 /**
  * Пересчёт одного кадра из исходных снимков: держит свой контекст WebGL и снимки, нужные кадру.
  * Для живого предпросмотра снимки грузятся уменьшенными (maxPx), для сохранения — в полном размере проявки.
+ * Если меняются только настройки последнего шага (белое, ореол, зерно, общий контраст), сложение снимков
+ * не повторяется. Если iOS отобрала графику (приложение было свёрнуто), контекст создаётся заново.
  */
 export class FrameRenderer {
   readonly recipe: Recipe;
-  private canvas = document.createElement('canvas');
-  private developer: Developer;
+  private canvas!: HTMLCanvasElement;
+  private developer!: Developer;
   private cache = new Map<string, Source>();
   private shapes: { a: PhotoShape[]; b: PhotoShape[] };
-  lost = false;
+  private lastCompose = '';
+  private lost = false;
+  private disposed = false;
 
   private constructor(
     readonly dev: Development,
-    private rolls: [Roll, Roll],
+    readonly rolls: [Roll, Roll],
     private maxPx: number,
   ) {
     this.recipe = makeRecipe(dev.n, dev.seed, dev.params.settings);
@@ -152,6 +158,14 @@ export class FrameRenderer {
       a: rolls[0].photos.map((p) => ({ portrait: p.h > p.w })),
       b: rolls[1].photos.map((p) => ({ portrait: p.h > p.w })),
     };
+    this.reset();
+  }
+
+  private reset() {
+    this.cache.clear();
+    this.lastCompose = '';
+    this.lost = false;
+    this.canvas = document.createElement('canvas');
     this.developer = new Developer(this.canvas);
     this.canvas.addEventListener('webglcontextlost', () => (this.lost = true));
   }
@@ -163,10 +177,18 @@ export class FrameRenderer {
   }
 
   async render(i: number, edit: FrameEdit, ppm: number): Promise<ImageData> {
+    if (this.lost || this.developer.gl.isContextLost()) this.reset();
     const recipe = editedRecipe(this.recipe, i, edit);
     const look = editLook(this.dev, edit);
     const need = this.developer.needed(i, recipe, look, this.shapes);
     const keys = new Set([...need.a.map((k) => `a${k}`), ...need.b.map((k) => `b${k}`)]);
+    // в памяти — только снимки этого кадра
+    for (const [key, src] of this.cache) {
+      if (!keys.has(key)) {
+        this.developer.release(src);
+        this.cache.delete(key);
+      }
+    }
     for (const key of keys) {
       if (this.cache.has(key)) continue;
       const roll = key[0] === 'a' ? this.rolls[0] : this.rolls[1];
@@ -175,16 +197,20 @@ export class FrameRenderer {
       const img = await decode(blob, this.maxPx);
       this.cache.set(key, this.developer.upload(img));
       if (img instanceof ImageBitmap) img.close();
+      this.lastCompose = '';
     }
     const srcA: (Source | undefined)[] = [];
     const srcB: (Source | undefined)[] = [];
-    for (const [key, src] of this.cache) if (keys.has(key)) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
-    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, editOptions(edit));
-    if (this.lost) throw new Error('The phone interrupted rendering — try again');
+    for (const [key, src] of this.cache) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
+    const key = `${i}:${ppm}:${composeKey(edit)}`;
+    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, { ...editOptions(edit), filmOnly: key === this.lastCompose });
+    if (this.lost) {
+      this.reset();
+      throw new Error('The phone interrupted rendering — try again');
+    }
+    this.lastCompose = key;
     return img;
   }
-
-  private disposed = false;
 
   dispose(): void {
     if (this.disposed) return;

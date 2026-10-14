@@ -1,48 +1,58 @@
-// Правка готового кадра (панель Edit): переопределения поверх рецепта проявки.
-// Рецепт и исходная проявка не меняются; правка хранится отдельно и пересчитывается из исходных снимков.
+// Правка готового кадра — «пульт» (макет v2, утверждён Александром 14.10.2026).
+// Три канала: Bottom — снимок первой плёнки, Top — снимок второй плёнки, Mix — общее для пары.
+// Правка хранится поверх рецепта; рецепт и исходная проявка не меняются, кадр пересчитывается из исходных снимков.
 
 import { FRAME_W, PITCH, frameA } from './geometry';
 import type { Leak, LeakKind, Recipe } from './recipe';
 
-export type Channel = 'l' | 'r' | 'g' | 'b';
-/** Точка кривой: вход и выход 0…1 в видимой (sRGB) шкале готового позитива. */
-export type CurvePoint = [number, number];
-
-export interface FrameEdit {
-  /** баланс проходов, ступени −2…+2 (A светлее при +) */
-  balance: number;
-  /** экспозиция поверх экспозиции проявки, ступени −2…+2 */
-  exposure: number;
-  /** слияние белого 0…10 */
-  whites: number;
-  /** общий множитель силы засветок кадра 0…2 */
-  leakGain: number;
-  /** сдвиг второго прохода, мм (−36…+36) */
-  shiftMm: number;
-  /** второй проход повёрнут на 180° (film swap) */
-  flip: boolean;
-  /** снимок первого прохода этого кадра повёрнут на 180° */
-  rotateA: boolean;
-  /** ореол и «дыхание» светов, множители 0…2 */
-  halation: number;
-  glow: number;
-  /** засветки, задевающие кадр: из рецепта, изменённые или добавленные */
-  leaks: Leak[];
-  curves: Record<Channel, CurvePoint[]>;
-  /** −100…+100 */
-  black: number;
+/** Настройки одного снимка, до наложения. Всё −1…+1, кроме glow 0…2, soft 0…1. */
+export interface PhotoEdit {
+  /** экспозиция, ступени −2…+2 */
+  light: number;
   contrast: number;
-  saturation: number;
+  black: number;
+  whites: number;
+  /** насыщенность (крутилка Colour) */
+  color: number;
   warmth: number;
-  /** зерно 0…2, пыль 0…1 (доля пылинок рецепта) */
-  grain: number;
-  dust: number;
+  /** доля в ореоле 0…2 */
+  glow: number;
+  /** мягкость объектива 0…1 */
+  soft: number;
+  /** снимок повёрнут на 180° */
+  rotate: boolean;
 }
 
-export const IDENTITY_CURVE: CurvePoint[] = [
-  [0, 0],
-  [1, 1],
-];
+export interface MixEdit {
+  /** слияние белого 0…10 */
+  whites: number;
+  /** сила ореола 0…2 */
+  halo: number;
+  /** сила засветок 0…2 (0 — без засветок) */
+  leaks: number;
+  /** общий контраст и чёрное после наложения, −1…+1 */
+  contrast: number;
+  black: number;
+  /** зерно 0…2, пыль 0…1, мягкое свечение светов 0…2 */
+  grain: number;
+  dust: number;
+  glow: number;
+  /** сдвиг верхней плёнки, мм (−36…+36) */
+  shiftMm: number;
+}
+
+export interface FrameEdit {
+  v: 2;
+  bottom: PhotoEdit;
+  top: PhotoEdit;
+  mix: MixEdit;
+  /** засветки, задевающие кадр: из рецепта или новые (кнопка с кубиком) */
+  leaks: Leak[];
+}
+
+export type Channel = 'bottom' | 'top' | 'mix';
+
+const photo = (rotate: boolean): PhotoEdit => ({ light: 0, contrast: 0, black: 0, whites: 0, color: 0, warmth: 0, glow: 1, soft: 0, rotate });
 
 /** Засветки рецепта, свет которых доходит до кадра i (свои и соседей, севшие на перемычку). */
 export function leaksTouching(recipe: Recipe, i: number): Leak[] {
@@ -53,81 +63,66 @@ export function leaksTouching(recipe: Recipe, i: number): Leak[] {
 /** Правка «без изменений»: значения, с которыми кадр был проявлен. */
 export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
   return {
-    balance: 0,
-    exposure: 0,
-    whites,
-    leakGain: 1,
-    shiftMm: Math.round(recipe.shiftMm * 10) / 10,
-    flip: recipe.settings.swapRotate,
-    rotateA: false,
-    halation: 1,
-    glow: 1,
+    v: 2,
+    bottom: photo(false),
+    top: photo(recipe.settings.swapRotate),
+    mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10 },
     leaks: leaksTouching(recipe, i).map((l) => ({ ...l })),
-    curves: { l: [...IDENTITY_CURVE], r: [...IDENTITY_CURVE], g: [...IDENTITY_CURVE], b: [...IDENTITY_CURVE] },
-    black: 0,
-    contrast: 0,
-    saturation: 0,
-    warmth: 0,
-    grain: 1,
-    dust: 1,
   };
 }
 
-export const EDIT_SECTIONS = {
-  basic: ['balance', 'exposure', 'whites', 'leakGain', 'rotateA', 'flip'],
-  overlay: ['balance', 'shiftMm', 'rotateA', 'flip', 'exposure', 'whites', 'halation', 'glow'],
-  leaks: ['leaks', 'leakGain'],
-  tone: ['curves', 'black', 'contrast', 'saturation', 'warmth'],
-  texture: ['grain', 'dust'],
-} as const satisfies Record<string, (keyof FrameEdit)[]>;
+/** Сохранённая правка, если она той же версии; правки первой панели (v1) не переносятся. */
+export function storedEdit(stored: unknown): FrameEdit | null {
+  return stored && typeof stored === 'object' && (stored as FrameEdit).v === 2 ? (stored as FrameEdit) : null;
+}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Сколько параметров отличается от проявки (для подписи «N edits»). */
+/** Сколько параметров отличается от проявки. */
 export function countChanges(edit: FrameEdit, base: FrameEdit): number {
-  return (Object.keys(base) as (keyof FrameEdit)[]).filter((k) => !same(edit[k], base[k])).length;
+  let n = 0;
+  for (const ch of ['bottom', 'top', 'mix'] as const) {
+    const e = edit[ch] as unknown as Record<string, unknown>;
+    const b = base[ch] as unknown as Record<string, unknown>;
+    for (const k of Object.keys(b)) if (!same(e[k], b[k])) n++;
+  }
+  return n + (same(edit.leaks, base.leaks) ? 0 : 1);
 }
 
-export function resetKeys(edit: FrameEdit, base: FrameEdit, keys: readonly (keyof FrameEdit)[]): FrameEdit {
-  const next = structuredClone(edit);
-  for (const k of keys) (next as unknown as Record<string, unknown>)[k] = structuredClone(base[k]);
-  return next;
-}
-
-/** Рецепт с правками кадра: сдвиг и поворот второго прохода, засветки только из правки. */
+/** Рецепт с правками кадра: сдвиг, повороты, засветки. */
 export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe {
   const touching = new Set(leaksTouching(recipe, i));
   const others = recipe.leaks.filter((l) => !touching.has(l));
-  const dust = recipe.dust.map((d, k) => (k === i ? d.slice(0, Math.round(d.length * edit.dust)) : d));
-  const hairs = recipe.hairs.map((h, k) => (k === i && edit.dust < 0.5 ? [] : h));
+  const dust = recipe.dust.map((d, k) => (k === i ? d.slice(0, Math.round(d.length * edit.mix.dust)) : d));
+  const hairs = recipe.hairs.map((h, k) => (k === i && edit.mix.dust < 0.5 ? [] : h));
+  const leaks = edit.mix.leaks > 0 ? edit.leaks.filter((l) => !l.off).map((l) => ({ ...l, strength: l.strength * edit.mix.leaks })) : [];
   return {
     ...recipe,
-    shiftMm: Math.max(-FRAME_W, Math.min(FRAME_W, edit.shiftMm)),
-    settings: { ...recipe.settings, swapRotate: edit.flip },
-    rotateA: edit.rotateA ? [...(recipe.rotateA ?? []), i] : recipe.rotateA,
-    leaks: [...others, ...edit.leaks.filter((l) => !l.off).map((l) => ({ ...l, strength: l.strength * edit.leakGain }))],
+    shiftMm: Math.max(-FRAME_W, Math.min(FRAME_W, edit.mix.shiftMm)),
+    settings: { ...recipe.settings, swapRotate: edit.top.rotate },
+    rotateA: edit.bottom.rotate ? [...(recipe.rotateA ?? []), i] : recipe.rotateA,
+    leaks: [...others, ...leaks],
     dust,
     hairs,
   };
 }
 
-/** Край кадра, от которого входит засветка: для подписи и переключателя Left/Right. */
+/** Меняется ли от правки сложение снимков (иначе достаточно пересчитать последний шаг). */
+export function composeKey(edit: FrameEdit): string {
+  const { whites: _w, halo: _h, contrast: _c, black: _b, grain: _g, dust: _d, glow: _gl, ...mix } = edit.mix;
+  return JSON.stringify([edit.bottom, edit.top, mix, edit.leaks]);
+}
+
+/** Край кадра, от которого входит засветка. */
 export function leakEdge(leak: Leak, i: number): 'left' | 'right' {
   return leak.x < i * PITCH + FRAME_W / 2 ? 'left' : 'right';
 }
 
-/** Перенос засветки к другому краю кадра i (засветка уходит внутрь кадра). */
-export function moveLeak(leak: Leak, i: number, edge: 'left' | 'right'): Leak {
-  const f = frameA(i);
-  const inset = Math.min(1.5, Math.abs(leak.x - (leakEdge(leak, i) === 'left' ? f.x : f.x + FRAME_W)));
-  return edge === 'left' ? { ...leak, frame: i, x: f.x - inset, dir: 1 } : { ...leak, frame: i, x: f.x + FRAME_W + inset, dir: -1 };
-}
-
 /**
  * Монотонная кубическая интерполяция (Фриче–Карлсон): кривая проходит через точки и не даёт
- * «перелётов» — тон не разворачивается. Возвращает 256 значений 0…1.
+ * «перелётов». Возвращает 256 значений 0…1. (Кривые сейчас не в пульте; оставлены для следующих версий.)
  */
-export function curveTable(points: CurvePoint[]): Float32Array {
+export function curveTable(points: [number, number][]): Float32Array {
   const pts = [...points].sort((p, q) => p[0] - q[0]);
   const out = new Float32Array(256);
   const n = pts.length;
@@ -173,28 +168,9 @@ export function curveTable(points: CurvePoint[]): Float32Array {
     const t = (x - x0) / h;
     const t2 = t * t;
     const t3 = t2 * t;
-    out[k] =
-      (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m[seg] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * m[seg + 1];
-    out[k] = Math.max(0, Math.min(1, out[k]));
+    out[k] = Math.max(0, Math.min(1, (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m[seg] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * m[seg + 1]));
   }
   return out;
-}
-
-/** Таблица для шейдера: R, G, B — поканальные кривые, A — яркостная. 256 × 4 байта. */
-export function curveLut(curves: Record<Channel, CurvePoint[]>): Uint8Array {
-  const t = { r: curveTable(curves.r), g: curveTable(curves.g), b: curveTable(curves.b), l: curveTable(curves.l) };
-  const lut = new Uint8Array(256 * 4);
-  for (let k = 0; k < 256; k++) {
-    lut[k * 4] = Math.round(t.r[k] * 255);
-    lut[k * 4 + 1] = Math.round(t.g[k] * 255);
-    lut[k * 4 + 2] = Math.round(t.b[k] * 255);
-    lut[k * 4 + 3] = Math.round(t.l[k] * 255);
-  }
-  return lut;
-}
-
-export function isIdentity(curves: Record<Channel, CurvePoint[]>): boolean {
-  return (Object.values(curves) as CurvePoint[][]).every((c) => same(c, IDENTITY_CURVE));
 }
 
 export const LEAK_KIND_NAMES: Record<LeakKind, string> = { glow: 'Glow', stripe: 'Stripe', burn: 'Burnt edge' };

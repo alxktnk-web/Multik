@@ -29,48 +29,41 @@ import {
 
 const app = document.getElementById('app')!;
 const LENGTHS = [6, 12, 24, 36];
-const MIX_LOOKS = ['M', 'N', 'F', 'B'];
-const LOOK_NAMES: Record<string, string> = { M: 'Melted', N: 'Natural', F: 'Burnt', B: 'Portra' };
-
-interface Param {
-  id: 'shift' | 'white' | 'leaks' | 'exposure' | 'dust';
+/** Крутилки экрана перед проявкой (макет v2 «D»). */
+interface Knob {
+  id: 'shift' | 'leaks' | 'white';
   label: string;
-  title: string;
   min: number;
   max: number;
-  major: number;
+  bipolar: boolean;
   fmt: (v: number) => string;
-  short: (v: number) => string;
 }
-
-const PARAMS: Param[] = [
-  { id: 'shift', label: 'Shift', title: 'SECOND ROLL SHIFT', min: -36, max: 36, major: 6, fmt: (v) => `${v > 0 ? '+' : ''}${v} mm`, short: (v) => `${v > 0 ? '+' : ''}${v}` },
-  { id: 'white', label: 'Whites', title: 'WHITE MERGE', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v}/10 · ${v < 4 ? 'soft' : v < 8 ? 'merging' : 'solid white'}` : 'off'), short: String },
-  { id: 'leaks', label: 'Leaks', title: 'LIGHT LEAKS', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v} in 10 frames` : 'none'), short: String },
-  { id: 'exposure', label: 'Exposure', title: 'EXPOSURE', min: -15, max: 20, major: 5, fmt: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v / 10).toFixed(1)} EV`, short: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v / 10).toFixed(1)}` },
-  { id: 'dust', label: 'Dust', title: 'DUST & HAIRS', min: 0, max: 10, major: 5, fmt: (v) => (v ? `${v}/10` : 'none'), short: String },
+const SETUP_KNOBS: Knob[] = [
+  { id: 'shift', label: 'Shift', min: -36, max: 36, bipolar: true, fmt: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)} mm` },
+  { id: 'leaks', label: 'Leaks', min: 0, max: 10, bipolar: false, fmt: (v) => `${v}/10` },
+  { id: 'white', label: 'Whites', min: 0, max: 10, bipolar: false, fmt: (v) => `${v}/10` },
 ];
 
 type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result' | 'edit';
 
+// один вид обработки (M «Melted»), пока Александр не утвердит способ (14.10.2026); экспозиция и пыль — по умолчанию
 const MIX_DEFAULTS = {
   swap: false,
   look: 'M',
-  param: 'shift' as Param['id'],
-  values: { shift: -12, white: 4, leaks: 5, exposure: 0, dust: 4 } as Record<Param['id'], number>,
+  values: { shift: -12, white: 4, leaks: 5, exposure: 0, dust: 4 } as Record<'shift' | 'white' | 'leaks' | 'exposure' | 'dust', number>,
   randomShift: true,
   flip: true,
   full: false,
 };
 type MixState = typeof MIX_DEFAULTS;
 // v4: засветки по умолчанию на половине кадров (решение Александра 13.10.2026) — старые сохранённые значения не подхватываем
-const MIX_KEY = 'multik-mix-v4';
+const MIX_KEY = 'multik-mix-v5';
 
 // последние настройки «Смешать» запоминаются на этом устройстве (удобство, не данные)
 function loadMix(): MixState {
   try {
     const saved = JSON.parse(localStorage.getItem(MIX_KEY) ?? 'null') as Partial<MixState> | null;
-    if (saved) return { ...MIX_DEFAULTS, ...saved, values: { ...MIX_DEFAULTS.values, ...saved.values }, swap: false };
+    if (saved) return { ...MIX_DEFAULTS, ...saved, look: 'M', values: { ...MIX_DEFAULTS.values, ...saved.values }, swap: false };
   } catch {
     // нет доступа к хранилищу — берём значения по умолчанию
   }
@@ -139,6 +132,11 @@ const ICON = {
   again: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M21 13a8 8 0 1 1-2.4-5.7M21 4v4h-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
   edit: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="1.9" fill="none"/><path d="M13 4a9 9 0 0 1 0 18Z" fill="currentColor"/></svg>',
   adjust: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4 8h18M4 18h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="9" cy="8" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/><circle cx="17" cy="18" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/></svg>',
+  rotate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
+  close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  save: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg>',
+  saved: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  sliders: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 4v16M12 4v16M18 4v16"/><rect x="3.5" y="13" width="5" height="3" rx="1" fill="#000" stroke="currentColor"/><rect x="9.5" y="7" width="5" height="3" rx="1" fill="#000" stroke="currentColor"/><rect x="15.5" y="11" width="5" height="3" rx="1" fill="#000" stroke="currentColor"/></svg>',
   check: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5l2.6 2.6L11 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
 };
 
@@ -403,68 +401,105 @@ async function renderMix(): Promise<string> {
   const [a, b] = pair;
   const m = state.mix;
   const [ca, cb] = await Promise.all([blobUrl(`rt:${a.id}:0`, () => rollThumb(a.id, 0)), blobUrl(`rt:${b.id}:0`, () => rollThumb(b.id, 0))]);
-  const p = PARAMS.find((q) => q.id === m.param)!;
-  const randomShift = p.id === 'shift' && m.randomShift;
-  const value = m.values[p.id];
-  const ticks = Array.from({ length: p.max - p.min + 1 }, (_, i) => `<i class="${i % p.major === 0 ? 'major' : ''}"></i>`).join('');
-  return `<div class="screen dark">
+  const card = (r: Roll, url: string, label: string, flip: boolean, toggle: boolean) => `<div class="scard">
+      <button type="button" class="sphoto${flip ? ' flipped' : ''}" ${toggle ? 'data-toggle="flip" aria-label="Flip the top roll 180°"' : 'tabindex="-1"'}>${url ? `<img src="${url}" alt="">` : ''}${toggle ? `<span class="sflip">${ICON.rotate}</span>` : ''}</button>
+      <div><small>${label}</small><b>${esc(r.name)}</b><em>${rollNo(r.number)} · ${r.length}</em></div>
+    </div>`;
+  return `<div class="screen dark setup">
     ${ambient(ca)}
-    <div class="bar3">
-      <button type="button" class="link white" data-home>Cancel</button>
-      <b>Mix</b>
-      <button type="button" class="link white end" data-reset-mix>Reset</button>
+    <div class="mbar">
+      <button type="button" class="round-btn big" data-home aria-label="Cancel">${ICON.close}</button>
+      <span class="scount">${frames(Math.min(a.length, b.length))}</span>
+      <button type="button" class="chip-mp${m.full ? ' on' : ''}" data-toggle="full" aria-pressed="${m.full}">12 MP</button>
     </div>
-    <div class="pair">
-      <figure class="pass p1"><img src="${ca}" alt=""><figcaption><small>PASS 1</small>${esc(a.name)} · ${a.length}</figcaption></figure>
-      <figure class="pass p2"><img src="${cb}" alt="" class="${m.flip ? 'flipped' : ''}"><figcaption><small>PASS 2${m.flip ? ' · FLIPPED' : ''}</small>${esc(b.name)} · ${b.length}</figcaption></figure>
-      <button type="button" class="swap" data-swap aria-label="Swap passes">${ICON.swap}</button>
+    <div class="sstack">
+      ${card(b, cb, 'TOP', m.flip, true)}
+      <button type="button" class="round-btn big sswap" data-swap aria-label="Swap top and bottom">${ICON.swap}</button>
+      ${card(a, ca, 'BOTTOM', false, false)}
     </div>
-    <p class="sub center">${frames(Math.min(a.length, b.length))} · the shorter roll sets the count</p>
-    <div class="looks" role="radiogroup" aria-label="Look">
-      ${MIX_LOOKS.map((id) => `<button type="button" role="radio" aria-checked="${id === m.look}" data-look="${id}" class="${id === m.look ? 'on' : ''}"><span class="look-dot look-${id}">${id}</span><small>${LOOK_NAMES[id]}</small></button>`).join('')}
-    </div>
-    <div class="dial-box">
-      <div class="dial-head"><small>${p.title}</small><b>${randomShift ? 'random' : p.fmt(value)}</b></div>
-      <div class="dial-wrap">
-        <div class="dial${randomShift ? ' muted' : ''}" id="dial"><div class="ticks">${ticks}</div></div>
-        <div class="needle"></div>
-      </div>
-      <div class="params">
-        ${PARAMS.map((q) => `<button type="button" data-param="${q.id}" class="${q.id === m.param ? 'on' : ''}"><span>${q.id === 'shift' && m.randomShift ? '?' : q.short(m.values[q.id])}</span><small>${q.label}</small></button>`).join('')}
-      </div>
-      <div class="chips">
-        <button type="button" data-toggle="randomShift" aria-pressed="${m.randomShift}">Random shift</button>
-        <button type="button" data-toggle="flip" aria-pressed="${m.flip}">Flip second roll</button>
-        <button type="button" data-toggle="full" aria-pressed="${m.full}">12 MP</button>
-      </div>
-    </div>
-    <div class="bottom"><button type="button" class="capsule yellow wide" data-develop>Develop</button></div>
+    <div class="sknobs">${SETUP_KNOBS.map((k) => {
+      const random = k.id === 'shift' && m.randomShift;
+      return `<div class="sknob" data-k="${k.id}" role="slider" tabindex="0" aria-label="${k.label}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" aria-valuenow="${m.values[k.id]}">
+        <output>${random ? 'random' : k.fmt(m.values[k.id])}</output>
+        <svg width="84" height="84" viewBox="0 0 54 54" aria-hidden="true">
+          <circle cx="27" cy="27" r="23" fill="#1c1c1e" stroke="rgba(255,255,255,0.10)" stroke-width="3.5"/>
+          <circle class="karc" cx="27" cy="27" r="23" fill="none" stroke="#ffd60a" stroke-width="3.5" stroke-linecap="round"/>
+          <line class="kptr" x1="27" y1="27" x2="27" y2="12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="27" cy="27" r="3.5" fill="#fff"/>
+        </svg>
+        <small>${k.label}</small>
+      </div>`;
+    }).join('')}</div>
+    <div class="bottom"><button type="button" class="capsule yellow wide" data-develop>${ICON.mix}Develop</button></div>
   </div>`;
 }
 
-function bindDial() {
-  const dial = document.getElementById('dial');
-  if (!dial) return;
-  const p = PARAMS.find((q) => q.id === state.mix.param)!;
-  dial.scrollLeft = (state.mix.values[p.id] - p.min) * 8;
-  // значение меняет только палец (или колесо мыши), а не установка шкалы при открытии экрана
-  let touched = false;
-  for (const ev of ['pointerdown', 'touchstart', 'wheel']) dial.addEventListener(ev, () => (touched = true), { passive: true });
-  let raf = 0;
-  dial.addEventListener('scroll', () => {
-    if (!touched) return;
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      const v = Math.max(p.min, Math.min(p.max, p.min + Math.round(dial.scrollLeft / 8)));
-      if (v === state.mix.values[p.id] && !(p.id === 'shift' && state.mix.randomShift)) return;
-      state.mix.values[p.id] = v;
-      if (p.id === 'shift') state.mix.randomShift = false;
-      const head = document.querySelector('.dial-head b');
-      if (head) head.textContent = p.fmt(v);
-      const btn = document.querySelector(`[data-param="${p.id}"] span`);
-      if (btn) btn.textContent = p.short(v);
-      dial.classList.remove('muted');
-      document.querySelector('[data-toggle="randomShift"]')?.setAttribute('aria-pressed', String(state.mix.randomShift));
+/** Крутилки экрана перед проявкой: тянуть вверх/вправо — больше; двойное касание сдвига — снова «случайно». */
+function bindSetupKnobs() {
+  const paintKnob = (el: HTMLElement, k: Knob) => {
+    const m = state.mix;
+    const v = m.values[k.id];
+    const random = k.id === 'shift' && m.randomShift;
+    const t = random ? 0.5 : (v - k.min) / (k.max - k.min);
+    const C = 2 * Math.PI * 23;
+    const arc = el.querySelector('.karc')!;
+    if (random) arc.setAttribute('stroke-dasharray', `0 ${C}`);
+    else if (k.bipolar) {
+      arc.setAttribute('stroke-dasharray', `${(Math.abs(t - 0.5) * 0.75 * C).toFixed(1)} ${C.toFixed(1)}`);
+      arc.setAttribute('transform', `rotate(${t >= 0.5 ? 270 : 270 - (0.5 - t) * 270} 27 27)`);
+    } else {
+      arc.setAttribute('stroke-dasharray', `${(t * 0.75 * C).toFixed(1)} ${C.toFixed(1)}`);
+      arc.setAttribute('transform', 'rotate(135 27 27)');
+    }
+    const ang = ((135 + t * 270) * Math.PI) / 180;
+    const ptr = el.querySelector('.kptr')!;
+    ptr.setAttribute('x2', (27 + 15 * Math.cos(ang)).toFixed(1));
+    ptr.setAttribute('y2', (27 + 15 * Math.sin(ang)).toFixed(1));
+    el.querySelector('output')!.textContent = random ? 'random' : k.fmt(v);
+    el.setAttribute('aria-valuenow', String(v));
+  };
+  let lastTap = { id: '', t: 0 };
+  document.querySelectorAll<HTMLElement>('.sknob').forEach((el) => {
+    const k = SETUP_KNOBS.find((x) => x.id === el.dataset.k)!;
+    paintKnob(el, k);
+    let start: null | { x: number; y: number; v: number; id: number } = null;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const now = performance.now();
+      if (lastTap.id === k.id && now - lastTap.t < 320) {
+        if (k.id === 'shift') state.mix.randomShift = true;
+        else state.mix.values[k.id] = MIX_DEFAULTS.values[k.id];
+        lastTap = { id: '', t: 0 };
+        paintKnob(el, k);
+        return;
+      }
+      lastTap = { id: k.id, t: now };
+      start = { x: e.clientX, y: e.clientY, v: state.mix.values[k.id], id: e.pointerId };
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 180;
+      const v = Math.max(k.min, Math.min(k.max, Math.round(start.v + delta * (k.max - k.min))));
+      if (v === state.mix.values[k.id] && !(k.id === 'shift' && state.mix.randomShift)) return;
+      if (Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;
+      state.mix.values[k.id] = v;
+      if (k.id === 'shift') state.mix.randomShift = false;
+      paintKnob(el, k);
+    });
+    const end = () => {
+      start = null;
+      saveMix();
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('keydown', (e) => {
+      const dir = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowDown' || e.key === 'ArrowLeft' ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault();
+      state.mix.values[k.id] = Math.max(k.min, Math.min(k.max, state.mix.values[k.id] + dir));
+      if (k.id === 'shift') state.mix.randomShift = false;
+      paintKnob(el, k);
     });
   });
 }
@@ -472,7 +507,7 @@ function bindDial() {
 async function startDevelopment(reuse?: Development) {
   let dev: Development;
   if (reuse) {
-    dev = await createDev({ ...reuse, seed: randomSeed(), algo: ALGO_VERSION });
+    dev = await createDev({ ...reuse, seed: randomSeed(), algo: ALGO_VERSION, edits: undefined });
   } else {
     const pair = mixRolls();
     if (!pair) return;
@@ -488,8 +523,8 @@ async function startDevelopment(reuse?: Development) {
       n: Math.min(a.length, b.length, a.photos.length, b.photos.length),
       algo: ALGO_VERSION,
       params: {
-        lookId: m.look,
-        exposureTenths: m.values.exposure,
+        lookId: 'M',
+        exposureTenths: 0,
         whiteMerge: m.values.white,
         ppm: m.full ? 111 : 56,
         settings: {
@@ -499,8 +534,8 @@ async function startDevelopment(reuse?: Development) {
           swapRotate: m.flip,
           leaks: m.values.leaks > 0,
           leakChance: m.values.leaks / 10,
-          dust: m.values.dust > 0,
-          dustLevel: m.values.dust,
+          dust: true,
+          dustLevel: MIX_DEFAULTS.values.dust,
         },
       },
     });
@@ -577,10 +612,10 @@ async function renderResult(): Promise<string> {
   const liked = d.likes.includes(i);
   return `<div class="screen dark">
     ${ambient(thumbs[i] ?? '')}
-    <div class="bar3">
-      <button type="button" class="link" data-back-devs>${ICON.back}Developed</button>
-      <div class="title2"><b>Frame ${i + 1} of ${d.n}</b><small>${esc(d.titleA)} × ${esc(d.titleB)}</small></div>
-      <span></span>
+    <div class="mbar">
+      <button type="button" class="round-btn big back" data-back-devs aria-label="Back to developed rolls">${ICON.back}</button>
+      <span class="scount">${i + 1} / ${d.n}</span>
+      <button type="button" class="round-btn big" data-dev-more="${d.id}" aria-label="More">${ICON.more}</button>
     </div>
     <div class="viewer" id="viewer">
       <img src="${full}" alt="Frame ${i + 1}" draggable="false">
@@ -588,14 +623,10 @@ async function renderResult(): Promise<string> {
     <div class="filmstrip" id="filmstrip">${thumbs
       .map((u, k) => `<button type="button" data-view="${k}" class="${k === i ? 'on' : ''}"><img src="${u}" alt="Frame ${k + 1}">${d.likes.includes(k) ? '<span>♥</span>' : ''}</button>`)
       .join('')}</div>
-    ${d.likes.length ? `<div class="center pad"><button type="button" class="capsule glass" data-save-liked>Save ${d.likes.length} favorite${d.likes.length === 1 ? '' : 's'} to Photos</button></div>` : ''}
-    <p class="hint">Swipe to browse · hold the photo to save it</p>
-    <nav class="toolbar">
-      <button type="button" data-save-one>${ICON.share}<span>Save</span></button>
-      <button type="button" data-like class="${liked ? 'liked' : ''}" aria-pressed="${liked}">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}<span>Favorite</span></button>
-      <button type="button" data-edit>${ICON.edit}<span>Edit</span></button>
-      <button type="button" data-adjust>${ICON.adjust}<span>Adjust</span></button>
-      <button type="button" data-again>${ICON.again}<span>Again</span></button>
+    <nav class="vbar" aria-label="Frame actions">
+      <button type="button" class="vbtn${liked ? ' liked' : ''}" data-like aria-pressed="${liked}" aria-label="Favorite">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}</button>
+      <button type="button" class="vbtn save" data-save-one aria-label="Save to Photos">${ICON.save}</button>
+      <button type="button" class="vbtn" data-edit aria-label="Edit this frame">${ICON.sliders}</button>
     </nav>
   </div>`;
 }
@@ -699,9 +730,15 @@ async function shareFrames(indices: number[], button: HTMLButtonElement) {
     if (blob) files.push(new File([blob], `multik-${d.seed}-${k + 1}.jpg`, { type: 'image/jpeg' }));
   }
   const label = button.innerHTML;
+  const done = () => {
+    if (!button.classList.contains('vbtn')) return;
+    button.innerHTML = ICON.saved;
+    setTimeout(() => (button.innerHTML = label), 1500);
+  };
   try {
     if (navigator.canShare?.({ files })) {
       await navigator.share({ files });
+      done();
     } else {
       for (const f of files) {
         const a = document.createElement('a');
@@ -742,10 +779,12 @@ function renderSheet(): string {
       <div class="alert-buttons"><button type="button" data-close-sheet>Cancel</button><button type="button" class="strong" data-rename-save="${r.id}">Save</button></div>
     </div></div>`;
   }
-  const d = state.devs.find((x) => x.id === s.id);
+  const d = state.devs.find((x) => x.id === s.id) ?? (state.dev?.id === s.id ? state.dev : undefined);
   if (!d) return '';
   return `<div class="overlay" data-close-sheet><div class="action-sheet" role="dialog" aria-label="Development actions">
     <div class="action-group"><div class="action-title">${esc(d.titleA)} × ${esc(d.titleB)}</div>
+      <button type="button" data-again="${d.id}">Develop again</button>
+      ${d.likes.length ? `<button type="button" data-save-liked="${d.id}">Save ${d.likes.length} favorite${d.likes.length === 1 ? '' : 's'}</button>` : ''}
       <button type="button" class="danger" data-delete-dev="${d.id}">Delete Development</button></div>
     <div class="action-group"><button type="button" class="strong" data-close-sheet>Cancel</button></div>
   </div></div>`;
@@ -769,7 +808,7 @@ function render(): Promise<void> {
               : await renderResult();
     const strip = document.getElementById('filmstrip')?.scrollLeft;
     app.innerHTML = html + renderSheet();
-    if (state.screen === 'mix') bindDial();
+    if (state.screen === 'mix') bindSetupKnobs();
     if (state.screen === 'result') {
       bindViewer();
       const fs = document.getElementById('filmstrip');
@@ -877,17 +916,10 @@ app.addEventListener('click', async (e) => {
     state.mix.swap = !state.mix.swap;
     return render();
   }
-  if (ds.look) {
-    state.mix.look = ds.look;
-    return render();
-  }
-  if (ds.param) {
-    state.mix.param = ds.param as Param['id'];
-    return render();
-  }
   if (ds.toggle) {
-    const k = ds.toggle as 'randomShift' | 'flip' | 'full';
+    const k = ds.toggle as 'flip' | 'full';
     state.mix[k] = !state.mix[k];
+    saveMix();
     return render();
   }
   if (ds.develop !== undefined) return startDevelopment();
@@ -900,6 +932,12 @@ app.addEventListener('click', async (e) => {
   if (ds.openDev) {
     const d = await getDev(ds.openDev);
     if (!d) return;
+    // прерванная проявка, начатая прошлой версией алгоритма, проявляется заново целиком — иначе плёнка выйдет из двух половин
+    if (d.done < d.n && d.algo !== ALGO_VERSION) {
+      const fresh = { ...d, done: 0, algo: ALGO_VERSION, edits: {} };
+      await saveDev(fresh);
+      return develop(fresh);
+    }
     if (d.done < d.n) return develop(d);
     state.dev = d;
     state.view = 0;
@@ -923,7 +961,14 @@ app.addEventListener('click', async (e) => {
     return render();
   }
   if (ds.saveOne !== undefined) return shareFrames([state.view], el as HTMLButtonElement);
-  if (ds.saveLiked !== undefined) return shareFrames(state.dev!.likes, el as HTMLButtonElement);
+  if (ds.saveLiked) {
+    const d = state.devs.find((x) => x.id === ds.saveLiked) ?? state.dev!;
+    state.dev = d;
+    // меню «Поделиться» открывается прямо из нажатия (иначе Safari его не покажет), лист закрываем потом
+    await shareFrames(d.likes, el as HTMLButtonElement);
+    state.sheet = null;
+    return render();
+  }
   if (ds.resetMix !== undefined) {
     state.mix = { ...MIX_DEFAULTS, values: { ...MIX_DEFAULTS.values } };
     saveMix();
@@ -950,32 +995,8 @@ app.addEventListener('click', async (e) => {
       },
     });
   }
-  if (ds.adjust !== undefined) {
-    // те же две плёнки и настройки этой проявки — поправить крутилки и проявить снова
-    const d = state.dev!;
-    const p = d.params;
-    const s = p.settings;
-    state.selection = [d.rollA, d.rollB];
-    state.mix = {
-      ...state.mix,
-      swap: false,
-      look: p.lookId,
-      values: {
-        shift: s.shiftMm,
-        white: p.whiteMerge ?? 0,
-        leaks: s.leaks ? Math.round(s.leakChance * 10) : 0,
-        exposure: p.exposureTenths,
-        dust: s.dust ? s.dustLevel : 0,
-      },
-      randomShift: s.shiftMode === 'random',
-      flip: s.swapRotate,
-      full: p.ppm > 56,
-    };
-    await refresh();
-    return go('mix');
-  }
-  if (ds.again !== undefined) {
-    const d = state.dev!;
+  if (ds.again) {
+    const d = state.devs.find((x) => x.id === ds.again) ?? state.dev!;
     const [a, b] = await Promise.all([getRoll(d.rollA), getRoll(d.rollB)]);
     if (!a || !b) return;
     return startDevelopment(d);

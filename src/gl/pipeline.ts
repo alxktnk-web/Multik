@@ -9,9 +9,30 @@ import { BLUR, DOWN_BRIGHT, FILM, LEAKS, PLACE, VERT } from './shaders';
 const marginMm = (look: Look) => Math.max(3, 3 * look.halSigmaLargeMm + 0.5);
 
 /** Правка кадра: баланс проходов и тон после основной кривой (панель Edit). */
+/** Правка одного снимка до наложения (пульт: каналы Bottom / Top). Значения −1…+1, кроме gain, glow, soft. */
+export interface PassTone {
+  gain: number;
+  contrast: number;
+  black: number;
+  whites: number;
+  saturation: number;
+  warmth: number;
+  /** доля света этого снимка, идущая в ореол, 0…2 */
+  glow: number;
+  /** дополнительная мягкость объектива, ступени мип-уровня 0…2 */
+  soft: number;
+}
+
+export const NEUTRAL_PASS: PassTone = { gain: 1, contrast: 0, black: 0, whites: 0, saturation: 0, warmth: 0, glow: 1, soft: 0 };
+
 export interface FrameOptions {
-  gainA?: number;
-  gainB?: number;
+  passA?: PassTone;
+  passB?: PassTone;
+  /**
+   * Пересчитать только последний шаг (кривая, ореол по силе, зерно, пыль): сложение снимков и размытие ореола
+   * берутся из прошлого вызова для того же кадра. Для живого предпросмотра в пульте.
+   */
+  filmOnly?: boolean;
   /** таблица кривых 256 × RGBA8 (R, G, B — каналы, A — яркость) */
   curveLut?: Uint8Array;
   /** −1…+1 */
@@ -51,6 +72,8 @@ export class Developer {
   private blur: Program;
   private film: Program;
   private targets = new Map<string, Target>();
+  /** какой кадр сейчас сложен в acc/hs/hl (для filmOnly) */
+  private composed = '';
   private curveTex: WebGLTexture;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
@@ -120,47 +143,15 @@ export class Developer {
     const win = expand(frame, marginMm(look));
     const winW = Math.round(win.w * ppm);
     const winH = Math.round(win.h * ppm);
+    const half = { w: Math.ceil(winW / 2), h: Math.ceil(winH / 2) };
+    const q = { w: Math.ceil(half.w / 2), h: Math.ceil(half.h / 2) };
+    const ready = opts.filmOnly && this.composed === `${i}:${winW}x${winH}`;
     const acc = this.target('acc', winW, winH, true);
-
+    const hs = this.target('hs', q.w, q.h, true);
+    const hl = this.target('hl', q.w, q.h, true);
     gl.bindVertexArray(this.quad);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, acc.fbo);
-    gl.viewport(0, 0, winW, winH);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE);
-
-    // 1–2. каждый снимок, попадающий в окно, — свет складывается
-    const gains = { a: opts.gainA ?? 1, b: opts.gainB ?? 1 };
-    const visible = [
-      ...a.map((p) => [p, srcA[p.photo], gains.a] as const),
-      ...b.map((p) => [p, srcB[p.photo], gains.b] as const),
-    ].filter(([p, src]) => src && intersects(p.rect, win)) as [Placement, Source, number][];
-    for (const [p, src, g] of visible) this.drawPlaced(p, src, win, ppm, winW, winH, look, g, false);
-
-    // 3. засветки и засвеченные концы
-    this.drawLeaks(recipe, win, ppm, winW, winH, look, false);
-
-    // 4. ореол: свет выделяется на каждом проходе отдельно (в половинном разрешении, по полноразмерным
-    // отсчётам), затем сумма уменьшается ещё вдвое и размывается двумя радиусами
-    const half = this.target('half', Math.ceil(winW / 2), Math.ceil(winH / 2), true);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, half.fbo);
-    gl.viewport(0, 0, half.w, half.h);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    for (const [p, src, g] of visible) this.drawPlaced(p, src, win, ppm / 2, half.w, half.h, look, g, true);
-    this.drawLeaks(recipe, win, ppm / 2, half.w, half.h, look, true);
-    gl.disable(gl.BLEND);
-
-    const q1 = this.target('q1', Math.ceil(half.w / 2), Math.ceil(half.h / 2), true);
-    const q2 = this.target('q2', q1.w, q1.h, true);
-    const hs = this.target('hs', q1.w, q1.h, true);
-    const hl = this.target('hl', q1.w, q1.h, true);
-    this.downsample(half, q1, 0, false);
-    const qppm = ppm / 4;
-    this.blurPass(q1, q2, [1, 0], look.halSigmaSmallMm * qppm);
-    this.blurPass(q2, hs, [0, 1], look.halSigmaSmallMm * qppm);
-    this.blurPass(hs, q2, [1, 0], look.halSigmaLargeMm * qppm);
-    this.blurPass(q2, hl, [0, 1], look.halSigmaLargeMm * qppm);
+    if (!ready) this.compose(recipe, look, a, b, srcA, srcB, win, ppm, acc, hs, hl, opts);
+    this.composed = `${i}:${winW}x${winH}`;
 
     // 5–8. плёнка и вырезка кадра
     const outW = Math.round(FRAME_W * ppm);
@@ -168,13 +159,67 @@ export class Developer {
     const out = this.target('out', outW, outH, false);
     this.drawFilm(i, recipe, look, frame, win, ppm, acc, hs, hl, out, opts);
 
-    const pixels = new Uint8ClampedArray(outW * outH * 4);
+    const img = new ImageData(outW, outH);
     gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
-    gl.readPixels(0, 0, outW, outH, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    return new ImageData(flipRows(pixels, outW, outH), outW, outH);
+    gl.readPixels(0, 0, outW, outH, gl.RGBA, gl.UNSIGNED_BYTE, img.data);
+    flipRows(img.data, outW, outH);
+    return img;
   }
 
-  private drawPlaced(p: Placement, src: Source, win: Rect, ppm: number, winW: number, winH: number, look: Look, gain: number, extract: boolean) {
+  /** Шаги 1–4: снимки обоих проходов, засветки, ореол. Результат — в acc, hs, hl. */
+  private compose(
+    recipe: Recipe,
+    look: Look,
+    a: Placement[],
+    b: Placement[],
+    srcA: (Source | undefined)[],
+    srcB: (Source | undefined)[],
+    win: Rect,
+    ppm: number,
+    acc: Target,
+    hs: Target,
+    hl: Target,
+    opts: FrameOptions,
+  ) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, acc.fbo);
+    gl.viewport(0, 0, acc.w, acc.h);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+
+    // 1–2. каждый снимок, попадающий в окно, — свет складывается
+    const visible = [
+      ...a.map((p) => [p, srcA[p.photo], opts.passA ?? NEUTRAL_PASS] as const),
+      ...b.map((p) => [p, srcB[p.photo], opts.passB ?? NEUTRAL_PASS] as const),
+    ].filter(([p, src]) => src && intersects(p.rect, win)) as [Placement, Source, PassTone][];
+    for (const [p, src, t] of visible) this.drawPlaced(p, src, win, ppm, acc.w, acc.h, look, t, false);
+
+    // 3. засветки и засвеченные концы
+    this.drawLeaks(recipe, win, ppm, acc.w, acc.h, look, false);
+
+    // 4. ореол: свет выделяется на каждом проходе отдельно (в половинном разрешении, по полноразмерным
+    // отсчётам), затем сумма уменьшается ещё вдвое и размывается двумя радиусами
+    const half = this.target('half', Math.ceil(acc.w / 2), Math.ceil(acc.h / 2), true);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, half.fbo);
+    gl.viewport(0, 0, half.w, half.h);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    for (const [p, src, t] of visible) this.drawPlaced(p, src, win, ppm / 2, half.w, half.h, look, t, true);
+    this.drawLeaks(recipe, win, ppm / 2, half.w, half.h, look, true);
+    gl.disable(gl.BLEND);
+
+    const q1 = this.target('q1', hs.w, hs.h, true);
+    const q2 = this.target('q2', hs.w, hs.h, true);
+    this.downsample(half, q1, 0, false);
+    const qppm = ppm / 4;
+    this.blurPass(q1, q2, [1, 0], look.halSigmaSmallMm * qppm);
+    this.blurPass(q2, hs, [0, 1], look.halSigmaSmallMm * qppm);
+    this.blurPass(hs, q2, [1, 0], look.halSigmaLargeMm * qppm);
+    this.blurPass(q2, hl, [0, 1], look.halSigmaLargeMm * qppm);
+  }
+
+  private drawPlaced(p: Placement, src: Source, win: Rect, ppm: number, winW: number, winH: number, look: Look, t: PassTone, extract: boolean) {
     const gl = this.gl;
     const { prog, u } = this.place;
     gl.useProgram(prog);
@@ -186,13 +231,16 @@ export class Developer {
     gl.uniform2f(u.uImgSize, src.width, src.height);
     gl.uniform1i(u.uTurn, p.turn);
     gl.uniform2f(u.uFrame, FRAME_W, FRAME_H);
-    gl.uniform1f(u.uGain, p.gain * look.passGain * gain);
+    gl.uniform1f(u.uGain, p.gain * look.passGain * t.gain);
+    gl.uniform4f(u.uPassTone, t.contrast, t.black, t.whites, t.saturation);
+    gl.uniform1f(u.uPassWarm, t.warmth);
+    gl.uniform1f(u.uPassGlow, t.glow);
     gl.uniform1f(u.uCorner, look.cornerMm);
     gl.uniform1f(u.uSoft, look.softMm);
     gl.uniform1f(u.uVig, look.vignette);
     gl.uniform1f(u.uHLStart, look.hlStart);
     gl.uniform1f(u.uHLBoost, look.hlBoost);
-    gl.uniform1f(u.uGradScale, 2 ** look.lensSoftness * (extract ? 0.5 : 1));
+    gl.uniform1f(u.uGradScale, 2 ** (look.lensSoftness + t.soft) * (extract ? 0.5 : 1));
     gl.uniform1f(u.uThreshold, look.halThreshold);
     gl.uniform1i(u.uExtract, extract ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -398,9 +446,15 @@ function pad(values: number[], length: number): Float32Array {
   return a;
 }
 
-function flipRows(src: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(src.length);
+/** Переворот строк на месте — без второй полноразмерной копии кадра в памяти. */
+function flipRows(px: Uint8ClampedArray, w: number, h: number): void {
   const row = w * 4;
-  for (let y = 0; y < h; y++) out.set(src.subarray(y * row, (y + 1) * row), (h - 1 - y) * row);
-  return out;
+  const tmp = new Uint8ClampedArray(row);
+  for (let y = 0; y < h >> 1; y++) {
+    const top = y * row;
+    const bottom = (h - 1 - y) * row;
+    tmp.set(px.subarray(top, top + row));
+    px.copyWithin(top, bottom, bottom + row);
+    px.set(tmp, bottom);
+  }
 }
