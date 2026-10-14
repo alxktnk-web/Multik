@@ -127,8 +127,10 @@ export interface Recipe {
   fogs: Fog[];
   dust: Dust[][];
   hairs: Hair[][];
-  /** кадры первого прохода, повёрнутые на 180° правкой кадра (панель Edit) */
-  rotateA?: number[];
+  /** дополнительный поворот снимка первого прохода в кадре i, четверти оборота (правка кадра, пульт) */
+  turnA?: Record<number, number>;
+  /** четверти оборота для всех снимков второго прохода вместо film swap (правка кадра, пульт) */
+  turnB?: number;
 }
 
 /**
@@ -233,7 +235,7 @@ export function placements(recipe: Recipe, shapesA: PhotoShape[], shapesB: Photo
   const a = recipe.orderA.map((photo, i) => ({
     rect: frameA(i),
     photo,
-    turn: ((shapesA[photo].portrait ? 1 : 0) + (recipe.rotateA?.includes(i) ? 2 : 0)) % 4,
+    turn: ((shapesA[photo].portrait ? 1 : 0) + (recipe.turnA?.[i] ?? 0)) % 4,
     gain: 2 ** recipe.evA[i],
   }));
   const b = recipe.orderB.map((_, j) => {
@@ -244,7 +246,7 @@ export function placements(recipe: Recipe, shapesA: PhotoShape[], shapesB: Photo
       w: FRAME_W,
       h: FRAME_H,
     };
-    const turn = ((shapesB[photo].portrait ? 1 : 0) + (recipe.settings.swapRotate ? 2 : 0)) % 4;
+    const turn = ((shapesB[photo].portrait ? 1 : 0) + (recipe.turnB ?? (recipe.settings.swapRotate ? 2 : 0))) % 4;
     return { rect, photo, turn, gain: 2 ** recipe.evB[j] };
   });
   return { a, b };

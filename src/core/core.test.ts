@@ -159,14 +159,24 @@ describe('Правка кадра', () => {
     }
   });
 
-  it('поворот нижнего снимка на 180° касается только этого кадра, верхний — по правке', () => {
+  it('поворот нижнего снимка касается только этого кадра, верхний — по правке; шаг 90°', () => {
     const r = makeRecipe(6, 3, { ...DEFAULT_SETTINGS, exposureJitter: false });
     const shapes = Array.from({ length: 6 }, () => ({ portrait: false }));
     const base = baseEdit(r, 2, 4);
-    const e = editedRecipe(r, 2, { ...base, bottom: { ...base.bottom, rotate: true }, top: { ...base.top, rotate: false } });
+    expect(base.top.turns).toBe(2);
+    const e = editedRecipe(r, 2, { ...base, bottom: { ...base.bottom, turns: 1 }, top: { ...base.top, turns: 3 } });
     const { a, b } = placements(e, shapes, shapes);
-    expect(a.map((p) => p.turn)).toEqual([0, 0, 2, 0, 0, 0]);
-    expect(b.every((p) => p.turn === 0)).toBe(true);
+    expect(a.map((p) => p.turn)).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(b.every((p) => p.turn === 3)).toBe(true);
+    const unchanged = placements(editedRecipe(r, 2, base), shapes, shapes);
+    expect(unchanged.b.every((p) => p.turn === 2)).toBe(true);
+  });
+
+  it('старая правка с поворотом «да/нет» читается как 180°', () => {
+    const r = makeRecipe(6, 3);
+    const base = baseEdit(r, 0, 4);
+    const old = { ...base, bottom: { ...base.bottom, turns: undefined, rotate: true } };
+    expect(storedEdit(old)!.bottom.turns).toBe(2);
   });
 
   it('настройки последнего шага не требуют повторного сложения снимков', () => {

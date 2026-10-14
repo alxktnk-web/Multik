@@ -19,8 +19,8 @@ export interface PhotoEdit {
   glow: number;
   /** мягкость объектива 0…1 */
   soft: number;
-  /** снимок повёрнут на 180° */
-  rotate: boolean;
+  /** поворот снимка, четверти оборота 0…3 (кнопка 90°) */
+  turns: number;
 }
 
 export interface MixEdit {
@@ -52,7 +52,7 @@ export interface FrameEdit {
 
 export type Channel = 'bottom' | 'top' | 'mix';
 
-const photo = (rotate: boolean): PhotoEdit => ({ light: 0, contrast: 0, black: 0, whites: 0, color: 0, warmth: 0, glow: 1, soft: 0, rotate });
+const photo = (turns: number): PhotoEdit => ({ light: 0, contrast: 0, black: 0, whites: 0, color: 0, warmth: 0, glow: 1, soft: 0, turns });
 
 /** Засветки рецепта, свет которых доходит до кадра i (свои и соседей, севшие на перемычку). */
 export function leaksTouching(recipe: Recipe, i: number): Leak[] {
@@ -64,8 +64,8 @@ export function leaksTouching(recipe: Recipe, i: number): Leak[] {
 export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
   return {
     v: 2,
-    bottom: photo(false),
-    top: photo(recipe.settings.swapRotate),
+    bottom: photo(0),
+    top: photo(recipe.settings.swapRotate ? 2 : 0),
     mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10 },
     leaks: leaksTouching(recipe, i).map((l) => ({ ...l })),
   };
@@ -73,7 +73,14 @@ export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
 
 /** Сохранённая правка, если она той же версии; правки первой панели (v1) не переносятся. */
 export function storedEdit(stored: unknown): FrameEdit | null {
-  return stored && typeof stored === 'object' && (stored as FrameEdit).v === 2 ? (stored as FrameEdit) : null;
+  if (!stored || typeof stored !== 'object' || (stored as FrameEdit).v !== 2) return null;
+  const e = structuredClone(stored) as FrameEdit;
+  // первые правки пульта хранили поворот как «180° да/нет»
+  for (const p of [e.bottom, e.top] as (PhotoEdit & { rotate?: boolean })[]) {
+    if (typeof p.turns !== 'number') p.turns = p.rotate ? 2 : 0;
+    delete p.rotate;
+  }
+  return e;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -99,8 +106,8 @@ export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe
   return {
     ...recipe,
     shiftMm: Math.max(-FRAME_W, Math.min(FRAME_W, edit.mix.shiftMm)),
-    settings: { ...recipe.settings, swapRotate: edit.top.rotate },
-    rotateA: edit.bottom.rotate ? [...(recipe.rotateA ?? []), i] : recipe.rotateA,
+    turnA: { ...recipe.turnA, [i]: edit.bottom.turns },
+    turnB: edit.top.turns,
     leaks: [...others, ...leaks],
     dust,
     hairs,

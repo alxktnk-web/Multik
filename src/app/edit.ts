@@ -218,22 +218,23 @@ export async function openEditor(host: EditorHost): Promise<void> {
   const frac = (c: Control, v: number) => (v - c.min) / (c.max - c.min);
 
   function faderHtml(c: Control): string {
-    return `<div class="fader${changed(c) ? ' on' : ''}" data-c="${c.id}">
-      <output>${c.fmt(c.get(edit))}</output>
-      <div class="ftrack" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
-        ${c.bipolar ? '<i class="fzero"></i>' : ''}<i class="ffill"></i><i class="fcap"></i>
+    return `<div class="hrow${changed(c) ? ' on' : ''}" data-c="${c.id}">
+      <span class="ficon" aria-hidden="true">${ICONS[c.icon]}</span>
+      <div class="htrack" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
+        ${c.bipolar ? '<i class="hzero"></i>' : ''}<i class="hfill"></i><i class="hthumb"></i>
       </div>
-      <span class="ficon">${ICONS[c.icon]}</span><small>${c.label}</small>
+      <output>${c.fmt(c.get(edit))}</output>
     </div>`;
   }
   function knobHtml(c: Control): string {
     return `<div class="knob${changed(c) ? ' on' : ''}" data-c="${c.id}" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
-      <svg width="54" height="54" viewBox="0 0 54 54" aria-hidden="true">
+      <svg width="50" height="50" viewBox="0 0 54 54" aria-hidden="true">
         <circle cx="27" cy="27" r="23" fill="#1c1c1e" stroke="rgba(255,255,255,0.10)" stroke-width="4"/>
         <circle class="karc" cx="27" cy="27" r="23" fill="none" stroke="${c.tint ?? '#fff'}" stroke-width="4" stroke-linecap="round"/>
         <line class="kptr" x1="27" y1="27" x2="27" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
         <circle cx="27" cy="27" r="4" fill="#fff"/>
       </svg>
+      <output>${c.fmt(c.get(edit))}</output>
       <small>${c.label}</small>
     </div>`;
   }
@@ -247,19 +248,12 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const slider = el.matches('[role="slider"]') ? el : el.querySelector<HTMLElement>('[role="slider"]');
     slider?.setAttribute('aria-valuenow', String(v));
     const t = frac(c, v);
-    if (el.classList.contains('fader')) {
-      el.querySelector('output')!.textContent = c.fmt(v);
-      const fill = el.querySelector<HTMLElement>('.ffill')!;
-      if (c.bipolar) {
-        fill.style.top = `${Math.min(50, (1 - t) * 100)}%`;
-        fill.style.height = `${Math.abs(t - 0.5) * 100}%`;
-        fill.style.bottom = '';
-      } else {
-        fill.style.top = '';
-        fill.style.bottom = '0';
-        fill.style.height = `${t * 100}%`;
-      }
-      el.querySelector<HTMLElement>('.fcap')!.style.top = `${(1 - t) * 100}%`;
+    el.querySelector('output')!.textContent = c.fmt(v);
+    if (el.classList.contains('hrow')) {
+      const fill = el.querySelector<HTMLElement>('.hfill')!;
+      fill.style.left = `${c.bipolar ? Math.min(50, t * 100) : 0}%`;
+      fill.style.width = `${c.bipolar ? Math.abs(t - 0.5) * 100 : t * 100}%`;
+      el.querySelector<HTMLElement>('.hthumb')!.style.left = `${t * 100}%`;
     } else {
       const C = 2 * Math.PI * 23;
       const arc = el.querySelector<SVGCircleElement>('.karc')!;
@@ -285,17 +279,18 @@ export async function openEditor(host: EditorHost): Promise<void> {
         <button type="button" class="mpill" data-ed="dice" aria-label="New random light leak">${ICONS.dice}<span>Leak</span></button>
       </div>`;
     }
-    const on = edit[channel].rotate;
-    return `<div class="mactions"><button type="button" class="mpill${on ? ' on' : ''}" data-ed="rotate" aria-pressed="${on}" aria-label="Rotate this photo 180°">${ICONS.rotate}<span>180°</span></button></div>`;
+    const turns = edit[channel].turns;
+    const on = turns !== base[channel].turns;
+    return `<div class="mactions"><button type="button" class="mpill${on ? ' on' : ''}" data-ed="rotate" aria-label="Rotate this photo by 90°, now ${turns * 90}°">${ICONS.rotate}<span>${turns * 90}°</span></button></div>`;
   }
 
   function tabHtml(ch: Channel): string {
     const on = ch === channel;
     const label = { bottom: 'Bottom', top: 'Top', mix: 'Mix' }[ch];
     const url = ch === 'bottom' ? urlA : urlB;
-    const rot = ch === 'bottom' ? edit.bottom.rotate : ch === 'top' ? edit.top.rotate : false;
-    const art = ch === 'mix' ? ICONS.mix : url ? `<img src="${url}" alt="" class="${rot ? 'rot' : ''}">` : '';
-    return `<button type="button" role="tab" aria-selected="${on}" class="mtab${on ? ' on' : ''}" data-ed="channel" data-arg="${ch}"><span class="mthumb">${art}</span><small>${label}</small></button>`;
+    const turns = ch === 'mix' ? 0 : edit[ch].turns;
+    const art = ch === 'mix' ? ICONS.mix : url ? `<img src="${url}" alt="" style="transform: rotate(${-turns * 90}deg)">` : '';
+    return `<button type="button" role="tab" aria-selected="${on}" class="mtab${on ? ' on' : ''}" data-ed="channel" data-arg="${ch}"><span class="mthumb">${art}</span>${label}</button>`;
   }
 
   function paint() {
@@ -316,7 +311,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
       <p class="edit-count" aria-live="polite"></p>
       <div class="mtabs" role="tablist" aria-label="Channel">${(['bottom', 'top', 'mix'] as Channel[]).map(tabHtml).join('')}</div>
       <div class="mknobs">${c.knobs.map(knobHtml).join('')}</div>
-      <div class="mfaders">${c.faders.map(faderHtml).join('')}</div>
+      <div class="mrows">${c.faders.map(faderHtml).join('')}</div>
       ${actionsHtml()}
     </div>`;
     all().forEach(updateControl);
@@ -337,12 +332,13 @@ export async function openEditor(host: EditorHost): Promise<void> {
   function valueAt(e: PointerEvent): number {
     const d = drag!;
     if (d.kind === 'fader') {
-      const r = d.el.querySelector('.ftrack')!.getBoundingClientRect();
-      const t = 1 - (e.clientY - r.top) / r.height;
-      return snap(d.c, d.c.min + Math.max(0, Math.min(1, t)) * (d.c.max - d.c.min));
+      // ползунок едет за пальцем относительно места касания — без скачка при нажатии
+      const w = d.el.querySelector('.htrack')!.getBoundingClientRect().width;
+      return snap(d.c, d.v0 + ((e.clientX - d.x0) / w) * (d.c.max - d.c.min));
     }
     if (d.kind === 'knob') {
-      const delta = (e.clientX - d.x0 - (e.clientY - d.y0)) / 180;
+      // в 4 раза медленнее, чем был: полный ход крутилки — около 720 px пальцем
+      const delta = (e.clientX - d.x0 - (e.clientY - d.y0)) / 720;
       return snap(d.c, d.v0 + delta * (d.c.max - d.c.min));
     }
     return snap(d.c, d.v0 + (e.clientX - d.x0) / 6);
@@ -365,13 +361,9 @@ export async function openEditor(host: EditorHost): Promise<void> {
       return;
     }
     lastTap = { id: c.id, t: now };
-    const kind = shiftBtn ? 'shift' : el!.classList.contains('fader') ? 'fader' : 'knob';
+    const kind = shiftBtn ? 'shift' : el!.classList.contains('hrow') ? 'fader' : 'knob';
     drag = { c, el: (shiftBtn ?? el)!, kind, x0: e.clientX, y0: e.clientY, v0: c.get(edit), id: e.pointerId };
     drag.el.setPointerCapture(e.pointerId);
-    if (kind === 'fader') {
-      c.set(edit, valueAt(e));
-      afterChange(c, drag.el);
-    }
   };
   const onMove = (e: PointerEvent) => {
     if (!drag || e.pointerId !== drag.id) return;
@@ -434,7 +426,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
         channel = arg as Channel;
         return paint();
       case 'rotate':
-        if (channel !== 'mix') edit[channel].rotate = !edit[channel].rotate;
+        if (channel !== 'mix') edit[channel].turns = (edit[channel].turns + 1) % 4;
         commit();
         return paint();
       case 'dice': {

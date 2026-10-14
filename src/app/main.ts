@@ -2,9 +2,11 @@
 // чёрный фон, крупные заголовки, карточки со снимками, плавающая стеклянная панель вкладок, жёлтые акценты.
 // Экраны: Плёнки · Новая плёнка · Смешать · Проявка идёт · Просмотр · Проявки. Интерфейс на английском.
 
-import { ALGO_VERSION, DEFAULT_SETTINGS } from '../core/recipe';
+import { ALGO_VERSION, DEFAULT_SETTINGS, randomLeak } from '../core/recipe';
 import { randomSeed } from '../core/rng';
-import { runDevelopment } from './develop';
+import { baseEdit } from '../core/edit';
+import { Rng } from '../core/rng';
+import { FrameRenderer, runDevelopment } from './develop';
 import { openEditor } from './edit';
 import {
   createDev,
@@ -132,6 +134,7 @@ const ICON = {
   again: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M21 13a8 8 0 1 1-2.4-5.7M21 4v4h-4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
   edit: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="1.9" fill="none"/><path d="M13 4a9 9 0 0 1 0 18Z" fill="currentColor"/></svg>',
   adjust: '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4 8h18M4 18h18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="9" cy="8" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/><circle cx="17" cy="18" r="3" fill="#000" stroke="currentColor" stroke-width="1.9"/></svg>',
+  dice: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>',
   rotate: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
   close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   save: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg>',
@@ -179,6 +182,7 @@ const HERO = `<svg class="hero-art" viewBox="0 0 360 230" role="img" aria-label=
 </svg>`;
 
 function go(screen: Screen) {
+  if (state.screen === 'mix' && screen !== 'mix') closeSample();
   state.screen = screen;
   state.sheet = null;
   void render();
@@ -401,9 +405,12 @@ async function renderMix(): Promise<string> {
   const [a, b] = pair;
   const m = state.mix;
   const [ca, cb] = await Promise.all([blobUrl(`rt:${a.id}:0`, () => rollThumb(a.id, 0)), blobUrl(`rt:${b.id}:0`, () => rollThumb(b.id, 0))]);
-  const card = (r: Roll, url: string, label: string, flip: boolean, toggle: boolean) => `<div class="scard">
-      <button type="button" class="sphoto${flip ? ' flipped' : ''}" ${toggle ? 'data-toggle="flip" aria-label="Flip the top roll 180°"' : 'tabindex="-1"'}>${url ? `<img src="${url}" alt="">` : ''}${toggle ? `<span class="sflip">${ICON.rotate}</span>` : ''}</button>
-      <div><small>${label}</small><b>${esc(r.name)}</b><em>${rollNo(r.number)} · ${r.length}</em></div>
+  const row = (r: Roll, url: string, label: string, top: boolean) => `<div class="srow">
+      <span class="sthumb">${url ? `<img src="${url}" alt="" class="${top && m.flip ? 'flipped' : ''}">` : ''}</span>
+      <small>${label}</small><b>${esc(r.name)}</b>
+      ${top
+        ? `<button type="button" class="sicon${m.flip ? ' on' : ''}" data-toggle="flip" aria-pressed="${m.flip}" aria-label="Rotate the top roll 180°">${ICON.rotate}</button>`
+        : `<button type="button" class="sicon" data-swap aria-label="Swap top and bottom">${ICON.swap}</button>`}
     </div>`;
   return `<div class="screen dark setup">
     ${ambient(ca)}
@@ -412,11 +419,12 @@ async function renderMix(): Promise<string> {
       <span class="scount">${frames(Math.min(a.length, b.length))}</span>
       <button type="button" class="chip-mp${m.full ? ' on' : ''}" data-toggle="full" aria-pressed="${m.full}">12 MP</button>
     </div>
-    <div class="sstack">
-      ${card(b, cb, 'TOP', m.flip, true)}
-      <button type="button" class="round-btn big sswap" data-swap aria-label="Swap top and bottom">${ICON.swap}</button>
-      ${card(a, ca, 'BOTTOM', false, false)}
+    <div class="ssample">
+      <canvas id="setup-canvas" width="900" height="675" aria-label="Sample frame from these two rolls"></canvas>
+      <span class="sbadge">sample</span>
+      <button type="button" class="sdice" data-sample-dice aria-label="Another sample frame">${ICON.dice}</button>
     </div>
+    <div class="srows">${row(b, cb, 'TOP', true)}${row(a, ca, 'BOTTOM', false)}</div>
     <div class="sknobs">${SETUP_KNOBS.map((k) => {
       const random = k.id === 'shift' && m.randomShift;
       return `<div class="sknob" data-k="${k.id}" role="slider" tabindex="0" aria-label="${k.label}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" aria-valuenow="${m.values[k.id]}">
@@ -471,6 +479,7 @@ function bindSetupKnobs() {
         else state.mix.values[k.id] = MIX_DEFAULTS.values[k.id];
         lastTap = { id: '', t: 0 };
         paintKnob(el, k);
+        void drawSample();
         return;
       }
       lastTap = { id: k.id, t: now };
@@ -479,13 +488,15 @@ function bindSetupKnobs() {
     });
     el.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
-      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 180;
+      // в 4 раза медленнее: полный ход — около 720 px пальцем, значение видно над крутилкой
+      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 720;
       const v = Math.max(k.min, Math.min(k.max, Math.round(start.v + delta * (k.max - k.min))));
       if (v === state.mix.values[k.id] && !(k.id === 'shift' && state.mix.randomShift)) return;
       if (Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;
       state.mix.values[k.id] = v;
       if (k.id === 'shift') state.mix.randomShift = false;
       paintKnob(el, k);
+      void drawSample();
     });
     const end = () => {
       start = null;
@@ -500,8 +511,75 @@ function bindSetupKnobs() {
       state.mix.values[k.id] = Math.max(k.min, Math.min(k.max, state.mix.values[k.id] + dir));
       if (k.id === 'shift') state.mix.randomShift = false;
       paintKnob(el, k);
+      void drawSample();
     });
   });
+  void drawSample();
+}
+
+/**
+ * Образец перед проявкой: один кадр из случайной пары снимков двух выбранных плёнок, в маленьком размере.
+ * Крутилки «сдвиг», «засветки», «белое» и поворот верхней плёнки сразу меняют его.
+ */
+const sample = { renderer: null as FrameRenderer | null, key: '', frame: 0, seed: 1, busy: false, pending: false, img: null as ImageData | null };
+function putSample() {
+  const cv = document.getElementById('setup-canvas') as HTMLCanvasElement | null;
+  if (!cv || !sample.img) return;
+  cv.width = sample.img.width;
+  cv.height = sample.img.height;
+  cv.getContext('2d')!.putImageData(sample.img, 0, 0);
+}
+function closeSample() {
+  sample.img = null;
+  sample.renderer?.dispose();
+  sample.renderer = null;
+  sample.key = '';
+}
+async function drawSample() {
+  putSample();
+  if (sample.busy) {
+    sample.pending = true;
+    return;
+  }
+  const pair = mixRolls();
+  if (!pair || state.screen !== 'mix') return;
+  sample.busy = true;
+  try {
+    const [a, b] = pair;
+    const m = state.mix;
+    const n = Math.min(a.length, b.length, a.photos.length, b.photos.length);
+    const key = `${a.id}|${b.id}|${sample.seed}`;
+    if (sample.key !== key || !sample.renderer) {
+      closeSample();
+      const virtual = {
+        id: 'sample', createdAt: '', rollA: a.id, rollB: b.id, titleA: a.name, titleB: b.name, seed: sample.seed, n,
+        params: { lookId: 'M', exposureTenths: 0, whiteMerge: m.values.white, ppm: 25, settings: { ...DEFAULT_SETTINGS } },
+        algo: ALGO_VERSION, done: 0, likes: [],
+      } as Development;
+      sample.renderer = await FrameRenderer.open(virtual, 900);
+      sample.key = key;
+      sample.frame = Math.min(sample.frame, n - 1);
+    }
+    const r = sample.renderer;
+    const i = sample.frame;
+    const edit = baseEdit(r.recipe, i, m.values.white);
+    edit.top.turns = m.flip ? 2 : 0;
+    edit.mix.shiftMm = m.randomShift ? r.recipe.shiftMm : m.values.shift;
+    if (m.values.leaks === 0) edit.mix.leaks = 0;
+    else {
+      if (!edit.leaks.length) edit.leaks = [randomLeak(new Rng(sample.seed * 31 + i), i)];
+      edit.mix.leaks = m.values.leaks / 5;
+    }
+    sample.img = await r.render(i, edit, 25);
+    putSample();
+  } catch {
+    // образец — подсказка, не данные: если не вышел, экран работает и без него
+  }
+  sample.busy = false;
+  if (sample.pending) {
+    sample.pending = false;
+    void drawSample();
+  }
 }
 
 async function startDevelopment(reuse?: Development) {
@@ -898,6 +976,8 @@ app.addEventListener('click', async (e) => {
   }
   if (ds.mix !== undefined) {
     state.mix.swap = false;
+    sample.seed = 1 + Math.floor(Math.random() * 99999);
+    sample.frame = Math.floor(Math.random() * 6);
     return go('mix');
   }
   if (ds.cancelNew !== undefined || ds.home !== undefined) return go('home');
@@ -922,7 +1002,17 @@ app.addEventListener('click', async (e) => {
     saveMix();
     return render();
   }
-  if (ds.develop !== undefined) return startDevelopment();
+  if (ds.sampleDice !== undefined) {
+    const pair = mixRolls();
+    const n = pair ? Math.min(pair[0].length, pair[1].length) : 1;
+    sample.seed = (sample.seed * 7919 + 1) % 100000;
+    sample.frame = Math.floor(Math.random() * n);
+    return drawSample();
+  }
+  if (ds.develop !== undefined) {
+    closeSample();
+    return startDevelopment();
+  }
   if (ds.stop !== undefined) {
     state.developing.stop = true;
     state.tab = 'devs';
