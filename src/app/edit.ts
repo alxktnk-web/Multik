@@ -16,7 +16,7 @@ import {
   type MixEdit,
   type PhotoEdit,
 } from '../core/edit';
-import { FRAME_H, FRAME_W } from '../core/geometry';
+import { FRAME_H, FRAME_W, PITCH } from '../core/geometry';
 import { placements, randomLeak } from '../core/recipe';
 import { Rng, randomSeed } from '../core/rng';
 import { FrameRenderer, encode } from './develop';
@@ -39,10 +39,14 @@ interface Control {
   tint?: string;
   /** крутилка: изменение значения на пиксель движения пальца (иначе полный ход ≈ 500 px) */
   speed?: number;
-  /** крутилка без дуги, бесконечная: стрелка поворачивается на столько градусов на единицу значения */
-  spin?: number;
+  /** крутилка крутится движением пальца вверх-вниз (вверх — больше), а не вбок */
+  vertical?: boolean;
   /** ползунок с миниатюрами снимков по краям (баланс) */
   ends?: boolean;
+  /** ползунок без значка */
+  plain?: boolean;
+  /** двойное касание: своё действие вместо «значение проявки» */
+  reset?: (e: FrameEdit) => void;
 }
 
 const ICONS: Record<IconId | 'x' | 'check' | 'undo' | 'original' | 'rotate' | 'shift' | 'dice' | 'mix' | 'spark' | 'spot' | 'wand' | 'trash', string> = {
@@ -264,40 +268,59 @@ export async function openEditor(host: EditorHost): Promise<void> {
     return [first, knob('strength', 'Strength', 'halo', 0, 2, 0.05, pct, '#ff5a36'), hue];
   }
 
-  const controls = () => (tool === 'glow' ? { faders: [], knobs: glowControls() } : channel === 'mix' ? mixControls() : photoControls(channel));
+  const controls = () => {
+    if (tool === 'glow') return { faders: [], knobs: glowControls() };
+    if (channel !== 'mix') return photoControls(channel);
+    const m = mixControls();
+    m.faders.splice(1, 0, shiftFine);
+    return m;
+  };
   const all = () => {
     const c = controls();
-    return [...c.faders, ...c.knobs, ...(tool === 'none' && channel === 'mix' ? shiftKnobs : [])];
+    return [...c.faders, ...c.knobs, ...(tool === 'none' && channel === 'mix' ? [shiftCoarse] : [])];
   };
-  /** Сдвиг верхней плёнки: большая крутилка — быстро, по кадрам; маленькая — точно, по десятым мм. */
+  /**
+   * Сдвиг верхней плёнки (14.10.2026): крутилка — пальцем вверх-вниз, быстро, по всей плёнке;
+   * ползунок под балансом — подстройка, весь ход — от кадра назад до кадра вперёд (середина — где стоит крутилка).
+   */
   const range = shiftRange(recipe, i);
+  let fine = 0;
+  const clampShift = (v: number) => Math.max(range.min, Math.min(range.max, v));
   const shiftCoarse: Control = {
-    id: 'mix.shift', label: 'Shift', icon: 'shift', min: range.min, max: range.max, step: 0.5, tint: '#ffffff', speed: 1,
-    get: (e) => e.mix.shiftMm, set: (e, v) => (e.mix.shiftMm = v),
-    fmt: (v) => {
-      const { j } = topFrameAt(i, v);
-      return j < 0 || j >= recipe.n ? 'empty' : `#${j + 1}`;
+    id: 'mix.shift', label: 'Shift', icon: 'shift', min: range.min, max: range.max, step: 0.5, tint: '#ffffff', speed: 1, vertical: true,
+    get: (e) => e.mix.shiftMm, set: (e, v) => (e.mix.shiftMm = clampShift(v + fine)), fmt: () => '',
+    reset: (e) => {
+      fine = 0;
+      e.mix.shiftMm = base.mix.shiftMm;
     },
   };
+  // крутилка берёт значение без подстройки, чтобы подстройка не терялась
+  const coarseGet = (e: FrameEdit) => e.mix.shiftMm - fine;
+  shiftCoarse.get = coarseGet;
   const shiftFine: Control = {
-    ...shiftCoarse, id: 'mix.shiftFine', label: 'Fine', step: 0.1, speed: 0.025, spin: 36,
-    fmt: (v) => `${sign(topFrameAt(i, v).offset, 1)} mm`,
+    id: 'mix.shiftFine', label: 'Fine shift', icon: 'shift', min: -PITCH, max: PITCH, step: 0.1, bipolar: true, plain: true, fmt: () => '',
+    get: () => fine,
+    set: (e, v) => {
+      const coarse = coarseGet(e);
+      fine = v;
+      e.mix.shiftMm = clampShift(coarse + v);
+    },
+    reset: (e) => shiftFine.set(e, 0),
   };
   const shiftKnobs = [shiftCoarse, shiftFine];
 
-  const changed = (c: Control) => Math.abs(c.get(edit) - c.get(base)) > 1e-6;
+  const changed = (c: Control) => (c === shiftFine ? Math.abs(fine) > 1e-6 : Math.abs(c.get(edit) - c.get(base)) > 1e-6);
   const frac = (c: Control, v: number) => (v - c.min) / (c.max - c.min);
 
   function faderHtml(c: Control): string {
     const end = (url: string, turns: number) => `<span class="mthumb bend" aria-hidden="true">${url ? `<img src="${url}" alt="" style="transform: rotate(${-turns * 90}deg)">` : ''}</span>`;
-    const left = c.ends ? end(urlA, edit.bottom.turns) : `<span class="ficon" aria-hidden="true">${ICONS[c.icon]}</span>`;
+    const left = c.ends ? end(urlA, edit.bottom.turns) : `<span class="ficon" aria-hidden="true">${c.plain ? '' : ICONS[c.icon]}</span>`;
     return `<div class="hrow${changed(c) ? ' on' : ''}${c.ends ? ' ends' : ''}" data-c="${c.id}">
       ${left}
       <div class="htrack" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
         ${c.bipolar ? '<i class="hzero"></i>' : ''}<i class="hfill"></i><i class="hthumb"></i>
       </div>
       ${c.ends ? end(urlB, edit.top.turns) : ''}
-      <output>${c.fmt(c.get(edit))}</output>
     </div>`;
   }
   function knobHtml(c: Control, cls = ''): string {
@@ -308,7 +331,6 @@ export async function openEditor(host: EditorHost): Promise<void> {
         <line class="kptr" x1="27" y1="27" x2="27" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
         <circle cx="27" cy="27" r="4" fill="#fff"/>
       </svg>
-      <output>${c.fmt(c.get(edit))}</output>
       <small>${c.label}</small>
     </div>`;
   }
@@ -322,19 +344,11 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const slider = el.matches('[role="slider"]') ? el : el.querySelector<HTMLElement>('[role="slider"]');
     slider?.setAttribute('aria-valuenow', String(v));
     const t = frac(c, v);
-    el.querySelector('output')!.textContent = c.fmt(v);
     if (el.classList.contains('hrow')) {
       const fill = el.querySelector<HTMLElement>('.hfill')!;
       fill.style.left = `${c.bipolar ? Math.min(50, t * 100) : 0}%`;
       fill.style.width = `${c.bipolar ? Math.abs(t - 0.5) * 100 : t * 100}%`;
       el.querySelector<HTMLElement>('.hthumb')!.style.left = `${t * 100}%`;
-    } else if (c.spin) {
-      // бесконечная крутилка: только стрелка
-      const ang = ((-90 + v * c.spin) * Math.PI) / 180;
-      const ptr = el.querySelector('.kptr')!;
-      ptr.setAttribute('x2', (27 + 15 * Math.cos(ang)).toFixed(1));
-      ptr.setAttribute('y2', (27 + 15 * Math.sin(ang)).toFixed(1));
-      el.querySelector('.karc')!.setAttribute('stroke-dasharray', '0 999');
     } else {
       const C = 2 * Math.PI * 23;
       const arc = el.querySelector<SVGCircleElement>('.karc')!;
@@ -448,7 +462,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
       </div>
       <p class="edit-count" aria-live="polite"></p>
       <div class="mtabs" role="tablist" aria-label="Channel">${(['bottom', 'top', 'mix'] as Channel[]).map(tabHtml).join('')}</div>
-      <div class="mknobs">${channel === 'mix' ? `<div class="shiftknobs" role="group" aria-label="Shift the top film">${knobHtml(shiftCoarse, ' coarse')}${knobHtml(shiftFine, ' fine')}</div>` : ''}${c.knobs.map((k) => knobHtml(k)).join('')}</div>
+      <div class="mknobs">${channel === 'mix' ? `<div class="shiftknobs" role="group" aria-label="Shift the top film">${knobHtml(shiftCoarse, ' coarse')}</div>` : ''}${c.knobs.map((k) => knobHtml(k)).join('')}</div>
       <div class="mrows">${c.faders.map(faderHtml).join('')}</div>
       ${actionsHtml()}
     </div>`;
@@ -470,8 +484,9 @@ export async function openEditor(host: EditorHost): Promise<void> {
       const w = d.el.querySelector('.htrack')!.getBoundingClientRect().width;
       return snap(d.c, d.v0 + ((e.clientX - d.x0) / w) * (d.c.max - d.c.min));
     }
-    // крутилка — движением пальца вбок, как на экране перед проявкой: вправо — больше; полный ход ≈ 500 px
-    const dx = e.clientX - d.x0;
+    // крутилка — движением пальца вбок, как на экране перед проявкой: вправо — больше; полный ход ≈ 500 px.
+    // крутилка сдвига — вверх-вниз: вверх — больше
+    const dx = d.c.vertical ? d.y0 - e.clientY : e.clientX - d.x0;
     return snap(d.c, d.v0 + (d.c.speed ? dx * d.c.speed : (dx / 500) * (d.c.max - d.c.min)));
   }
 
@@ -515,7 +530,8 @@ export async function openEditor(host: EditorHost): Promise<void> {
     e.preventDefault();
     const now = performance.now();
     if (lastTap.id === c.id && now - lastTap.t < 320) {
-      c.set(edit, c.get(base)); // двойное касание — значение проявки
+      if (c.reset) c.reset(edit);
+      else c.set(edit, c.get(base)); // двойное касание — значение проявки
       lastTap = { id: '', t: 0 };
       afterChange(c, el);
       commit();
