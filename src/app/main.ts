@@ -30,6 +30,8 @@ import {
 } from './store';
 
 const app = document.getElementById('app')!;
+/** Номер сборки на экране «перед проявкой» — видно, что телефон загрузил новую версию. */
+const BUILD = '14.10 · 3';
 const LENGTHS = [6, 12, 24, 36];
 /** Крутилки экрана перед проявкой (макет v2 «D»). */
 interface Knob {
@@ -416,7 +418,7 @@ async function renderMix(): Promise<string> {
     ${ambient(ca)}
     <div class="mbar">
       <button type="button" class="round-btn big" data-home aria-label="Cancel">${ICON.close}</button>
-      <span class="scount">${frames(Math.min(a.length, b.length))}</span>
+      <span class="scount">${frames(Math.min(a.length, b.length))}<small class="sbuild">${BUILD}</small></span>
       <button type="button" class="chip-mp${m.full ? ' on' : ''}" data-toggle="full" aria-pressed="${m.full}">12 MP</button>
     </div>
     <div class="ssample">
@@ -488,8 +490,8 @@ function bindSetupKnobs() {
     });
     el.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
-      // в 4 раза медленнее: полный ход — около 720 px пальцем, значение видно над крутилкой
-      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 720;
+      // ещё в 4 раза медленнее (просьба Александра 14.10): полный ход — около 2880 px пальцем
+      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 2880;
       const v = Math.max(k.min, Math.min(k.max, Math.round(start.v + delta * (k.max - k.min))));
       if (v === state.mix.values[k.id] && !(k.id === 'shift' && state.mix.randomShift)) return;
       if (Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;

@@ -401,6 +401,7 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 .sthumb img.flipped { transform: rotate(180deg); }
 .sicon { width: 34px; height: 34px; border-radius: 50%; border: 0.5px solid var(--glass-line); background: var(--fill); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
 .sicon.on { background: var(--yellow); color: #000; border-color: var(--yellow); }
+.sbuild { display: block; font: 500 9px var(--font); color: var(--muted2); text-align: center; }
 .chip-mp { border: none; height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(118, 118, 128, 0.3); color: #fff; font-size: 12px; font-weight: 700; }
 .chip-mp.on { background: var(--yellow); color: #000; }
 .sknobs { flex: 1; display: flex; justify-content: space-around; align-items: center; padding: 8px 0; }
