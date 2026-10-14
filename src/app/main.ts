@@ -31,7 +31,7 @@ import {
 
 const app = document.getElementById('app')!;
 /** Номер сборки на экране «перед проявкой» — видно, что телефон загрузил новую версию. */
-const BUILD = '14.10 · 5';
+const BUILD = '14.10 · 6';
 const LENGTHS = [6, 12, 24, 36];
 /** Крутилки экрана перед проявкой (макет v2 «D»). */
 interface Knob {

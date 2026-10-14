@@ -1,11 +1,13 @@
 // Проявка в приложении: кадр за кадром, в памяти только снимки, нужные текущему кадру.
 // Каждый готовый кадр сразу сохраняется — после прерывания проявка продолжается с того же места.
 
-import { composeKey, editedRecipe, type FrameEdit, type PhotoEdit } from '../core/edit';
-import { makeRecipe, type PhotoShape, type Recipe } from '../core/recipe';
-import { Developer, type FrameOptions, type PassTone, type Source } from '../gl/pipeline';
+import { composeKey, editedRecipe, glowTint, type FrameEdit, type PhotoEdit } from '../core/edit';
+import { frameA, type Rect } from '../core/geometry';
+import { luminance, photoUv, wandMask } from '../core/glow';
+import { makeRecipe, placements, type PhotoShape, type Recipe } from '../core/recipe';
+import { Developer, type FrameOptions, type GlowOptions, type PassTone, type Source } from '../gl/pipeline';
 import { LOOKS, withWhiteMerge, type Look } from '../looks';
-import { getRoll, rollPhoto, saveFrame, type Development, type Roll } from './store';
+import { getRoll, rollPhoto, rollThumb, saveFrame, type Development, type Roll } from './store';
 
 export function lookFor(dev: Development): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
@@ -146,6 +148,9 @@ export class FrameRenderer {
   private shapes: { a: PhotoShape[]; b: PhotoShape[] };
   private lastCompose = '';
   private lost = false;
+  /** маски палочки: ключ «a12» / «b3» → текстура и описание, по которому она построена */
+  private masks = new Map<string, { tex: WebGLTexture; key: string }>();
+  private lumCache = new Map<string, { lum: Float32Array; w: number; h: number }>();
   private disposed = false;
 
   private constructor(
@@ -163,6 +168,7 @@ export class FrameRenderer {
 
   private reset() {
     this.cache.clear();
+    this.masks.clear();
     this.lastCompose = '';
     this.lost = false;
     this.canvas = document.createElement('canvas');
@@ -202,8 +208,9 @@ export class FrameRenderer {
     const srcA: (Source | undefined)[] = [];
     const srcB: (Source | undefined)[] = [];
     for (const [key, src] of this.cache) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
+    const glow = edit.glows.length ? await this.glowOptions(i, edit, recipe) : undefined;
     const key = `${i}:${ppm}:${composeKey(edit)}`;
-    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, { ...editOptions(edit), filmOnly: key === this.lastCompose });
+    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, { ...editOptions(edit), glow, filmOnly: key === this.lastCompose });
     if (this.lost) {
       this.reset();
       throw new Error('The phone interrupted rendering — try again');
@@ -212,9 +219,80 @@ export class FrameRenderer {
     return img;
   }
 
+  /** Точки — в мм ленты; палочка — маска по миниатюре снимка, в его координатах (одинакова для превью и сохранения). */
+  private async glowOptions(i: number, edit: FrameEdit, recipe: Recipe): Promise<GlowOptions> {
+    const f = frameA(i);
+    const { a, b } = placements(recipe, this.shapes.a, this.shapes.b);
+    const spotsA: number[][] = [];
+    const spotsB: number[][] = [];
+    const wands: Record<string, { u: number; v: number; tol: number; strength: number }[]> = {};
+    const covering = (list: typeof a, x: number, y: number) =>
+      list.find((p) => x >= p.rect.x && x <= p.rect.x + p.rect.w && y >= p.rect.y && y <= p.rect.y + p.rect.h);
+    for (const g of edit.glows) {
+      const x = f.x + g.x;
+      const y = f.y + g.y;
+      const passes = g.source === 'both' ? (['a', 'b'] as const) : g.source === 'bottom' ? (['a'] as const) : (['b'] as const);
+      for (const pass of passes) {
+        if (g.kind === 'spot') {
+          (pass === 'a' ? spotsA : spotsB).push([x, y, g.r, g.strength]);
+          continue;
+        }
+        const p = covering(pass === 'a' ? a : b, x, y);
+        if (!p) continue;
+        const meta = (pass === 'a' ? this.rolls[0] : this.rolls[1]).photos[p.photo];
+        const uv = photoUv(x, y, p.rect as Rect, p.turn, meta.w, meta.h);
+        if (!uv) continue;
+        (wands[`${pass}${p.photo}`] ??= []).push({ u: uv[0], v: uv[1], tol: g.tol, strength: g.strength });
+      }
+    }
+    const masksA = new Map<number, WebGLTexture>();
+    const masksB = new Map<number, WebGLTexture>();
+    for (const [key, items] of Object.entries(wands)) {
+      const desc = JSON.stringify(items);
+      let m = this.masks.get(key);
+      if (!m || m.key !== desc) {
+        if (m) this.developer.deleteTexture(m.tex);
+        const roll = key[0] === 'a' ? this.rolls[0] : this.rolls[1];
+        const photo = Number(key.slice(1));
+        const src = await this.photoLum(roll, photo);
+        const data = new Uint8Array(src.w * src.h * 4);
+        for (const it of items) {
+          const mask = wandMask(src.lum, src.w, src.h, it.u, it.v, it.tol);
+          const k = Math.min(1, it.strength / 2);
+          for (let n = 0; n < mask.length; n++) data[n * 4] = Math.max(data[n * 4], Math.round(mask[n] * k * 255));
+        }
+        m = { tex: this.developer.uploadMask(data, src.w, src.h), key: desc };
+        this.masks.set(key, m);
+      }
+      (key[0] === 'a' ? masksA : masksB).set(Number(key.slice(1)), m.tex);
+    }
+    return { spotsA, spotsB, masksA, masksB, tint: glowTint(edit.glowHue) };
+  }
+
+  private async photoLum(roll: Roll, photo: number) {
+    const key = `${roll.id}:${photo}`;
+    const hit = this.lumCache.get(key);
+    if (hit) return hit;
+    const blob = await rollThumb(roll.id, photo);
+    if (!blob) throw new Error(`A photo from “${roll.name}” is missing`);
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(bmp, 0, 0);
+    bmp.close();
+    const px = ctx.getImageData(0, 0, c.width, c.height).data;
+    const out = { lum: luminance(px, c.width, c.height), w: c.width, h: c.height };
+    this.lumCache.set(key, out);
+    return out;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.masks.forEach((m) => this.developer.deleteTexture(m.tex));
+    this.masks.clear();
     this.cache.forEach((src) => this.developer.release(src));
     this.cache.clear();
     this.developer.gl.getExtension('WEBGL_lose_context')?.loseContext();

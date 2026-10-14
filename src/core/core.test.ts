@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FRAME_W, PITCH, expand, frameA, intersects } from './geometry';
 import { baseEdit, composeKey, countChanges, curveTable, editedRecipe, storedEdit } from './edit';
+import { photoUv, wandMask } from './glow';
 import { DEFAULT_SETTINGS, balanceGains, makeRecipe, placements, sampleShift } from './recipe';
 import { Rng } from './rng';
 
@@ -193,5 +194,33 @@ describe('Правка кадра', () => {
     expect(storedEdit({ balance: 1 })).toBeNull();
     const r = makeRecipe(6, 9);
     expect(storedEdit(baseEdit(r, 0, 4))).not.toBeNull();
+  });
+});
+
+describe('Гало', () => {
+  it('точка кадра попадает в те же координаты снимка, что и в шейдере (с поворотом)', () => {
+    const rect = { x: 0, y: 0, w: 36, h: 27 };
+    expect(photoUv(18, 13.5, rect, 0, 4000, 3000)).toEqual([0.5, 0.5]);
+    const [u, v] = photoUv(9, 6.75, rect, 0, 4000, 3000)!;
+    expect(u).toBeCloseTo(0.25, 5);
+    expect(v).toBeCloseTo(0.25, 5);
+    const [u2, v2] = photoUv(9, 6.75, rect, 2, 4000, 3000)!;
+    expect(u2).toBeCloseTo(0.75, 5);
+    expect(v2).toBeCloseTo(0.75, 5);
+    // горизонтальный снимок, повёрнутый на 90°, стоит в кадре вертикально: поля по бокам — вне снимка
+    expect(photoUv(1, 13.5, rect, 1, 4000, 3000)).toBeNull();
+    expect(photoUv(18, 13.5, rect, 1, 4000, 3000)).not.toBeNull();
+  });
+
+  it('палочка выделяет светлый предмет и не заливает тёмное вокруг', () => {
+    const w = 40;
+    const h = 30;
+    const lum = new Float32Array(w * h).fill(0.2);
+    for (let y = 10; y < 16; y++) for (let x = 10; x < 20; x++) lum[y * w + x] = 0.95; // «кроссовок»
+    for (let y = 0; y < h; y++) for (let x = 32; x < 40; x++) lum[y * w + x] = 0.9; // светлая стена отдельно
+    const m = wandMask(lum, w, h, 12 / (w - 1), 12 / (h - 1), 0.3);
+    expect(m[12 * w + 14]).toBe(1);
+    expect(m[25 * w + 5]).toBe(0);
+    expect(m[12 * w + 36]).toBe(0);
   });
 });

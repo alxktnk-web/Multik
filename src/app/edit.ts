@@ -10,10 +10,11 @@ import {
   storedEdit,
   type Channel,
   type FrameEdit,
+  type GlowItem,
   type MixEdit,
   type PhotoEdit,
 } from '../core/edit';
-import { FRAME_W, frameA } from '../core/geometry';
+import { FRAME_H, FRAME_W, frameA } from '../core/geometry';
 import { placements, randomLeak } from '../core/recipe';
 import { Rng, randomSeed } from '../core/rng';
 import { FrameRenderer, encode } from './develop';
@@ -36,7 +37,11 @@ interface Control {
   tint?: string;
 }
 
-const ICONS: Record<IconId | 'x' | 'check' | 'undo' | 'original' | 'rotate' | 'shift' | 'dice' | 'mix', string> = {
+const ICONS: Record<IconId | 'x' | 'check' | 'undo' | 'original' | 'rotate' | 'shift' | 'dice' | 'mix' | 'spark' | 'spot' | 'wand' | 'trash', string> = {
+  spark: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"/></svg>',
+  spot: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="3 2.5"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>',
+  wand: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20 15 9"/><path d="M17 3v4M15 5h4M20 9v2M19 10h2M11 3v2M10 4h2"/></svg>',
+  trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
   sun: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
   contrast: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></svg>',
   black: '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>',
@@ -148,6 +153,12 @@ export async function openEditor(host: EditorHost): Promise<void> {
   const undo: FrameEdit[] = [];
   let snapshot = structuredClone(edit);
   let channel: Channel = 'bottom';
+  // инструмент «Гало»: точки (spot) и волшебная палочка (wand)
+  let tool: 'none' | 'glow' = 'none';
+  let glowMode: GlowItem['kind'] = 'spot';
+  let glowSource: GlowItem['source'] = 'bottom';
+  let glowSel = -1;
+  const glowNext = { r: 5, tol: 0.35, strength: 1.2 };
   const rng = new Rng(randomSeed());
 
   // миниатюры снимков этого кадра: нижний — кадр первой плёнки, верхний — тот кадр второй, что больше всего в окне
@@ -209,7 +220,28 @@ export async function openEditor(host: EditorHost): Promise<void> {
     if (u) u.disabled = false;
   }
 
-  const controls = () => (channel === 'mix' ? mixControls() : photoControls(channel));
+  /** Крутилки инструмента «Гало»: относятся к выбранной точке, а если ничего не выбрано — к следующей. */
+  function glowControls(): Control[] {
+    const item = (e: FrameEdit) => e.glows[glowSel] ?? (glowNext as unknown as GlowItem);
+    const knob = (id: 'r' | 'tol' | 'strength', label: string, icon: IconId, min: number, max: number, step: number, fmt: (v: number) => string, tint: string): Control => ({
+      id: `glow.${id}`, label, icon, min, max, step, tint, fmt,
+      get: (e) => item(e)[id],
+      set: (e, v) => {
+        if (e.glows[glowSel]) e.glows[glowSel][id] = v;
+        else glowNext[id] = v;
+      },
+    });
+    const hue: Control = {
+      id: 'glow.hue', label: 'Colour', icon: 'warm', min: -1, max: 1, step: 0.05, bipolar: true, tint: '#ff9f0a',
+      fmt: (v) => (v < -0.3 ? 'orange' : v > 0.3 ? 'red' : 'coral'), get: (e) => e.glowHue, set: (e, v) => (e.glowHue = v),
+    };
+    const first = glowMode === 'spot'
+      ? knob('r', 'Radius', 'soft', 1, 12, 0.5, (v) => `${v.toFixed(1)} mm`, '#ffffff')
+      : knob('tol', 'Tolerance', 'contrast', 0, 1, 0.05, pct, '#ffffff');
+    return [first, knob('strength', 'Strength', 'halo', 0, 2, 0.05, pct, '#ff5a36'), hue];
+  }
+
+  const controls = () => (tool === 'glow' ? { faders: [], knobs: glowControls() } : channel === 'mix' ? mixControls() : photoControls(channel));
   const all = () => {
     const c = controls();
     return [...c.faders, ...c.knobs];
@@ -272,16 +304,21 @@ export async function openEditor(host: EditorHost): Promise<void> {
     }
   }
 
+  function glowPill(): string {
+    const n = edit.glows.length;
+    return `<button type="button" class="mpill${n ? ' on' : ''}" data-ed="glow" aria-label="Glow on bright objects">${ICONS.spark}<span>Glow${n ? ` ${n}` : ''}</span></button>`;
+  }
+
   function actionsHtml(): string {
     if (channel === 'mix') {
-      return `<div class="mactions">
+      return `<div class="mactions">${glowPill()}
         <button type="button" class="mpill shift${Math.abs(edit.mix.shiftMm - base.mix.shiftMm) > 1e-6 ? ' on' : ''}" data-ed="shift" aria-label="Shift the top photo: drag left or right">${ICONS.shift}<span>${sign(edit.mix.shiftMm)} mm</span></button>
         <button type="button" class="mpill" data-ed="dice" aria-label="New random light leak">${ICONS.dice}<span>Leak</span></button>
       </div>`;
     }
     const turns = edit[channel].turns;
     const on = turns !== base[channel].turns;
-    return `<div class="mactions"><button type="button" class="mpill${on ? ' on' : ''}" data-ed="rotate" aria-label="Rotate this photo by 90°, now ${turns * 90}°">${ICONS.rotate}<span>${turns * 90}°</span></button></div>`;
+    return `<div class="mactions"><button type="button" class="mpill${on ? ' on' : ''}" data-ed="rotate" aria-label="Rotate this photo by 90°, now ${turns * 90}°">${ICONS.rotate}<span>${turns * 90}°</span></button>${glowPill()}</div>`;
   }
 
   function tabHtml(ch: Channel): string {
@@ -293,7 +330,60 @@ export async function openEditor(host: EditorHost): Promise<void> {
     return `<button type="button" role="tab" aria-selected="${on}" class="mtab${on ? ' on' : ''}" data-ed="channel" data-arg="${ch}"><span class="mthumb">${art}</span>${label}</button>`;
   }
 
+  /** Метки инструмента «Гало» поверх превью: круги точек и номера мест палочки. */
+  function marksHtml(): string {
+    return edit.glows
+      .map((g, k) => {
+        const left = (g.x / FRAME_W) * 100;
+        const top = (g.y / FRAME_H) * 100;
+        const on = k === glowSel ? ' on' : '';
+        if (g.kind === 'spot') {
+          const w = ((2 * g.r) / FRAME_W) * 100;
+          const h = ((2 * g.r) / FRAME_H) * 100;
+          return `<span class="gspot${on}" style="left:${left - w / 2}%;top:${top - h / 2}%;width:${w}%;height:${h}%"></span><span class="gdot${on}" style="left:${left}%;top:${top}%">${k + 1}</span>`;
+        }
+        return `<span class="gdot wand${on}" style="left:${left}%;top:${top}%">${k + 1}</span>`;
+      })
+      .join('');
+  }
+
+  function paintGlow() {
+    const c = glowControls();
+    const src = (id: GlowItem['source'], label: string, art: string) =>
+      `<button type="button" role="tab" aria-selected="${glowSource === id}" class="mtab${glowSource === id ? ' on' : ''}" data-ed="glow-src" data-arg="${id}"><span class="mthumb">${art}</span>${label}</button>`;
+    const chips = edit.glows
+      .map((g, k) => `<button type="button" class="gchip${k === glowSel ? ' on' : ''}" data-ed="glow-sel" data-arg="${k}" aria-label="Glow ${k + 1}">${g.kind === 'spot' ? ICONS.spot : ICONS.wand}${k + 1}</button>`)
+      .join('');
+    app.innerHTML = `<div class="screen dark mixer glow">
+      <div class="mbar">
+        <button type="button" class="round-btn big" data-ed="glow-exit" aria-label="Back to the mixer">${ICONS.x}</button>
+        <div class="gmode" role="radiogroup" aria-label="Glow tool">
+          <button type="button" role="radio" aria-checked="${glowMode === 'spot'}" data-ed="glow-mode" data-arg="spot">${ICONS.spot}Spot</button>
+          <button type="button" role="radio" aria-checked="${glowMode === 'wand'}" data-ed="glow-mode" data-arg="wand">${ICONS.wand}Wand</button>
+        </div>
+        <button type="button" class="round-btn big yes" data-ed="glow-exit" aria-label="Done with glow">${ICONS.check}</button>
+      </div>
+      <div class="epreview">
+        <canvas id="edit-canvas" width="${previewPx}" height="${Math.round((previewPx * 3) / 4)}" aria-label="Frame ${i + 1} preview — tap to add glow"></canvas>
+        <div class="gmarks">${marksHtml()}</div>
+      </div>
+      <p class="edit-count" aria-live="polite"></p>
+      <div class="mtabs" role="tablist" aria-label="Glow comes from">
+        ${src('bottom', 'Bottom', urlA ? `<img src="${urlA}" alt="" style="transform: rotate(${-edit.bottom.turns * 90}deg)">` : '')}
+        ${src('top', 'Top', urlB ? `<img src="${urlB}" alt="" style="transform: rotate(${-edit.top.turns * 90}deg)">` : '')}
+        ${src('both', 'Both', ICONS.mix)}
+      </div>
+      <div class="gchips">${chips}<span class="ghint">${ICONS.spark}${glowMode === 'spot' ? 'Tap the photo to add a spot' : 'Tap a bright object'}</span></div>
+      <div class="mknobs big">${c.map(knobHtml).join('')}</div>
+      <div class="mactions">${glowSel >= 0 ? `<button type="button" class="mpill danger" data-ed="glow-del">${ICONS.trash}<span>Delete</span></button>` : ''}</div>
+    </div>`;
+    c.forEach(updateControl);
+    putPreview();
+    void draw();
+  }
+
   function paint() {
+    if (tool === 'glow') return paintGlow();
     const c = controls();
     app.innerHTML = `<div class="screen dark mixer">
       <div class="mbar">
@@ -344,8 +434,39 @@ export async function openEditor(host: EditorHost): Promise<void> {
     return snap(d.c, d.v0 + (e.clientX - d.x0) / 6);
   }
 
+  let glowDrag: null | { id: number; k: number } = null;
+  /** Точка превью → мм внутри кадра. */
+  function frameMm(e: PointerEvent): { x: number; y: number } | null {
+    const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas');
+    if (!cv) return null;
+    const r = cv.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * FRAME_W;
+    const y = ((e.clientY - r.top) / r.height) * FRAME_H;
+    return x < 0 || y < 0 || x > FRAME_W || y > FRAME_H ? null : { x, y };
+  }
+  function repaintMarks() {
+    const m = app.querySelector('.gmarks');
+    if (m) m.innerHTML = marksHtml();
+  }
+
   const onDown = (e: PointerEvent) => {
     const target = e.target as HTMLElement;
+    if (tool === 'glow' && target.closest('.epreview')) {
+      const at = frameMm(e);
+      if (!at) return;
+      e.preventDefault();
+      let k = edit.glows.findIndex((g) => Math.hypot(g.x - at.x, g.y - at.y) < 2.5);
+      if (k < 0) {
+        edit.glows.push({ kind: glowMode, source: glowSource, x: at.x, y: at.y, r: glowNext.r, tol: glowNext.tol, strength: glowNext.strength });
+        k = edit.glows.length - 1;
+        void draw();
+      }
+      glowSel = k;
+      glowMode = edit.glows[k].kind;
+      glowDrag = { id: e.pointerId, k };
+      app.querySelector('.epreview')!.setPointerCapture(e.pointerId);
+      return;
+    }
     const shiftBtn = target.closest<HTMLElement>('[data-ed="shift"]');
     const el = target.closest<HTMLElement>('[data-c]');
     if (!el && !shiftBtn) return;
@@ -366,6 +487,16 @@ export async function openEditor(host: EditorHost): Promise<void> {
     drag.el.setPointerCapture(e.pointerId);
   };
   const onMove = (e: PointerEvent) => {
+    if (glowDrag && e.pointerId === glowDrag.id) {
+      const at = frameMm(e);
+      if (!at) return;
+      const g = edit.glows[glowDrag.k];
+      g.x = at.x;
+      g.y = at.y;
+      repaintMarks();
+      void draw();
+      return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
     const v = valueAt(e);
     if (v === drag.c.get(edit)) return;
@@ -373,6 +504,12 @@ export async function openEditor(host: EditorHost): Promise<void> {
     afterChange(drag.c, drag.el);
   };
   const onUp = (e: PointerEvent) => {
+    if (glowDrag && e.pointerId === glowDrag.id) {
+      glowDrag = null;
+      commit();
+      paintGlow();
+      return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
     drag = null;
     commit();
@@ -382,6 +519,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
       el.classList.toggle('on', Math.abs(edit.mix.shiftMm - base.mix.shiftMm) > 1e-6);
       el.querySelector('span')!.textContent = `${sign(edit.mix.shiftMm)} mm`;
     } else updateControl(c);
+    if (tool === 'glow') repaintMarks();
     void draw();
   }
   // клавиатура: стрелки двигают регулятор в фокусе
@@ -427,6 +565,36 @@ export async function openEditor(host: EditorHost): Promise<void> {
         return paint();
       case 'rotate':
         if (channel !== 'mix') edit[channel].turns = (edit[channel].turns + 1) % 4;
+        commit();
+        return paint();
+      case 'glow':
+        tool = 'glow';
+        glowSource = channel === 'mix' ? 'both' : channel;
+        glowSel = edit.glows.length ? 0 : -1;
+        if (glowSel >= 0) glowMode = edit.glows[0].kind;
+        return paint();
+      case 'glow-exit':
+        tool = 'none';
+        return paint();
+      case 'glow-mode':
+        glowMode = arg as GlowItem['kind'];
+        glowSel = -1;
+        return paint();
+      case 'glow-src':
+        glowSource = arg as GlowItem['source'];
+        if (edit.glows[glowSel]) {
+          edit.glows[glowSel].source = glowSource;
+          commit();
+        }
+        return paint();
+      case 'glow-sel':
+        glowSel = Number(arg);
+        glowMode = edit.glows[glowSel].kind;
+        glowSource = edit.glows[glowSel].source;
+        return paint();
+      case 'glow-del':
+        edit.glows.splice(glowSel, 1);
+        glowSel = -1;
         commit();
         return paint();
       case 'dice': {

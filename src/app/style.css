@@ -378,6 +378,23 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 .mpill svg { width: 14px; height: 14px; }
 .mpill.on { background: var(--yellow); color: #000; border-color: var(--yellow); }
 .mpill.shift { cursor: ew-resize; }
+.mixer.glow .epreview { touch-action: none; }
+.gmarks { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 760px; aspect-ratio: 4 / 3; pointer-events: none; }
+.gspot { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.75); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.gspot.on { border: 2px solid var(--yellow); }
+.gdot { position: absolute; transform: translate(-50%, -50%); min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: rgba(0, 0, 0, 0.55); border: 1.5px solid #fff; color: #fff; font: 700 11px/19px var(--font-round); text-align: center; }
+.gdot.on { background: var(--yellow); border-color: #000; color: #000; }
+.gdot.wand { border-style: dashed; }
+.gmode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 2px; border-radius: 12px; background: var(--elev); width: 180px; }
+.gmode button { display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; border: none; border-radius: 10px; background: none; color: #fff; font-size: 13px; font-weight: 600; }
+.gmode button[aria-checked='true'] { background: #3a3a3c; color: var(--yellow); }
+.gchips { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; overflow-x: auto; scrollbar-width: none; }
+.gchip { display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; border: none; background: var(--fill); color: #fff; font: 600 12px var(--font-round); flex: none; }
+.gchip.on { background: var(--yellow); color: #000; }
+.ghint { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.mknobs.big { flex: 1; align-items: center; }
+.mknobs.big .knob svg { width: 64px; height: 64px; }
+.mpill.danger { background: rgba(255, 69, 58, 0.16); color: var(--danger); border-color: transparent; }
 .setup .sstack { position: relative; display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
 .scard { display: flex; align-items: center; gap: 14px; }
 .scard small { font: 700 11px var(--font-round); letter-spacing: 0.08em; color: var(--yellow); }

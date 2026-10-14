@@ -41,8 +41,29 @@ export interface MixEdit {
   shiftMm: number;
 }
 
+/**
+ * Гало у светлых предметов (инструмент «Гало», 14.10.2026): «spot» — мягкий круг, внутри которого светятся
+ * светлые места; «wand» — волшебная палочка, светится светлый предмет, на который нажали (выделение по яркости).
+ * Координаты — мм внутри кадра (0…36 × 0…27).
+ */
+export interface GlowItem {
+  kind: 'spot' | 'wand';
+  source: 'bottom' | 'top' | 'both';
+  x: number;
+  y: number;
+  /** радиус круга, мм (spot) */
+  r: number;
+  /** чувствительность палочки 0…1 (wand): чем больше, тем более тёмные соседние места захватываются */
+  tol: number;
+  /** сила 0…2 */
+  strength: number;
+}
+
 export interface FrameEdit {
   v: 2;
+  glows: GlowItem[];
+  /** цвет гало: −1 — оранжевый, +1 — красный */
+  glowHue: number;
   bottom: PhotoEdit;
   top: PhotoEdit;
   mix: MixEdit;
@@ -64,6 +85,8 @@ export function leaksTouching(recipe: Recipe, i: number): Leak[] {
 export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
   return {
     v: 2,
+    glows: [],
+    glowHue: 0,
     bottom: photo(0),
     top: photo(recipe.settings.swapRotate ? 2 : 0),
     mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10 },
@@ -75,6 +98,8 @@ export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
 export function storedEdit(stored: unknown): FrameEdit | null {
   if (!stored || typeof stored !== 'object' || (stored as FrameEdit).v !== 2) return null;
   const e = structuredClone(stored) as FrameEdit;
+  e.glows ??= [];
+  e.glowHue ??= 0;
   // первые правки пульта хранили поворот как «180° да/нет»
   for (const p of [e.bottom, e.top] as (PhotoEdit & { rotate?: boolean })[]) {
     if (typeof p.turns !== 'number') p.turns = p.rotate ? 2 : 0;
@@ -93,7 +118,7 @@ export function countChanges(edit: FrameEdit, base: FrameEdit): number {
     const b = base[ch] as unknown as Record<string, unknown>;
     for (const k of Object.keys(b)) if (!same(e[k], b[k])) n++;
   }
-  return n + (same(edit.leaks, base.leaks) ? 0 : 1);
+  return n + (same(edit.leaks, base.leaks) ? 0 : 1) + edit.glows.length + (edit.glowHue !== base.glowHue && edit.glows.length ? 1 : 0);
 }
 
 /** Рецепт с правками кадра: сдвиг, повороты, засветки. */
@@ -117,7 +142,7 @@ export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe
 /** Меняется ли от правки сложение снимков (иначе достаточно пересчитать последний шаг). */
 export function composeKey(edit: FrameEdit): string {
   const { whites: _w, halo: _h, contrast: _c, black: _b, grain: _g, dust: _d, glow: _gl, ...mix } = edit.mix;
-  return JSON.stringify([edit.bottom, edit.top, mix, edit.leaks]);
+  return JSON.stringify([edit.bottom, edit.top, mix, edit.leaks, edit.glows]);
 }
 
 /** Край кадра, от которого входит засветка. */
@@ -181,3 +206,9 @@ export function curveTable(points: [number, number][]): Float32Array {
 }
 
 export const LEAK_KIND_NAMES: Record<LeakKind, string> = { glow: 'Glow', stripe: 'Stripe', burn: 'Burnt edge' };
+
+/** Цвет гало по крутилке: −1 — оранжевый, +1 — красный (линейный свет). */
+export function glowTint(hue: number): [number, number, number] {
+  const t = (hue + 1) / 2;
+  return [1, 0.5 + (0.12 - 0.5) * t, 0.14 + (0.05 - 0.14) * t];
+}

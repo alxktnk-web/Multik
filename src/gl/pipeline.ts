@@ -5,6 +5,9 @@ import { LEAK_KINDS, placements, type PhotoShape, type Recipe } from '../core/re
 import type { Look } from '../looks';
 import { BLUR, DOWN_BRIGHT, FILM, LEAKS, PLACE, VERT } from './shaders';
 
+/** Радиус самой широкой части гало у светлых предметов, мм плёнки. */
+const GLOW_SIGMA_MM = 1.6;
+
 /** Запас вокруг кадра на радиус самого широкого размытия (3σ), чтобы на краях не было швов, мм. */
 const marginMm = (look: Look) => Math.max(3, 3 * look.halSigmaLargeMm + 0.5);
 
@@ -25,7 +28,19 @@ export interface PassTone {
 
 export const NEUTRAL_PASS: PassTone = { gain: 1, contrast: 0, black: 0, whites: 0, saturation: 0, warmth: 0, glow: 1, soft: 0 };
 
+/** Гало у светлых предметов (инструмент «Гало»): точки в мм ленты и маски палочки по снимкам. */
+export interface GlowOptions {
+  /** точки для снимков первого / второго прохода: x, y, радиус (мм ленты), сила */
+  spotsA: number[][];
+  spotsB: number[][];
+  /** маски палочки: номер снимка → текстура (R — сила 0…1, в координатах снимка) */
+  masksA: Map<number, WebGLTexture>;
+  masksB: Map<number, WebGLTexture>;
+  tint: [number, number, number];
+}
+
 export interface FrameOptions {
+  glow?: GlowOptions;
   passA?: PassTone;
   passB?: PassTone;
   /**
@@ -75,6 +90,7 @@ export class Developer {
   /** какой кадр сейчас сложен в acc/hs/hl (для filmOnly) */
   private composed = '';
   private curveTex: WebGLTexture;
+  private emptyMask: WebGLTexture;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false }) as WebGL2RenderingContext | null;
@@ -91,6 +107,7 @@ export class Developer {
     this.blur = this.program(BLUR);
     this.film = this.program(FILM);
     this.curveTex = gl.createTexture()!;
+    this.emptyMask = this.uploadMask(new Uint8Array(4), 1, 1);
   }
 
   /** Загружает снимок в текстуру sRGB8 — выборка из неё сразу даёт линейный свет. */
@@ -149,15 +166,22 @@ export class Developer {
     const acc = this.target('acc', winW, winH, true);
     const hs = this.target('hs', q.w, q.h, true);
     const hl = this.target('hl', q.w, q.h, true);
+    const hx = opts.glow ? this.target('hx', q.w, q.h, true) : hl;
     gl.bindVertexArray(this.quad);
     if (!ready) this.compose(recipe, look, a, b, srcA, srcB, win, ppm, acc, hs, hl, opts);
+    if (!ready && opts.glow) {
+      // широкий ореол гало — ещё одно размытие поверх широкого ореола
+      const q2 = this.target('q2', hs.w, hs.h, true);
+      this.blurPass(hl, q2, [1, 0], GLOW_SIGMA_MM * (ppm / 4));
+      this.blurPass(q2, hx, [0, 1], GLOW_SIGMA_MM * (ppm / 4));
+    }
     this.composed = `${i}:${winW}x${winH}`;
 
     // 5–8. плёнка и вырезка кадра
     const outW = Math.round(FRAME_W * ppm);
     const outH = Math.round(FRAME_H * ppm);
     const out = this.target('out', outW, outH, false);
-    this.drawFilm(i, recipe, look, frame, win, ppm, acc, hs, hl, out, opts);
+    this.drawFilm(i, recipe, look, frame, win, ppm, acc, hs, hl, hx, out, opts);
 
     const img = new ImageData(outW, outH);
     gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
@@ -184,16 +208,16 @@ export class Developer {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, acc.fbo);
     gl.viewport(0, 0, acc.w, acc.h);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
 
     // 1–2. каждый снимок, попадающий в окно, — свет складывается
     const visible = [
-      ...a.map((p) => [p, srcA[p.photo], opts.passA ?? NEUTRAL_PASS] as const),
-      ...b.map((p) => [p, srcB[p.photo], opts.passB ?? NEUTRAL_PASS] as const),
-    ].filter(([p, src]) => src && intersects(p.rect, win)) as [Placement, Source, PassTone][];
+      ...a.map((p) => [p, srcA[p.photo], opts.passA ?? NEUTRAL_PASS, 'a'] as const),
+      ...b.map((p) => [p, srcB[p.photo], opts.passB ?? NEUTRAL_PASS, 'b'] as const),
+    ].filter(([p, src]) => src && intersects(p.rect, win)) as [Placement, Source, PassTone, 'a' | 'b'][];
     for (const [p, src, t] of visible) this.drawPlaced(p, src, win, ppm, acc.w, acc.h, look, t, false);
 
     // 3. засветки и засвеченные концы
@@ -205,7 +229,7 @@ export class Developer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, half.fbo);
     gl.viewport(0, 0, half.w, half.h);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    for (const [p, src, t] of visible) this.drawPlaced(p, src, win, ppm / 2, half.w, half.h, look, t, true);
+    for (const [p, src, t, pass] of visible) this.drawPlaced(p, src, win, ppm / 2, half.w, half.h, look, t, true, opts.glow, pass);
     this.drawLeaks(recipe, win, ppm / 2, half.w, half.h, look, true);
     gl.disable(gl.BLEND);
 
@@ -219,7 +243,19 @@ export class Developer {
     this.blurPass(q2, hl, [0, 1], look.halSigmaLargeMm * qppm);
   }
 
-  private drawPlaced(p: Placement, src: Source, win: Rect, ppm: number, winW: number, winH: number, look: Look, t: PassTone, extract: boolean) {
+  private drawPlaced(
+    p: Placement,
+    src: Source,
+    win: Rect,
+    ppm: number,
+    winW: number,
+    winH: number,
+    look: Look,
+    t: PassTone,
+    extract: boolean,
+    glow?: GlowOptions,
+    pass: 'a' | 'b' = 'a',
+  ) {
     const gl = this.gl;
     const { prog, u } = this.place;
     gl.useProgram(prog);
@@ -243,7 +279,34 @@ export class Developer {
     gl.uniform1f(u.uGradScale, 2 ** (look.lensSoftness + t.soft) * (extract ? 0.5 : 1));
     gl.uniform1f(u.uThreshold, look.halThreshold);
     gl.uniform1i(u.uExtract, extract ? 1 : 0);
+    const spots = extract && glow ? (pass === 'a' ? glow.spotsA : glow.spotsB).slice(0, 8) : [];
+    const mask = extract && glow ? (pass === 'a' ? glow.masksA : glow.masksB).get(p.photo) : undefined;
+    gl.uniform2f(u.uRectMm, p.rect.x, p.rect.y);
+    gl.uniform1i(u.uSpotCount, spots.length);
+    gl.uniform4fv(u['uSpots[0]'], pad(spots.flat(), 32));
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, mask ?? this.emptyMask);
+    gl.uniform1i(u.uMask, 1);
+    gl.uniform1i(u.uHasMask, mask ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  /** Маска палочки (R — сила 0…255) в координатах снимка. */
+  uploadMask(data: Uint8Array, w: number, h: number): WebGLTexture {
+    const gl = this.gl;
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  }
+
+  deleteTexture(tex: WebGLTexture): void {
+    this.gl.deleteTexture(tex);
   }
 
   private drawLeaks(recipe: Recipe, win: Rect, ppm: number, winW: number, winH: number, look: Look, extract: boolean) {
@@ -302,7 +365,7 @@ export class Developer {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  private drawFilm(i: number, recipe: Recipe, look: Look, frame: Rect, win: Rect, ppm: number, acc: Target, hs: Target, hl: Target, out: Target, opts: FrameOptions) {
+  private drawFilm(i: number, recipe: Recipe, look: Look, frame: Rect, win: Rect, ppm: number, acc: Target, hs: Target, hl: Target, hx: Target, out: Target, opts: FrameOptions) {
     const gl = this.gl;
     const { prog, u } = this.film;
     gl.useProgram(prog);
@@ -317,6 +380,10 @@ export class Developer {
     gl.uniform1i(u.uAcc, 0);
     gl.uniform1i(u.uHalS, 1);
     gl.uniform1i(u.uHalL, 2);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, hx.tex);
+    gl.uniform1i(u.uHalX, 4);
+    gl.uniform3fv(u.uGlowTint, opts.glow?.tint ?? [1, 0.3, 0.1]);
     gl.uniform2f(u.uWinSize, acc.w, acc.h);
     gl.uniform2f(u.uFrameOrigin, frame.x, frame.y);
     gl.uniform2f(u.uWinOrigin, win.x, win.y);

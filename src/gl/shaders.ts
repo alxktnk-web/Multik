@@ -48,6 +48,13 @@ uniform int uExtract;
 // тон этого снимка (пульт, каналы Bottom / Top): контраст, чёрное, белое, насыщенность (−1…+1), тепло, свечение
 uniform vec4 uPassTone;
 uniform float uPassWarm, uPassGlow;
+// гало у светлых предметов (инструмент «Гало»): точки в мм ленты (x, y, радиус, сила) и маска палочки в координатах снимка
+uniform vec2 uRectMm;
+uniform int uSpotCount;
+uniform vec4 uSpots[8];
+uniform sampler2D uMask;
+uniform int uHasMask;
+const float GLOW_THRESHOLD = 0.45;
 vec3 toDisplay(vec3 c) { return mix(12.92 * c, 1.055 * pow(max(c, vec3(0.0031308)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((max(c, vec3(0.04045)) + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 // правка снимка до наложения — в видимой шкале, как в редакторе фото; потом снова линейный свет
@@ -110,13 +117,25 @@ void main() {
   vec2 px = dFdx(p) * 0.25;
   vec2 py = dFdy(p) * 0.25;
   vec3 acc = vec3(0.0);
+  float glow = 0.0;
+  // сила гало в этом месте: точки (мягкий круг) и маска палочки (в координатах снимка)
+  vec2 strip = uRectMm + p;
+  float w = 0.0;
+  for (int k = 0; k < 8; k++) {
+    if (k >= uSpotCount) break;
+    vec4 sp = uSpots[k];
+    float d = length(strip - sp.xy);
+    w = max(w, sp.w * (1.0 - smoothstep(sp.z * 0.7, sp.z, d)));
+  }
+  if (uHasMask == 1) w = max(w, texture(uMask, uv).r * 2.0);
   for (int k = 0; k < 4; k++) {
     vec2 off = vec2(k == 0 || k == 2 ? -1.0 : 1.0, k < 2 ? -1.0 : 1.0);
     vec3 t = light(p + px * off.x + py * off.y, gx, gy);
     float l = dot(t, vec3(0.2126, 0.7152, 0.0722));
     acc += 0.25 * t * max(l - uThreshold, 0.0) / max(l, 1e-4);
+    glow += 0.25 * w * max(l - GLOW_THRESHOLD, 0.0);
   }
-  o = vec4(acc * uPassGlow, 1.0);
+  o = vec4(acc * uPassGlow, glow);
 }`;
 
 /**
@@ -192,7 +211,7 @@ void main() {
     float l = dot(c, LUMA);
     c *= max(l - uThreshold, 0.0) / max(l, 1e-4);
   }
-  o = vec4(c, 1.0);
+  o = vec4(c, 0.0);
 }`;
 
 /** Уменьшение в 2 раза с выделением ярких мест (вход ореола). */
@@ -209,16 +228,19 @@ void main() {
   // каждый отсчёт попадает ровно в центр текселя источника: выделение светов идёт
   // в полном разрешении, поэтому маленькая яркая точка не теряется при уменьшении
   vec3 c = vec3(0.0);
+  float a = 0.0; // канал гало (инструмент «Гало») уменьшается вместе с ореолом
   for (int k = 0; k < 4; k++) {
     vec2 off = vec2(k == 0 || k == 2 ? -0.5 : 0.5, k < 2 ? -0.5 : 0.5);
-    vec3 t = texture(uSrc, uv + uSrcTexel * off).rgb;
+    vec4 s4 = texture(uSrc, uv + uSrcTexel * off);
+    vec3 t = s4.rgb;
     if (uExtract == 1) {
       float l = dot(t, vec3(0.2126, 0.7152, 0.0722));
       t *= max(l - uThreshold, 0.0) / max(l, 1e-4);
     }
     c += 0.25 * t;
+    a += 0.25 * s4.a;
   }
-  o = vec4(c, 1.0);
+  o = vec4(c, a);
 }`;
 
 /** Раздельное гауссово размытие. */
@@ -232,15 +254,15 @@ uniform float uSigma; // в пикселях
 void main() {
   vec2 uv = vec2(vUV.x, 1.0 - vUV.y);
   float step = max(1.0, uSigma * 3.0 / 16.0);
-  vec3 acc = vec3(0.0);
+  vec4 acc = vec4(0.0);
   float wsum = 0.0;
   for (int i = -16; i <= 16; i++) {
     float x = float(i) * step;
     float w = exp(-0.5 * x * x / (uSigma * uSigma));
-    acc += texture(uSrc, uv + uDir * x).rgb * w;
+    acc += texture(uSrc, uv + uDir * x) * w;
     wsum += w;
   }
-  o = vec4(acc / wsum, 1.0);
+  o = acc / wsum;
 }`;
 
 /** Плёнка: ореол, «дыхание», неравномерность, зерно, кривая, пыль. Пишет готовый кадр. */
@@ -248,7 +270,8 @@ export const FILM = /* glsl */ `#version 300 es
 precision highp float;
 in vec2 vUV;
 out vec4 o;
-uniform sampler2D uAcc, uHalS, uHalL;
+uniform sampler2D uAcc, uHalS, uHalL, uHalX;
+uniform vec3 uGlowTint; // цвет гало инструмента «Гало»
 uniform vec2 uTarget;     // размер кадра в пикселях
 uniform vec2 uWinSize;    // размер окна в пикселях
 uniform vec2 uFrameOrigin, uWinOrigin; // мм ленты
@@ -300,8 +323,13 @@ void main() {
   vec2 local = px / uPpm;                     // мм внутри кадра
   vec2 wuv = pxToUv((s - uWinOrigin) * uPpm, uWinSize);
   vec3 lin = texture(uAcc, wuv).rgb;
-  vec3 hs = texture(uHalS, wuv).rgb;
-  vec3 hl = texture(uHalL, wuv).rgb;
+  vec4 hs4 = texture(uHalS, wuv);
+  vec4 hl4 = texture(uHalL, wuv);
+  vec3 hs = hs4.rgb;
+  vec3 hl = hl4.rgb;
+  // гало у светлых предметов (точки и палочка): белое ядро и широкий цветной ореол трёх радиусов
+  float gx4 = texture(uHalX, wuv).a;
+  lin += vec3(hs4.a) * 0.6 + uGlowTint * (hs4.a * 0.8 + hl4.a * 1.2 + gx4 * 1.6);
   lin += uHalTint * (dot(hs, LUMA) * uHalSmall + dot(hl, LUMA) * uHalLarge);
   lin += hl * uBloom;
   lin *= 1.0 + uMottle * (vnoise(s * 0.15 + uSeed) - 0.5) * 2.0;
