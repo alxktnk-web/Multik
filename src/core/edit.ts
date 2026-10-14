@@ -37,8 +37,13 @@ export interface MixEdit {
   grain: number;
   dust: number;
   glow: number;
-  /** сдвиг верхней плёнки, мм (−36…+36) */
+  /**
+   * сдвиг верхней плёнки, мм: свой у каждого кадра (по умолчанию — сдвиг проявки). Можно уехать дальше
+   * длины кадра — тогда в окне другой кадр второй плёнки (shiftRange).
+   */
   shiftMm: number;
+  /** баланс снимков, ступени −3…+3: влево — сильнее нижний, вправо — верхний; общая яркость та же */
+  balance: number;
 }
 
 /**
@@ -89,7 +94,7 @@ export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
     glowHue: 0,
     bottom: photo(0),
     top: photo(recipe.settings.swapRotate ? 2 : 0),
-    mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10 },
+    mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10, balance: 0 },
     leaks: leaksTouching(recipe, i).map((l) => ({ ...l })),
   };
 }
@@ -100,6 +105,7 @@ export function storedEdit(stored: unknown): FrameEdit | null {
   const e = structuredClone(stored) as FrameEdit;
   e.glows ??= [];
   e.glowHue ??= 0;
+  e.mix.balance ??= 0;
   // первые правки пульта хранили поворот как «180° да/нет»
   for (const p of [e.bottom, e.top] as (PhotoEdit & { rotate?: boolean })[]) {
     if (typeof p.turns !== 'number') p.turns = p.rotate ? 2 : 0;
@@ -121,6 +127,20 @@ export function countChanges(edit: FrameEdit, base: FrameEdit): number {
   return n + (same(edit.leaks, base.leaks) ? 0 : 1) + edit.glows.length + (edit.glowHue !== base.glowHue && edit.glows.length ? 1 : 0);
 }
 
+/**
+ * Пределы сдвига в кадре i: верхняя плёнка едет так, чтобы в окно мог встать любой её кадр, и ещё на кадр
+ * за край ленты (там пусто — виден только нижний снимок).
+ */
+export function shiftRange(recipe: Recipe, i: number): { min: number; max: number } {
+  return { min: (i - recipe.n + 1) * PITCH - FRAME_W, max: i * PITCH + FRAME_W };
+}
+
+/** Кадр второй плёнки (номер на ленте, с 0), который больше всего в окне кадра i при сдвиге shiftMm. */
+export function topFrameAt(i: number, shiftMm: number): { j: number; offset: number } {
+  const j = Math.round((i * PITCH - shiftMm) / PITCH) || 0;
+  return { j, offset: shiftMm - (i - j) * PITCH };
+}
+
 /** Рецепт с правками кадра: сдвиг, повороты, засветки. */
 export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe {
   const touching = new Set(leaksTouching(recipe, i));
@@ -130,7 +150,7 @@ export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe
   const leaks = edit.mix.leaks > 0 ? edit.leaks.filter((l) => !l.off).map((l) => ({ ...l, strength: l.strength * edit.mix.leaks })) : [];
   return {
     ...recipe,
-    shiftMm: Math.max(-FRAME_W, Math.min(FRAME_W, edit.mix.shiftMm)),
+    shiftMm: Math.max(shiftRange(recipe, i).min, Math.min(shiftRange(recipe, i).max, edit.mix.shiftMm)),
     turnA: { ...recipe.turnA, [i]: edit.bottom.turns },
     turnB: edit.top.turns,
     leaks: [...others, ...leaks],

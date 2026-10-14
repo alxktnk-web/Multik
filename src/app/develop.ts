@@ -4,7 +4,7 @@
 import { composeKey, editedRecipe, glowTint, type FrameEdit, type PhotoEdit } from '../core/edit';
 import { frameA, type Rect } from '../core/geometry';
 import { luminance, photoUv, wandMask } from '../core/glow';
-import { makeRecipe, placements, type PhotoShape, type Recipe } from '../core/recipe';
+import { balanceGains, makeRecipe, placements, type PhotoShape, type Recipe } from '../core/recipe';
 import { Developer, type FrameOptions, type GlowOptions, type PassTone, type Source } from '../gl/pipeline';
 import { LOOKS, withWhiteMerge, type Look } from '../looks';
 import { getRoll, rollPhoto, rollThumb, saveFrame, type Development, type Roll } from './store';
@@ -119,8 +119,8 @@ export function editLook(dev: Development, edit: FrameEdit): Look {
   };
 }
 
-const passTone = (p: PhotoEdit): PassTone => ({
-  gain: 2 ** p.light,
+const passTone = (p: PhotoEdit, balance: number): PassTone => ({
+  gain: 2 ** p.light * balance,
   contrast: p.contrast,
   black: p.black,
   whites: p.whites,
@@ -131,7 +131,9 @@ const passTone = (p: PhotoEdit): PassTone => ({
 });
 
 export function editOptions(edit: FrameEdit): FrameOptions {
-  return { passA: passTone(edit.bottom), passB: passTone(edit.top), contrast: edit.mix.contrast, black: edit.mix.black };
+  // баланс: вправо — сильнее верхний (второй проход), сумма весов постоянна
+  const g = balanceGains(-(edit.mix.balance ?? 0));
+  return { passA: passTone(edit.bottom, g.a), passB: passTone(edit.top, g.b), contrast: edit.mix.contrast, black: edit.mix.black };
 }
 
 /**

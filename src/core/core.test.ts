@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FRAME_W, PITCH, expand, frameA, intersects } from './geometry';
-import { baseEdit, composeKey, countChanges, curveTable, editedRecipe, storedEdit } from './edit';
+import { baseEdit, composeKey, countChanges, curveTable, editedRecipe, shiftRange, storedEdit, topFrameAt } from './edit';
 import { photoUv, wandMask } from './glow';
 import { DEFAULT_SETTINGS, balanceGains, makeRecipe, placements, sampleShift } from './recipe';
 import { Rng } from './rng';
@@ -222,5 +222,23 @@ describe('Гало', () => {
     expect(m[12 * w + 14]).toBe(1);
     expect(m[25 * w + 5]).toBe(0);
     expect(m[12 * w + 36]).toBe(0);
+  });
+});
+
+describe('Сдвиг в правке кадра', () => {
+  it('крутилка доводит до любого кадра второй плёнки, и сдвиг не обрезается до длины кадра', () => {
+    const r = makeRecipe(6, 3);
+    const { min, max } = shiftRange(r, 2);
+    for (let j = 0; j < 6; j++) {
+      const s = (2 - j) * 38;
+      expect(s).toBeGreaterThanOrEqual(min);
+      expect(s).toBeLessThanOrEqual(max);
+      expect(topFrameAt(2, s + 3).j).toBe(j);
+      expect(topFrameAt(2, s + 3).offset).toBeCloseTo(3, 10);
+    }
+    const e = baseEdit(r, 2, 4);
+    e.mix.shiftMm = -100;
+    expect(editedRecipe(r, 2, e).shiftMm).toBe(-100);
+    expect(e.mix.balance).toBe(0);
   });
 });
