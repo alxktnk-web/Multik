@@ -31,7 +31,7 @@ import {
 
 const app = document.getElementById('app')!;
 /** Номер сборки на экране «перед проявкой» — видно, что телефон загрузил новую версию. */
-const BUILD = '14.10 · 3';
+const BUILD = '14.10 · 4';
 const LENGTHS = [6, 12, 24, 36];
 /** Крутилки экрана перед проявкой (макет v2 «D»). */
 interface Knob {
@@ -490,8 +490,8 @@ function bindSetupKnobs() {
     });
     el.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
-      // ещё в 4 раза медленнее (просьба Александра 14.10): полный ход — около 2880 px пальцем
-      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 2880;
+      // скорость подобрана с Александром 14.10: 720 px — быстро, 2880 px — палец уходит за экран; полный ход ≈ 1100 px
+      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 1100;
       const v = Math.max(k.min, Math.min(k.max, Math.round(start.v + delta * (k.max - k.min))));
       if (v === state.mix.values[k.id] && !(k.id === 'shift' && state.mix.randomShift)) return;
       if (Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;
