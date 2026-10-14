@@ -358,7 +358,7 @@ h1.large { margin: 2px 0 0; font: 700 34px/1.1 var(--font-display); letter-spaci
 .hfill { position: absolute; top: 17px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); }
 .hrow.on .hfill { background: var(--yellow); }
 .hthumb { position: absolute; top: 7px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; background: #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); }
-.knob, .sknob { display: flex; flex-direction: column; align-items: center; gap: 4px; touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+.knob, .sknob { display: flex; flex-direction: column; align-items: center; gap: 4px; touch-action: none; -webkit-user-select: none; user-select: none; cursor: ew-resize; }
 .knob small, .sknob small { font-size: 10px; font-weight: 600; color: var(--muted); }
 .knob.on small { color: var(--yellow); }
 .mfaders { flex: 1; min-height: 150px; display: flex; justify-content: space-around; padding: 10px 2px 0; }

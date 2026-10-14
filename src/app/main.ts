@@ -31,7 +31,7 @@ import {
 
 const app = document.getElementById('app')!;
 /** Номер сборки на экране «перед проявкой» — видно, что телефон загрузил новую версию. */
-const BUILD = '14.10 · 4';
+const BUILD = '14.10 · 5';
 const LENGTHS = [6, 12, 24, 36];
 /** Крутилки экрана перед проявкой (макет v2 «D»). */
 interface Knob {
@@ -490,11 +490,11 @@ function bindSetupKnobs() {
     });
     el.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
-      // скорость подобрана с Александром 14.10: 720 px — быстро, 2880 px — палец уходит за экран; полный ход ≈ 1100 px
-      const delta = (e.clientX - start.x - (e.clientY - start.y)) / 1100;
+      // крутилка — движением пальца вбок (решение Александра 14.10): вправо — больше; полный ход ≈ 500 px
+      const delta = (e.clientX - start.x) / 500;
       const v = Math.max(k.min, Math.min(k.max, Math.round(start.v + delta * (k.max - k.min))));
       if (v === state.mix.values[k.id] && !(k.id === 'shift' && state.mix.randomShift)) return;
-      if (Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return;
+      if (Math.abs(e.clientX - start.x) < 4) return;
       state.mix.values[k.id] = v;
       if (k.id === 'shift') state.mix.randomShift = false;
       paintKnob(el, k);

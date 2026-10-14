@@ -337,8 +337,8 @@ export async function openEditor(host: EditorHost): Promise<void> {
       return snap(d.c, d.v0 + ((e.clientX - d.x0) / w) * (d.c.max - d.c.min));
     }
     if (d.kind === 'knob') {
-      // в 4 раза медленнее, чем был: полный ход крутилки — около 720 px пальцем
-      const delta = (e.clientX - d.x0 - (e.clientY - d.y0)) / 720;
+      // крутилка — движением пальца вбок, как на экране перед проявкой: вправо — больше; полный ход ≈ 500 px
+      const delta = (e.clientX - d.x0) / 500;
       return snap(d.c, d.v0 + delta * (d.c.max - d.c.min));
     }
     return snap(d.c, d.v0 + (e.clientX - d.x0) / 6);
