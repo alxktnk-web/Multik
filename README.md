@@ -1,6 +1,7 @@
 > Current development base: Multik Lighttable v8 in `main` (20 October 2026), imported from `multik-v8-source` at `4f139e6`.
 > Start with [PROGRESS.md](docs/lighttable/PROGRESS.md) and [TRANSFER.md](TRANSFER.md). GitHub Actions verifies tests/build only; it does not deploy. The live app remains on [Sites at /lighttable/](https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/).
 > The Classic description below is historical. Current hosting and source rollback instructions are in [DEPLOYMENT.md](docs/lighttable/DEPLOYMENT.md).
+> Image-algorithm work starts with [ALGORITHM_HANDOFF.md](docs/lighttable/ALGORITHM_HANDOFF.md). The existing [UI contract](docs/lighttable/UI_CONTRACT.md) is separate; algorithm-driven UI proposals go to [UI_REQUESTS.md](docs/lighttable/UI_REQUESTS.md).
 
 # Multik
 
