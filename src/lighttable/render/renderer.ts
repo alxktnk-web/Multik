@@ -172,6 +172,9 @@ export class Renderer {
   private present(c:Composition,pair:[PreparedSource,PreparedSource],screenToFilm:ReturnType<typeof inverse>,width:number,height:number,originX=0,originY=0){
     const gl=this.gl,p=this.programs.present;gl.useProgram(p.program);
     const [a,b]=pair;this.bind(p,'uA',a.image,0);this.bind(p,'uB',b.image,1);this.bind(p,'uHaloA',a.halo,2);this.bind(p,'uHaloB',b.halo,3);
+    // Profile-independent source masks are reused; switching look needs no rebuild.
+    this.bind(p,'uMaskA',a.mask,4);this.bind(p,'uMaskB',b.mask,5);
+    gl.uniform1i(p.uniform('uProfile'),c.profile.version);
     gl.uniformMatrix3fv(p.uniform('uScreenToFilm'),false,glMatrix(screenToFilm));
     gl.uniformMatrix3fv(p.uniform('uFilmToA'),false,glMatrix(inverse(sourceToFilm(c.frame,c.layers[0],c.layers[0].placements[0]))));
     gl.uniformMatrix3fv(p.uniform('uFilmToB'),false,glMatrix(inverse(sourceToFilm(c.frame,c.layers[1],c.layers[1].placements[0]))));

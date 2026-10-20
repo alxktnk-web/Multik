@@ -64,4 +64,85 @@ Profile 3 должен переживать copy/validation/export без сме
 DB migrations и массового пересохранения. UI-переключение — отдельное proposed
 предложение UI-ALG-001, не реализуется этим направлением.
 
-Формулы, измерения, артефакты и выполненные проверки дополняются по этапам.
+## Реализованный profile 3
+
+Все RGB до display transfer линейные SDR sRGB/Rec.709. Source sampling уже
+декодирует sRGB; JPEG не позволяет восстановить прежнюю камеру/тонмаппинг.
+Профиль не претендует на спектральную симуляцию эмульсии.
+
+1. Общая геометрия и sampling без изменений. Вне покрытия source RGB=0.
+2. `M_i = smoothstep(threshold, 1, dot(L_i, w))`, `w=(.2126,.7152,.0722)`.
+   Маски строятся **до** gains/balance/exposure, как в v8.
+3. `B_i = Gaussian(M_i, radius_mm)`. Существующие 25-tap separable GPU passes,
+   источник с padding 4.8 мм; маски RGBA8 на сетке примерно 512 px по длинной
+   стороне source. Profile 3 использует `H_i=max(B_i-M_i,0)` вместо `B_i`.
+   Это положительный световой spill вокруг излучателя; внутренние светлые
+   поверхности не получают сплошную красную заливку. Это художественная
+   аппроксимация halo, не energy-conserving optical PSF.
+4. `E = 2^exposure * [gA*LA + gB*LB +
+   (1,.055,.012)*1.8*halo*(gA*vA*HA + gB*vB*HB)]`.
+   `g` включает прежние balanceGains и placement.gain; `v` прежний seeded
+   множитель .85–1.15 на источник. Seed не меняется от движения.
+5. `Y=dot(E,w)`, `K=.45`. При `Y<=K`:
+   `T=Y*(1-.25*(1-Y/K)^2)`.
+   При `Y>K`: `T=1-.55*exp(-(Y-K)/.55)`.
+   Обе части имеют в K значение .45 и производную 1. В нуле T=0,
+   производная .75; для конечных положительных экспозиций математически T<1.
+   Кривая монотонна. Float/8-bit output всё же может достигнуть белого.
+6. `C=E*T/Y` (Y=0 → 0). Тон меняет luminance общим множителем каналов.
+   Нет profile-2 forced white smoothstep и встроенной поканальной S .35.
+7. Gamut: `d=max(C)-T`, `r=1-T`, `k=.8*r`, `q=.2*r`.
+   Если `d>k`, `d'=k+q*(1-exp(-(d-k)/q))`,
+   `C'=T+(C-T)*d'/d`; иначе C'=C. При r=0 → нейтральный белый.
+   Компрессия непрерывна с согласованным наклоном в knee; сохраняет направление
+   RGB chroma относительно равной по luminance серой точки. Это не гарантия
+   постоянного perceptual hue в Lab/OKLab.
+8. Стандартный sRGB transfer, затем **неизменённый** пользовательский Contrast:
+   >=1 — смесь с smoothstep S; <1 — с `.5+(rgb-.5)*.5`.
+   При Contrast=.5 чёрный поднимается до .25 display RGB — существующее поведение,
+   которое намеренно не меняем. Утверждение «чёрный остаётся чёрным» относится
+   к базовому профилю при нейтральном Contrast=1.
+
+Художественные фиксированные константы .45/.25/.8 не являются новыми UI controls.
+Effects сохраняют прежние ranges/defaults: exposure ±2 EV, balance ±2,
+contrast .5–1.5, halo 0–1/default .35, radius .2–1.6/default .65 мм,
+threshold .5–.95/default .75 linear. Разрешён placement gain 0–4.
+Без halo и при нормальных gains оба source <=1, сумма до 2; EV=+2 даёт до 8.
+Проверки включают границы EV/contrast, яркие/насыщенные поля.
+
+## Совместимость, cache и стоимость
+
+Runtime diff ограничен render и двумя разрешёнными файлами типов. Profile 2
+сохраняет прежние формулы и точный GPU reference. `createComposition` default=2;
+copyComposition нормализует только 1→2 и сохраняет 3. Validator принимает 1/2/3,
+не неизвестные версии. DB schema, blobs, revision и идентичность пары неизменны.
+
+Источник/маски одинаковы для всех профилей: их cache keys **намеренно не включают
+версию** — в них нет профиль-зависимых pixels. Present получает profile uniform,
+вычисляет spill по уже существующим mask/halo; 3→2 не может вернуть «старый look
+из cache», поскольку результат present не кэшируется. Radius/threshold продолжают
+инвалидировать masks по старой signature. Профиль 3 добавляет два texture samples
+в present, без textures/FBO/CPU readback/compilation/DB на движении.
+
+Долговечный thumbnail уже проверяет compositionId/revision/profileVersion
+(`ui/library.ts`); export-dialog сохраняет версию исходного snapshot.
+Параметры защищены revision на существующей save boundary. Эти UI-файлы read-only.
+Производных нового профиля для старых revisions в этой задаче не создаём.
+
+Выключение эксперимента: вернуть явно выбранному snapshot version 2; originals
+и effects не меняются. Если version 3 уже сохранён внешним harness/API, старая v8
+его отвергнет; rollback бинарника не является безопасным reader downgrade.
+Нужен forward fix либо явное преобразование выбранных records с ревизией
+в совместимой версии; автоматического преобразователя здесь нет.
+
+## Воспроизводимое сравнение
+
+`node scripts/lighttable-film-check.mjs` (отдельный тестовый localhost, без UI):
+frozen v8 vs current profile 2, независимый CPU oracle для profile 3, серые поля,
+экспозиционные ступени, 48 RGB-патчей, локальный/краевой emitter, branches,
+silhouette и три разные фотопары. Источники с правами использования и SHA:
+`scripts/fixtures/film-photos/README.md`. Runtime dependencies не добавлены.
+Геометрия/effects/seed между 2 и 3 одинаковы; JPEG contact sheet подписывает
+параметры и содержит оба исходника. Присланные владельцем фото не публикуются.
+
+Результаты и ограничения дополняются после выполнения тестов и визуального review.

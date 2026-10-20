@@ -11,6 +11,13 @@
 - Подтверждены SRGB8_ALPHA8 sampling, общий present preview/export, profile-2 tone и per-source halo. Независимый frozen profile-2 fragment сохранён для GPU regression.
 - План: opt-in profile 3 в render/model validation, без UI/default migration. Проверки кандидата ещё не выполнены. **Кандидат, не опубликован**; Sites v8 не изменён.
 
+### Этап A2 — opt-in profile 3 в общем renderer
+
+- Добавлен `render/film-profile.ts`: непрерывная toe/shoulder, luminance scaling и мягкая chroma compression. В `shaders.ts` отдельная ветка 3 и halo spill `max(blur-mask,0)`; прежняя ветка 2 сохранена. `renderer.ts` передаёт version/mask uniforms без новых GPU ресурсов или изменения контракта UI.
+- Минимальные type/validator изменения: принимается 3, `copyComposition` сохраняет 3; прежнее 1→2 остаётся, новые пары default=2. Нет DB schema/import/original changes.
+- 65 unit tests (включая 3 новых), TypeScript/build прошли. Browser, gestures, data, workspace suites прошли; 13 Classic файлов сборки byte-identical. Полный export/cache и расширенная проверка кандидата — этап A3.
+- Формулы/defaults/cache rationale в `IMAGE_ALGORITHM.md`. `UI-ALG-001` — **proposed**, выбор profile только в harness/API snapshot, без пользовательского переключателя. Защищённые UI и конфигурация не менялись. **Кандидат, не опубликован**.
+
 - По поручению владельца подготовлена передача соседнему чату: `ALGORITHM_HANDOFF.md`. Работа алгоритма ведётся в `research/film-rendering`, отдельно от main; результат — открытый PR для проверки, без самостоятельного merge/публикации.
 - Зафиксирован подробный текущий UI-контракт в `UI_CONTRACT.md`: экраны, жесты, Pro, параметры, ориентации, импорт, сохранение и Save to Photos. Для чата алгоритма UI и этот контракт read-only.
 - `UI_REQUESTS.md` — единственное место предложений алгоритма к UI, с подробным шаблоном и явными статусами. Предложение не разрешает реализацию; UI занимается отдельный чат по поручению владельца.
