@@ -1,0 +1,5 @@
+{
+  "classic_commit": "5c45ea7c73361b875e6fbabd0bb64098adbd4dee",
+  "archive_sha256": "3dd4ae2d340cd708f986dca8c1087e535e072ed9223a0e67d91279fb5bf7c0a9",
+  "note": "Immutable Classic production artifact. Assembly copies files without regenerating root SW."
+}

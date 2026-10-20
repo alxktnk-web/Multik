@@ -42,6 +42,8 @@ export interface MixEdit {
    * длины кадра — тогда в окне другой кадр второй плёнки (shiftRange).
    */
   shiftMm: number;
+  /** Independent shift of the bottom film strip, in mm. */
+  bottomShiftMm: number;
   /** баланс снимков, ступени −3…+3: влево — сильнее нижний, вправо — верхний; общая яркость та же */
   balance: number;
 }
@@ -87,14 +89,14 @@ export function leaksTouching(recipe: Recipe, i: number): Leak[] {
 }
 
 /** Правка «без изменений»: значения, с которыми кадр был проявлен. */
-export function baseEdit(recipe: Recipe, i: number, whites: number): FrameEdit {
+export function baseEdit(recipe: Recipe, i: number, whites: number, halo = 1): FrameEdit {
   return {
     v: 2,
     glows: [],
     glowHue: 0,
     bottom: photo(0),
     top: photo(recipe.settings.swapRotate ? 2 : 0),
-    mix: { whites, halo: 1, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10, balance: 0 },
+    mix: { whites, halo, leaks: 1, contrast: 0, black: 0, grain: 1, dust: 1, glow: 1, shiftMm: Math.round(recipe.shiftMm * 10) / 10, bottomShiftMm: 0, balance: 0 },
     leaks: leaksTouching(recipe, i).map((l) => ({ ...l })),
   };
 }
@@ -106,6 +108,7 @@ export function storedEdit(stored: unknown): FrameEdit | null {
   e.glows ??= [];
   e.glowHue ??= 0;
   e.mix.balance ??= 0;
+  e.mix.bottomShiftMm ??= 0;
   // первые правки пульта хранили поворот как «180° да/нет»
   for (const p of [e.bottom, e.top] as (PhotoEdit & { rotate?: boolean })[]) {
     if (typeof p.turns !== 'number') p.turns = p.rotate ? 2 : 0;
@@ -151,7 +154,10 @@ export function editedRecipe(recipe: Recipe, i: number, edit: FrameEdit): Recipe
   return {
     ...recipe,
     shiftMm: Math.max(shiftRange(recipe, i).min, Math.min(shiftRange(recipe, i).max, edit.mix.shiftMm)),
-    turnA: { ...recipe.turnA, [i]: edit.bottom.turns },
+    bottomShiftMm: Math.max(shiftRange(recipe, i).min, Math.min(shiftRange(recipe, i).max, edit.mix.bottomShiftMm ?? 0)),
+    // Both strip controls apply to every source visible in this edited output.
+    // The source recipe and edits of other output frames remain untouched.
+    turnA: Object.fromEntries(recipe.orderA.map((_, j) => [j, edit.bottom.turns])),
     turnB: edit.top.turns,
     leaks: [...others, ...leaks],
     dust,

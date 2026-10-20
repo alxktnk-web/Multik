@@ -1,5 +1,17 @@
-node_modules/
+node_modules
 dist/
 lab-out/
 *.local
 dist-artifact/
+dist-lighttable/
+
+dist-combined/
+
+# Local credentials and machine files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
+*.log

@@ -193,3 +193,10 @@ lab/
 - **Цвет Chromium ≠ Safari** → финальная проверка вида только на телефоне.
 - **Память Safari** на 12 Мп → резка окна на полосы.
 - **Хранилище браузера** может быть очищено → важные кадры сохранять в Фото, persist().
+
+
+## Viewer gestures and frame-local shifts
+
+`app/zoom.ts` arbitrates pointer gestures: quick swipe, slow single-pointer drag, two-pointer zoom, and pan while zoomed. Zoom is display-only; adding another pointer cancels a pending frame edit. `app/viewer-drag.ts` reuses `FrameEdit`, `FrameRenderer`, and the existing transactional frame store. It changes only `mix.shiftMm` or `mix.bottomShiftMm` for the displayed output index; screen deltas are converted to film coordinates using orientation metadata. A serialized, bounded preview renderer handles motion. Release retains a draft and the movable-layer session; each new gesture starts from the previous draft. The main viewer keeps that draft across menu/layout/favorite rerenders. Navigation, leaving the viewer, editor entry or explicit export awaits one commit at development resolution, atomically storing the frame and thumbnail. A failed commit retains the draft and prevents navigation. Pinch cancellation reverts only the active stroke, preserving earlier strokes. The zoom wrapper includes both the original image and draft canvas. Other frame images and recipes are untouched. One-step undo restores the preceding stroke in memory without writing. After a commit, the prior saved edit remains available for undo; when absent, undo restores the original image bytes from the store.
+
+New developments store `haloAmount` and `highlightVariation`. The variation depends on development seed and frame index, so preview, editor, resumed development and export agree. Missing fields retain legacy rendering. Mix preference migration v6 resets leaks to zero while retaining unrelated preferences; no existing development is migrated or re-rendered.

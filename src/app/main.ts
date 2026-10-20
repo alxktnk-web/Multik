@@ -1,20 +1,25 @@
 // Мультик — приложение (SPEC 1.3). Дизайн: тёмный «кинематографичный» iOS — как Камера и редактор Фото:
-// чёрный фон, крупные заголовки, карточки со снимками, плавающая стеклянная панель вкладок, жёлтые акценты.
+// чёрный фон, крупные заголовки, карточки со снимками, плавающая стеклянная панель вкладок, приглушённые зелёные акценты.
 // Экраны: Плёнки · Новая плёнка · Смешать · Проявка идёт · Просмотр · Проявки. Интерфейс на английском.
 
-import { ALGO_VERSION, DEFAULT_SETTINGS, randomLeak } from '../core/recipe';
+import { ALGO_VERSION, DEFAULT_SETTINGS } from '../core/recipe';
 import { randomSeed } from '../core/rng';
-import { baseEdit } from '../core/edit';
-import { Rng } from '../core/rng';
 import { FrameRenderer, runDevelopment } from './develop';
 import { openEditor } from './edit';
+import { panelHtml, layoutButton, updatePanelChanges, migrateSetupTools } from './panels';
+import { initPwa, updateNotice } from './pwa';
+import { bindPhotoZoom } from './zoom';
+import { viewerDrag, type MovingLayer, type ViewerDraft } from './viewer-drag';
+import type { FrameEdit } from '../core/edit';
 import {
   createDev,
   createRoll,
   deleteDev,
   deleteRoll,
-  devFrame,
-  devThumb,
+  displayFrame,
+  displayThumb,
+  exportFrame,
+  rotateFrame,
   getDev,
   getRoll,
   listDevs,
@@ -30,12 +35,10 @@ import {
 } from './store';
 
 const app = document.getElementById('app')!;
-/** Номер сборки на экране «перед проявкой» — видно, что телефон загрузил новую версию. */
-const BUILD = '14.10 · 8';
 const LENGTHS = [6, 12, 24, 36];
 /** Крутилки экрана перед проявкой (макет v2 «D»). */
 interface Knob {
-  id: 'shift' | 'leaks' | 'white';
+  id: 'shift' | 'leaks' | 'halo' | 'white';
   label: string;
   min: number;
   max: number;
@@ -44,7 +47,8 @@ interface Knob {
 }
 const SETUP_KNOBS: Knob[] = [
   { id: 'shift', label: 'Shift', min: -36, max: 36, bipolar: true, fmt: (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)} mm` },
-  { id: 'leaks', label: 'Leaks', min: 0, max: 10, bipolar: false, fmt: (v) => `${v}/10` },
+  { id: 'leaks', label: 'Leaks', min: 0, max: 10, bipolar: false, fmt: (v) => `${v * 10}%` },
+  { id: 'halo', label: 'Halo', min: 0, max: 10, bipolar: false, fmt: (v) => `${v * 20}%` },
   { id: 'white', label: 'Whites', min: 0, max: 10, bipolar: false, fmt: (v) => `${v}/10` },
 ];
 
@@ -54,19 +58,21 @@ type Screen = 'home' | 'newRoll' | 'mix' | 'developing' | 'result' | 'edit';
 const MIX_DEFAULTS = {
   swap: false,
   look: 'M',
-  values: { shift: -12, white: 4, leaks: 5, exposure: 0, dust: 4 } as Record<'shift' | 'white' | 'leaks' | 'exposure' | 'dust', number>,
+  values: { shift: -12, white: 4, leaks: 0, halo: 5, exposure: 0, dust: 4 } as Record<'shift' | 'white' | 'leaks' | 'halo' | 'exposure' | 'dust', number>,
   randomShift: true,
   flip: true,
   full: false,
 };
 type MixState = typeof MIX_DEFAULTS;
-// v4: засветки по умолчанию на половине кадров (решение Александра 13.10.2026) — старые сохранённые значения не подхватываем
-const MIX_KEY = 'multik-mix-v5';
+// v6: выключаем случайные засветки; остальные сохранённые настройки сохраняем.
+const MIX_KEY = 'multik-mix-v6';
 
 // последние настройки «Смешать» запоминаются на этом устройстве (удобство, не данные)
 function loadMix(): MixState {
   try {
-    const saved = JSON.parse(localStorage.getItem(MIX_KEY) ?? 'null') as Partial<MixState> | null;
+    const current = localStorage.getItem(MIX_KEY);
+    const saved = JSON.parse(current ?? localStorage.getItem('multik-mix-v5') ?? 'null') as Partial<MixState> | null;
+    if (saved && !current) saved.values = { ...MIX_DEFAULTS.values, ...saved.values, leaks: 0 };
     if (saved) return { ...MIX_DEFAULTS, ...saved, look: 'M', values: { ...MIX_DEFAULTS.values, ...saved.values }, swap: false };
   } catch {
     // нет доступа к хранилищу — берём значения по умолчанию
@@ -88,13 +94,13 @@ const state = {
   devs: [] as Development[],
   selection: [] as string[],
   // новая плёнка
-  draft: { name: '', length: 12, files: [] as File[], busy: '' },
+  draft: { name: '', length: 12, files: [] as File[], busy: '', error: '' },
   // смешать
   mix: loadMix(),
   dev: null as Development | null,
   developing: { stop: false, error: '' },
   view: 0,
-  sheet: null as null | { kind: 'rollActions' | 'rename' | 'devActions'; id: string },
+  sheet: null as null | { kind: 'rollActions' | 'rename' | 'devActions' | 'confirmRoll' | 'confirmDev'; id: string },
 };
 
 // --- утилиты ---
@@ -119,7 +125,6 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { mon
 const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const frames = (n: number) => `${n} frame${n === 1 ? '' : 's'}`;
 const rollNo = (n: number) => `ROLL ${String(n).padStart(2, '0')}`;
-const today = () => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
 const ambient = (url: string) => (url ? `<div class="ambient" style="background-image:url('${url}')"></div>` : '');
 
 const ICON = {
@@ -187,6 +192,9 @@ function go(screen: Screen) {
   if (state.screen === 'mix' && screen !== 'mix') closeSample();
   state.screen = screen;
   state.sheet = null;
+  for (const key of urls.keys()) {
+    if ((screen !== 'result' && key.startsWith('ff:')) || (screen !== 'newRoll' && key.startsWith('draft:'))) dropUrl(key);
+  }
   void render();
 }
 
@@ -207,7 +215,7 @@ function tabBar(): string {
 
 function header(title: string, actions = ''): string {
   return `<header class="head">
-    <div><small class="kicker">${today()}</small><h1 class="large">${title}</h1></div>
+    <div><h1 class="large">${title}</h1></div>
     <div class="head-actions">${actions}</div>
   </header>`;
 }
@@ -227,8 +235,8 @@ async function renderHome(): Promise<string> {
       <section class="hero">
         <div class="hero-frame">${HERO}</div>
         <h2>Two rolls. One frame.</h2>
-        <p>Load a roll of photos, then another. Multik runs them through the camera twice — light adds up, whites melt together, red halation glows at the edges.</p>
-        <button type="button" class="capsule yellow" data-new>${ICON.plus}Load your first roll</button>
+        <p>Two sets of photos. A little chance. Something new.</p>
+        <button type="button" class="capsule accent" data-new>${ICON.plus}Load your first roll</button>
       </section>
       <ol class="steps">
         <li><span>1</span><div><b>Load a roll</b><small>Pick 6, 12, 24 or 36 photos and name it. That’s one pass.</small></div></li>
@@ -272,16 +280,19 @@ async function renderHome(): Promise<string> {
         ? `<div class="fab ghost" aria-live="polite">1 of 2 picked</div>`
         : '';
   return `<div class="screen">
-    ${header('Rolls', `<button type="button" class="glass-btn" data-new aria-label="New roll">${ICON.plus}</button>`)}
-    <p class="sub">${hint}</p>
-    <div class="grid">${cards}${add}</div>
+    ${header('Rolls', `${layoutButton('rolls')}<button type="button" class="glass-btn" data-new aria-label="New roll">${ICON.plus}</button>`)}
+    <div class="grid">${cards}</div>
+    ${panelHtml('rolls', 'Roll library', [
+      { id: 'add', label: 'New roll shortcut', html: add, placement: 'more' },
+      { id: 'guide', label: 'Selection hint', html: `<p class="sub">${hint}</p>`, placement: 'more' },
+    ], () => { void render(); })}
     ${fab}
   </div>${tabBar()}`;
 }
 
 async function renderDevs(): Promise<string> {
   const thumbs = await Promise.all(
-    state.devs.map((d) => Promise.all(Array.from({ length: Math.min(3, d.done) }, (_, i) => blobUrl(`ft:${d.id}:${i}`, () => devThumb(d.id, i))))),
+    state.devs.map((d) => Promise.all(Array.from({ length: Math.min(3, d.done) }, (_, i) => blobUrl(`ft:${d.id}:${i}`, () => displayThumb(d, i))))),
   );
   const cards = state.devs
     .map((d, k) => {
@@ -311,8 +322,9 @@ async function renderDevs(): Promise<string> {
       <button type="button" class="capsule glass" data-tab="rolls">Go to Rolls</button>
     </section>`;
   return `<div class="screen">
-    ${header('Developed')}
+    ${header('Developed', layoutButton('developed'))}
     ${state.devs.length ? `<div class="dev-list">${cards}</div>` : empty}
+    ${panelHtml('developed', 'Developed library', [{ id: 'guide', label: 'Help', html: '<p class="note">Open a roll to edit, save or favourite its frames.</p>', placement: 'more' }], () => { void render(); })}
   </div>`;
 }
 
@@ -323,7 +335,7 @@ async function renderNewRoll(): Promise<string> {
   const thumbs = d.files.map((f, i) => {
     const key = `draft:${i}:${f.name}:${f.size}`;
     if (!urls.has(key)) urls.set(key, URL.createObjectURL(f));
-    return `<button type="button" class="pick" data-unpick="${i}" aria-label="Remove photo ${i + 1}"><img src="${urls.get(key)}" alt=""><span>×</span></button>`;
+    return `<button type="button" class="pick" data-unpick="${i}" ${d.busy ? 'disabled' : ''} aria-label="Remove photo ${i + 1}"><img src="${urls.get(key)}" alt=""><span>×</span></button>`;
   });
   const empty = Array.from({ length: Math.max(0, d.length - d.files.length) }, (_, k) => `<div class="cell"><span>${d.files.length + k + 1}</span></div>`);
   const ready = d.files.length === d.length && !d.busy;
@@ -332,22 +344,24 @@ async function renderNewRoll(): Promise<string> {
     <div class="sheet">
       <div class="grabber"></div>
       <div class="sheet-nav">
-        <button type="button" class="link" data-cancel-new>Cancel</button>
-        <b>New Roll</b>
+        <button type="button" class="link" data-cancel-new ${d.busy ? 'disabled' : ''}>Cancel</button>
+        <div class="sheet-title"><b>New Roll</b>${layoutButton('new-roll')}</div>
         <button type="button" class="link strong" data-save-roll ${ready ? '' : 'disabled'}>Save</button>
       </div>
-      <div class="group">
+      ${panelHtml('new-roll', 'New roll', [
+        { id: 'name', label: 'Roll name', html: `<div class="group">
         <label class="row"><span>Name</span><input id="roll-name" type="text" value="${esc(d.name)}" maxlength="60" autocomplete="off"></label>
-      </div>
-      <div class="section-title">Roll length</div>
+      </div>` },
+        { id: 'length', label: 'Roll length', html: `<div class="section-title">Roll length</div>
       <div class="segmented" role="radiogroup" aria-label="Roll length">
-        ${LENGTHS.map((n) => `<button type="button" role="radio" aria-checked="${n === d.length}" data-length="${n}">${n}</button>`).join('')}
-      </div>
+        ${LENGTHS.map((n) => `<button type="button" role="radio" aria-checked="${n === d.length}" data-length="${n}" ${d.busy ? 'disabled' : ''}>${n}</button>`).join('')}
+      </div>` },
+      ], () => { void render(); })}
       <div class="section-title split"><span>Frames</span><span class="${full ? 'ok' : ''}">${d.files.length} of ${d.length}</span></div>
       <div class="picks">${thumbs.join('')}${empty.join('')}</div>
       ${d.files.length > d.length ? `<p class="note warn">That’s more photos than the roll holds. Remove ${d.files.length - d.length} or pick a longer roll.</p>` : ''}
-      <label class="capsule wide ${full ? 'glass' : 'yellow'} file-btn">${ICON.plus}${d.files.length ? 'Add more photos' : 'Choose photos'}<input id="roll-files" type="file" accept="image/*" multiple hidden></label>
-      <p class="note">${d.busy ? esc(d.busy) : 'Photos stay on this device. You can mix this roll with any other.'}</p>
+      <label class="capsule wide ${full ? 'glass' : 'accent'} file-btn">${ICON.plus}${d.files.length ? 'Add more photos' : 'Choose photos'}<input id="roll-files" type="file" accept="image/*" multiple hidden ${d.busy ? 'disabled' : ''}></label>
+      <p class="note${d.error ? ' warn' : ''}" role="status">${esc(d.error || d.busy || 'Photos stay on this device.')}</p>
     </div>
   </div>`;
 }
@@ -372,23 +386,28 @@ async function prepare(file: File): Promise<{ full: Blob; thumb: Blob; meta: Pho
 
 async function saveNewRoll() {
   const d = state.draft;
-  const name = d.name.trim() || `Roll ${await nextRollNumber()}`;
+  if (d.busy || d.files.length !== d.length) return;
+  d.busy = 'Preparing photos…';
+  d.error = '';
+  const files = [...d.files];
   try {
+    const name = d.name.trim() || `Roll ${await nextRollNumber()}`;
     const photos = [];
-    for (let i = 0; i < d.files.length; i++) {
-      d.busy = `Preparing frames: ${i + 1} of ${d.files.length}…`;
+    for (let i = 0; i < files.length; i++) {
+      d.busy = `Preparing frames: ${i + 1} of ${files.length}…`;
       await render();
-      photos.push(await prepare(d.files[i]));
+      photos.push(await prepare(files[i]));
     }
     await createRoll(name, d.length, photos);
     void requestPersistence();
     d.files.forEach((f, i) => dropUrl(`draft:${i}:${f.name}:${f.size}`));
-    state.draft = { name: '', length: 12, files: [], busy: '' };
+    state.draft = { name: '', length: 12, files: [], busy: '', error: '' };
     await refresh();
     state.tab = 'rolls';
     go('home');
   } catch (e) {
-    d.busy = `Couldn’t save: ${(e as Error).message}. Try other photos or free up some space.`;
+    d.busy = '';
+    d.error = `Couldn’t save: ${(e as Error).message}. Replace the photo or try again.`;
     await render();
   }
 }
@@ -402,6 +421,7 @@ function mixRolls(): [Roll, Roll] | null {
 }
 
 async function renderMix(): Promise<string> {
+  migrateSetupTools();
   const pair = mixRolls();
   if (!pair) return '<div class="screen dark"><p class="sub">Pick two rolls first.</p></div>';
   const [a, b] = pair;
@@ -414,33 +434,40 @@ async function renderMix(): Promise<string> {
         ? `<button type="button" class="sicon${m.flip ? ' on' : ''}" data-toggle="flip" aria-pressed="${m.flip}" aria-label="Rotate the top roll 180°">${ICON.rotate}</button>`
         : `<button type="button" class="sicon" data-swap aria-label="Swap top and bottom">${ICON.swap}</button>`}
     </div>`;
-  return `<div class="screen dark setup">
-    ${ambient(ca)}
-    <div class="mbar">
-      <button type="button" class="round-btn big" data-home aria-label="Cancel">${ICON.close}</button>
-      <span class="scount">${frames(Math.min(a.length, b.length))}<small class="sbuild">${BUILD}</small></span>
-      <button type="button" class="chip-mp${m.full ? ' on' : ''}" data-toggle="full" aria-pressed="${m.full}">12 MP</button>
-    </div>
-    <div class="ssample">
-      <canvas id="setup-canvas" width="900" height="675" aria-label="Sample frame from these two rolls"></canvas>
-      <span class="sbadge">sample</span>
-      <button type="button" class="sdice" data-sample-dice aria-label="Another sample frame">${ICON.dice}</button>
-    </div>
-    <div class="srows">${row(b, cb, 'TOP', true)}${row(a, ca, 'BOTTOM', false)}</div>
-    <div class="sknobs">${SETUP_KNOBS.map((k) => {
+  const knobItems = SETUP_KNOBS.map((k) => {
       const random = k.id === 'shift' && m.randomShift;
-      return `<div class="sknob" data-k="${k.id}" role="slider" tabindex="0" aria-label="${k.label}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" aria-valuenow="${m.values[k.id]}">
+      return { id: k.id, label: k.label, kind: 'knob' as const, placement: 'main' as const, changed: k.id === 'shift' ? !m.randomShift : m.values[k.id] !== MIX_DEFAULTS.values[k.id], html: `<div class="sknob" data-k="${k.id}" role="slider" tabindex="0" aria-label="${k.label}" aria-valuemin="${k.min}" aria-valuemax="${k.max}" aria-valuenow="${m.values[k.id]}">
         <output>${random ? 'random' : k.fmt(m.values[k.id])}</output>
         <svg width="84" height="84" viewBox="0 0 54 54" aria-hidden="true">
           <circle cx="27" cy="27" r="23" fill="#1c1c1e" stroke="rgba(255,255,255,0.10)" stroke-width="3.5"/>
-          <circle class="karc" cx="27" cy="27" r="23" fill="none" stroke="#ffd60a" stroke-width="3.5" stroke-linecap="round"/>
+          <circle class="karc" cx="27" cy="27" r="23" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round"/>
           <line class="kptr" x1="27" y1="27" x2="27" y2="12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
           <circle cx="27" cy="27" r="3.5" fill="#fff"/>
         </svg>
         <small>${k.label}</small>
-      </div>`;
-    }).join('')}</div>
-    <div class="bottom"><button type="button" class="capsule yellow wide" data-develop>${ICON.mix}Develop</button></div>
+      </div>` };
+    });
+  const panel = panelHtml('setup', 'Mix rolls', [
+    { id: 'sources', label: 'Source rolls', html: `<div class="srows">${row(b, cb, 'TOP', true)}${row(a, ca, 'BOTTOM', false)}</div>` },
+    ...knobItems,
+    { id: 'quality', label: 'Export quality', placement: 'more', changed: m.full,
+      html: `<div class="quality-row"><span>Export quality</span><button type="button" class="chip-mp${m.full ? ' on' : ''}" data-toggle="full" aria-pressed="${m.full}">${m.full ? '12 MP' : '3 MP'}</button></div>` },
+  ], () => { void render(); });
+  return `<div class="screen dark setup">
+    ${ambient(ca)}
+    <div class="mbar">
+      <button type="button" class="round-btn big" data-home aria-label="Cancel">${ICON.close}</button>
+      <span class="scount">${frames(Math.min(a.length, b.length))}</span>
+      ${layoutButton('setup')}
+    </div>
+    <div class="ssample">
+      <canvas id="setup-canvas" width="900" height="675" aria-label="Sample frame from these two rolls"></canvas>
+      <span class="sbadge" id="sample-status" role="status">Preview</span>
+      <button type="button" class="sdice" data-sample-dice aria-label="Another sample frame">${ICON.dice}</button>
+    </div>
+    <div class="setup-tools">${panel}</div>
+
+    <div class="bottom"><button type="button" class="capsule accent wide" data-develop>${ICON.mix}Develop</button></div>
   </div>`;
 }
 
@@ -467,6 +494,9 @@ function bindSetupKnobs() {
     ptr.setAttribute('y2', (27 + 15 * Math.sin(ang)).toFixed(1));
     el.querySelector('output')!.textContent = random ? 'random' : k.fmt(v);
     el.setAttribute('aria-valuenow', String(v));
+    const changes = new Set(SETUP_KNOBS.filter((knob) => knob.id === 'shift' ? !m.randomShift : m.values[knob.id] !== MIX_DEFAULTS.values[knob.id]).map((knob) => knob.id as string));
+    if (m.full) changes.add('quality');
+    updatePanelChanges('setup', changes);
   };
   let lastTap = { id: '', t: 0 };
   document.querySelectorAll<HTMLElement>('.sknob').forEach((el) => {
@@ -481,6 +511,7 @@ function bindSetupKnobs() {
         else state.mix.values[k.id] = MIX_DEFAULTS.values[k.id];
         lastTap = { id: '', t: 0 };
         paintKnob(el, k);
+        saveMix();
         void drawSample();
         return;
       }
@@ -498,6 +529,7 @@ function bindSetupKnobs() {
       state.mix.values[k.id] = v;
       if (k.id === 'shift') state.mix.randomShift = false;
       paintKnob(el, k);
+      saveMix();
       void drawSample();
     });
     const end = () => {
@@ -513,6 +545,7 @@ function bindSetupKnobs() {
       state.mix.values[k.id] = Math.max(k.min, Math.min(k.max, state.mix.values[k.id] + dir));
       if (k.id === 'shift') state.mix.randomShift = false;
       paintKnob(el, k);
+      saveMix();
       void drawSample();
     });
   });
@@ -523,6 +556,7 @@ function bindSetupKnobs() {
  * Образец перед проявкой: один кадр из случайной пары снимков двух выбранных плёнок, в маленьком размере.
  * Крутилки «сдвиг», «засветки», «белое» и поворот верхней плёнки сразу меняют его.
  */
+let sampleGeneration = 0;
 const sample = { renderer: null as FrameRenderer | null, key: '', frame: 0, seed: 1, busy: false, pending: false, img: null as ImageData | null };
 function putSample() {
   const cv = document.getElementById('setup-canvas') as HTMLCanvasElement | null;
@@ -532,6 +566,7 @@ function putSample() {
   cv.getContext('2d')!.putImageData(sample.img, 0, 0);
 }
 function closeSample() {
+  sampleGeneration++;
   sample.img = null;
   sample.renderer?.dispose();
   sample.renderer = null;
@@ -548,43 +583,64 @@ async function drawSample() {
   sample.busy = true;
   try {
     const [a, b] = pair;
-    const m = state.mix;
+    const params = mixParams();
     const n = Math.min(a.length, b.length, a.photos.length, b.photos.length);
     const key = `${a.id}|${b.id}|${sample.seed}`;
     if (sample.key !== key || !sample.renderer) {
       closeSample();
-      const virtual = {
-        id: 'sample', createdAt: '', rollA: a.id, rollB: b.id, titleA: a.name, titleB: b.name, seed: sample.seed, n,
-        params: { lookId: 'M', exposureTenths: 0, whiteMerge: m.values.white, ppm: 25, settings: { ...DEFAULT_SETTINGS } },
-        algo: ALGO_VERSION, done: 0, likes: [],
-      } as Development;
-      sample.renderer = await FrameRenderer.open(virtual, 900);
+      const generation = sampleGeneration;
+      const virtual: Development = {
+        id: 'sample', createdAt: '', rollA: a.id, rollB: b.id, titleA: a.name, titleB: b.name,
+        seed: sample.seed, n, params, algo: ALGO_VERSION, done: 0, likes: [],
+      };
+      const renderer = await FrameRenderer.open(virtual, 900);
+      if (generation !== sampleGeneration || state.screen !== 'mix') {
+        renderer.dispose();
+        return;
+      }
+      sample.renderer = renderer;
       sample.key = key;
       sample.frame = Math.min(sample.frame, n - 1);
     }
-    const r = sample.renderer;
-    const i = sample.frame;
-    const edit = baseEdit(r.recipe, i, m.values.white);
-    edit.top.turns = m.flip ? 2 : 0;
-    edit.mix.shiftMm = m.randomShift ? r.recipe.shiftMm : m.values.shift;
-    if (m.values.leaks === 0) edit.mix.leaks = 0;
-    else {
-      if (!edit.leaks.length) edit.leaks = [randomLeak(new Rng(sample.seed * 31 + i), i)];
-      edit.mix.leaks = m.values.leaks / 5;
-    }
-    sample.img = await r.render(i, edit, 25);
+    const generation = sampleGeneration;
+    const renderer = sample.renderer;
+    renderer.setParams(params);
+    const img = await renderer.renderOriginal(sample.frame, 25);
+    if (generation !== sampleGeneration || state.screen !== 'mix') return;
+    sample.img = img;
     putSample();
-  } catch {
-    // образец — подсказка, не данные: если не вышел, экран работает и без него
-  }
-  sample.busy = false;
-  if (sample.pending) {
-    sample.pending = false;
-    void drawSample();
+  } catch (error) {
+    if ((error as Error).name !== 'AbortError') {
+      const status = document.getElementById('sample-status');
+      if (status) status.textContent = 'Preview unavailable. Try another frame.';
+    }
+  } finally {
+    sample.busy = false;
+    if (sample.pending) {
+      sample.pending = false;
+      void drawSample();
+    }
   }
 }
 
+function mixParams(): Development['params'] {
+  const m = state.mix;
+  return {
+    lookId: 'M', exposureTenths: 0, whiteMerge: m.values.white, haloAmount: m.values.halo / 5, highlightVariation: true, ppm: m.full ? 111 : 56,
+    settings: {
+      ...DEFAULT_SETTINGS,
+      shiftMode: m.randomShift ? 'random' : 'manual', shiftMm: m.values.shift,
+      swapRotate: m.flip, endFog: m.values.leaks > 0, leaks: m.values.leaks > 0, leakChance: m.values.leaks / 10,
+      dust: true, dustLevel: MIX_DEFAULTS.values.dust,
+    },
+  };
+}
+let startingDevelopment = false;
+
 async function startDevelopment(reuse?: Development) {
+  if (startingDevelopment || developmentTask) return;
+  startingDevelopment = true;
+  try {
   let dev: Development;
   if (reuse) {
     dev = await createDev({ ...reuse, seed: randomSeed(), algo: ALGO_VERSION, edits: undefined });
@@ -592,40 +648,31 @@ async function startDevelopment(reuse?: Development) {
     const pair = mixRolls();
     if (!pair) return;
     const [a, b] = pair;
-    const m = state.mix;
     saveMix();
     dev = await createDev({
       rollA: a.id,
       rollB: b.id,
       titleA: a.name,
       titleB: b.name,
-      seed: randomSeed(),
+      seed: sample.seed,
       n: Math.min(a.length, b.length, a.photos.length, b.photos.length),
       algo: ALGO_VERSION,
-      params: {
-        lookId: 'M',
-        exposureTenths: 0,
-        whiteMerge: m.values.white,
-        ppm: m.full ? 111 : 56,
-        settings: {
-          ...DEFAULT_SETTINGS,
-          shiftMode: m.randomShift ? 'random' : 'manual',
-          shiftMm: m.values.shift,
-          swapRotate: m.flip,
-          leaks: m.values.leaks > 0,
-          leakChance: m.values.leaks / 10,
-          dust: true,
-          dustLevel: MIX_DEFAULTS.values.dust,
-        },
-      },
+      params: mixParams(),
     });
   }
   await develop(dev);
+  } finally { startingDevelopment = false; }
 }
 
 // --- экран: Проявка идёт ---
 
-async function develop(dev: Development) {
+let developmentTask: Promise<void> | null = null;
+function develop(dev: Development): Promise<void> {
+  if (developmentTask) return developmentTask;
+  developmentTask = performDevelopment(dev).finally(() => { developmentTask = null; });
+  return developmentTask;
+}
+async function performDevelopment(dev: Development) {
   state.dev = dev;
   state.developing = { stop: false, error: '' };
   go('developing');
@@ -656,7 +703,7 @@ async function develop(dev: Development) {
 
 async function renderDeveloping(): Promise<string> {
   const d = state.dev!;
-  const thumbs = await Promise.all(Array.from({ length: d.done }, (_, i) => blobUrl(`ft:${d.id}:${i}`, () => devThumb(d.id, i))));
+  const thumbs = await Promise.all(Array.from({ length: d.done }, (_, i) => blobUrl(`ft:${d.id}:${i}`, () => displayThumb(d, i))));
   const frac = d.n ? d.done / d.n : 0;
   const circ = 2 * Math.PI * 88;
   const err = state.developing.error;
@@ -671,7 +718,7 @@ async function renderDeveloping(): Promise<string> {
       <div class="ring">
         <svg width="210" height="210" viewBox="0 0 200 200" aria-hidden="true">
           <circle cx="100" cy="100" r="88" stroke="rgba(255,255,255,0.12)" stroke-width="10" fill="none"/>
-          <circle class="arc"${d.done ? '' : ' hidden'} cx="100" cy="100" r="88" stroke="#ffd60a" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="${(frac * circ).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 100 100)"/>
+          <circle class="arc"${d.done ? '' : ' hidden'} cx="100" cy="100" r="88" stroke="var(--accent)" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="${(frac * circ).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 100 100)"/>
         </svg>
         <div><b>${d.done}</b><span>of ${frames(d.n)}</span></div>
       </div>
@@ -687,10 +734,10 @@ async function renderDeveloping(): Promise<string> {
 async function renderResult(): Promise<string> {
   const d = state.dev!;
   const i = Math.min(state.view, d.done - 1);
-  const full = await blobUrl(`ff:${d.id}:${i}`, () => devFrame(d.id, i));
-  const thumbs = await Promise.all(Array.from({ length: d.done }, (_, k) => blobUrl(`ft:${d.id}:${k}`, () => devThumb(d.id, k))));
+  const full = await blobUrl(`ff:${d.id}:${i}`, () => displayFrame(d, i));
+  const thumbs = await Promise.all(Array.from({ length: d.done }, (_, k) => blobUrl(`ft:${d.id}:${k}`, () => displayThumb(d, k))));
   const liked = d.likes.includes(i);
-  return `<div class="screen dark">
+  return `<div class="screen dark result">
     ${ambient(thumbs[i] ?? '')}
     <div class="mbar">
       <button type="button" class="round-btn big back" data-back-devs aria-label="Back to developed rolls">${ICON.back}</button>
@@ -698,24 +745,49 @@ async function renderResult(): Promise<string> {
       <button type="button" class="round-btn big" data-dev-more="${d.id}" aria-label="More">${ICON.more}</button>
     </div>
     <div class="viewer" id="viewer">
-      <img src="${full}" alt="Frame ${i + 1}" draggable="false">
+      <div class="viewer-photo"><img src="${full}" alt="Frame ${i + 1}" draggable="false"></div>
     </div>
-    <div class="filmstrip" id="filmstrip">${thumbs
+    <div class="viewer-layer" role="group" aria-label="Move a film layer">
+      <span data-drag-hint>${currentViewerDraft() ? 'Drag to move' : 'Drag slowly'}</span>
+      <button type="button" data-viewer-layer="top" aria-pressed="${movingLayer === 'top'}">Top</button>
+      <button type="button" data-viewer-layer="bottom" aria-pressed="${movingLayer === 'bottom'}">Bottom</button>
+      <button type="button" data-viewer-undo aria-label="Undo last layer shift" ${currentViewerDraft()?.undo || (viewerUndo?.dev === d.id && viewerUndo.frame === i) ? '' : 'hidden'}>↶</button>
+    </div>
+    ${panelHtml('viewer', 'Frame viewer', [{ id: 'filmstrip', label: 'Filmstrip', html: `<div class="filmstrip" id="filmstrip">${thumbs
       .map((u, k) => `<button type="button" data-view="${k}" class="${k === i ? 'on' : ''}"><img src="${u}" alt="Frame ${k + 1}">${d.likes.includes(k) ? '<span>♥</span>' : ''}</button>`)
-      .join('')}</div>
+      .join('')}</div>` }], () => { void render(); })}
     <nav class="vbar" aria-label="Frame actions">
       <button type="button" class="vbtn${liked ? ' liked' : ''}" data-like aria-pressed="${liked}" aria-label="Favorite">${ICON.heart.replace('FILL', liked ? 'currentColor' : 'none')}</button>
       <button type="button" class="vbtn save" data-save-one aria-label="Save to Photos">${ICON.save}</button>
+      <button type="button" class="vbtn" data-rotate-frame aria-label="Rotate the whole frame 90° clockwise">${ICON.rotate}</button>
       <button type="button" class="vbtn" data-edit aria-label="Edit this frame">${ICON.sliders}</button>
     </nav>
   </div>`;
 }
 
-function step(dir: number) {
+let rotatingFrame = false;
+let viewerBusy = false;
+let movingLayer: MovingLayer = 'top';
+let quickEdit: ReturnType<typeof viewerDrag> | undefined;
+let viewerDraft: { dev: string; frame: number; draft: ViewerDraft } | null = null;
+function currentViewerDraft() {
+  return viewerDraft?.dev === state.dev?.id && viewerDraft?.frame === state.view ? viewerDraft.draft : undefined;
+}
+let viewerUndo: { dev: string; frame: number; edit: FrameEdit | null } | null = null;
+async function step(dir: number) {
+  if (rotatingFrame || viewerBusy) return;
   const d = state.dev;
   if (!d || !d.done) return;
+  if (!await commitViewer()) return;
   state.view = (state.view + dir + d.done) % d.done;
   return render();
+}
+
+async function commitViewer(): Promise<boolean> {
+  if (viewerBusy) return false;
+  if (quickEdit && !await quickEdit.commit()) return false;
+  viewerDraft = null;
+  return true;
 }
 
 /**
@@ -724,76 +796,46 @@ function step(dir: number) {
  * Safari разрешает navigator.share только из жеста, а touchend им считается. Своё системное меню картинки
  * отключено (-webkit-touch-callout: none), чтобы не всплывали два меню сразу.
  */
+let clearPhotoZoom: (() => void) | undefined;
 function bindViewer() {
   const box = document.getElementById('viewer');
   const img = box?.querySelector('img');
   if (!box || !img) return;
-  let x0 = 0;
-  let y0 = 0;
-  let dx = 0;
-  let moved = false;
-  let held = false;
-  let timer = 0;
-  box.addEventListener(
-    'touchstart',
-    (e) => {
-      if (e.touches.length !== 1) return;
-      x0 = e.touches[0].clientX;
-      y0 = e.touches[0].clientY;
-      dx = 0;
-      moved = false;
-      held = false;
-      img.style.transition = 'none';
-      timer = window.setTimeout(() => {
-        held = true;
-        img.classList.add('held');
-      }, 450);
+  quickEdit = viewerDrag({
+    dev: state.dev!, frame: state.view, box, image: img, layer: () => movingLayer,
+    draft: currentViewerDraft(),
+    changed: draft => {
+      viewerDraft = { dev: state.dev!.id, frame: state.view, draft };
+      const undo = app.querySelector<HTMLButtonElement>('[data-viewer-undo]');
+      if (undo) undo.hidden = !draft.undo && !(viewerUndo?.dev === state.dev?.id && viewerUndo?.frame === state.view);
+      const hint = app.querySelector('[data-drag-hint]');
+      if (hint) hint.textContent = 'Drag to move';
     },
-    { passive: true },
-  );
-  box.addEventListener(
-    'touchmove',
-    (e) => {
-      dx = e.touches[0].clientX - x0;
-      const dy = e.touches[0].clientY - y0;
-      if (!moved && Math.hypot(dx, dy) > 10) {
-        moved = true;
-        clearTimeout(timer);
-        img.classList.remove('held');
-      }
-      if (moved && !held && Math.abs(dx) > Math.abs(dy)) img.style.transform = `translateX(${dx}px)`;
+    busy: value => {
+      viewerBusy = value; box.classList.toggle('adjusting', value);
+      app.querySelectorAll<HTMLButtonElement>('.result button').forEach(button => { button.disabled = value; });
     },
-    { passive: true },
-  );
-  box.addEventListener('touchend', (e) => {
-    clearTimeout(timer);
-    img.classList.remove('held');
-    if (held && !moved) {
-      e.preventDefault();
+    error: showError,
+    saved: async (next, before, undo) => {
+      viewerUndo = undo ? null : { dev: next.id, frame: state.view, edit: before };
+      state.dev = next;
+      state.devs = state.devs.map(dev => dev.id === next.id ? next : dev);
+      viewerDraft = null;
+      dropUrl(`ff:${next.id}:${state.view}`); dropUrl(`ft:${next.id}:${state.view}`);
+    },
+  });
+  const releaseZoom = bindPhotoZoom(box, img.parentElement!, {
+    drag: quickEdit.gesture,
+    onSwipe: direction => { void step(direction); },
+    onMouseTap: x => { const r = box.getBoundingClientRect(); void step(x < r.left + r.width / 2 ? -1 : 1); },
+    onHold: () => {
+      if (viewerBusy) return;
       const save = document.querySelector<HTMLButtonElement>('[data-save-one]');
       if (save) void shareFrames([state.view], save);
-      return;
-    }
-    img.style.transition = '';
-    if (moved && Math.abs(dx) > 50) {
-      img.style.transform = `translateX(${dx < 0 ? -110 : 110}%)`;
-      img.style.opacity = '0';
-      window.setTimeout(() => void step(dx < 0 ? 1 : -1), 160);
-    } else {
-      img.style.transform = '';
-    }
+    },
   });
-  box.addEventListener('touchcancel', () => {
-    clearTimeout(timer);
-    img.classList.remove('held');
-    img.style.transform = '';
-  });
-  // мышь: клик по левой/правой половине кадра
-  box.addEventListener('click', (e) => {
-    if ((e as PointerEvent).pointerType === 'touch') return;
-    const r = box.getBoundingClientRect();
-    void step(e.clientX < r.left + r.width / 2 ? -1 : 1);
-  });
+  const mountedEdit = quickEdit;
+  clearPhotoZoom = () => { releaseZoom(); mountedEdit.dispose(); quickEdit = undefined; };
 }
 
 document.addEventListener('keydown', (e) => {
@@ -803,10 +845,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function shareFrames(indices: number[], button: HTMLButtonElement) {
+  if (quickEdit?.dirty()) {
+    if (!await commitViewer()) return;
+    await render();
+  }
   const d = state.dev!;
   const files: File[] = [];
   for (const k of indices) {
-    const blob = await devFrame(d.id, k);
+    const blob = await exportFrame(d, k);
     if (blob) files.push(new File([blob], `multik-${d.seed}-${k + 1}.jpg`, { type: 'image/jpeg' }));
   }
   const label = button.innerHTML;
@@ -825,6 +871,7 @@ async function shareFrames(indices: number[], button: HTMLButtonElement) {
         a.href = URL.createObjectURL(f);
         a.download = f.name;
         a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
       }
     }
   } catch (e) {
@@ -840,13 +887,18 @@ async function shareFrames(indices: number[], button: HTMLButtonElement) {
 function renderSheet(): string {
   const s = state.sheet;
   if (!s) return '';
+  if (s.kind === 'confirmRoll' || s.kind === 'confirmDev') {
+    const isRoll = s.kind === 'confirmRoll';
+    return `<div class="overlay" data-close-sheet><div class="alert" role="dialog" aria-modal="true" aria-label="Confirm deletion"><b>Delete ${isRoll ? 'roll' : 'development'}?</b><p>This removes ${isRoll ? 'its source photos' : 'its frames and edits'} from this device. This cannot be undone.</p><div class="alert-buttons"><button type="button" data-close-sheet>Cancel</button><button type="button" class="danger" ${isRoll ? 'data-delete-roll' : 'data-delete-dev'}="${s.id}">Delete</button></div></div></div>`;
+  }
   if (s.kind === 'rollActions') {
     const r = state.rolls.find((x) => x.id === s.id);
     if (!r) return '';
+    const uses = state.devs.filter((d) => d.rollA === r.id || d.rollB === r.id).length;
     return `<div class="overlay" data-close-sheet><div class="action-sheet" role="dialog" aria-label="Roll actions">
       <div class="action-group"><div class="action-title">${esc(r.name)} · ${frames(r.length)}</div>
         <button type="button" data-rename="${r.id}">Rename</button>
-        <button type="button" class="danger" data-delete-roll="${r.id}">Delete Roll</button></div>
+        <button type="button" class="danger" data-confirm-roll="${r.id}" ${uses ? 'disabled' : ''}>Delete Roll</button>${uses ? `<p class="action-explanation">Used by ${uses} development${uses === 1 ? '' : 's'}. Keep the source roll to edit or resume those frames.</p>` : ''}</div>
       <div class="action-group"><button type="button" class="strong" data-close-sheet>Cancel</button></div>
     </div></div>`;
   }
@@ -865,7 +917,7 @@ function renderSheet(): string {
     <div class="action-group"><div class="action-title">${esc(d.titleA)} × ${esc(d.titleB)}</div>
       <button type="button" data-again="${d.id}">Develop again</button>
       ${d.likes.length ? `<button type="button" data-save-liked="${d.id}">Save ${d.likes.length} favorite${d.likes.length === 1 ? '' : 's'}</button>` : ''}
-      <button type="button" class="danger" data-delete-dev="${d.id}">Delete Development</button></div>
+      ${state.screen === 'result' ? layoutButton('viewer', 'Customize screen') : ''}<button type="button" class="danger" data-confirm-dev="${d.id}">Delete Development</button></div>
     <div class="action-group"><button type="button" class="strong" data-close-sheet>Cancel</button></div>
   </div></div>`;
 }
@@ -887,8 +939,12 @@ function render(): Promise<void> {
               ? await renderDeveloping()
               : await renderResult();
     const strip = document.getElementById('filmstrip')?.scrollLeft;
+    clearPhotoZoom?.(); clearPhotoZoom = undefined;
     app.innerHTML = html + renderSheet();
-    if (state.screen === 'mix') bindSetupKnobs();
+    if (state.screen === 'mix') {
+      bindSetupKnobs();
+      clearPhotoZoom = bindPhotoZoom(app.querySelector('.ssample')!, app.querySelector('#setup-canvas')!);
+    }
     if (state.screen === 'result') {
       bindViewer();
       const fs = document.getElementById('filmstrip');
@@ -897,7 +953,8 @@ function render(): Promise<void> {
       on?.scrollIntoView({ inline: 'center', block: 'nearest' });
     }
     document.getElementById('rename-input')?.focus();
-  });
+    updateNotice();
+  }).catch(showError);
   return rendering;
 }
 
@@ -908,16 +965,23 @@ app.addEventListener('input', (e) => {
 
 app.addEventListener('change', (e) => {
   const t = e.target as HTMLInputElement;
-  if (t.id === 'roll-files') {
+  if (t.id === 'roll-files' && !state.draft.busy) {
+    state.draft.error = '';
     state.draft.files = [...state.draft.files, ...(t.files ?? [])];
     void render();
   }
 });
 
-app.addEventListener('click', async (e) => {
+app.addEventListener('click', (e) => { void handleClick(e).catch(showError); });
+async function handleClick(e: MouseEvent) {
   const el = (e.target as HTMLElement).closest<HTMLElement>('button, a, [data-close-sheet]');
-  if (!el) return;
+  if (!el || rotatingFrame || viewerBusy) return;
   const ds = el.dataset;
+  if (state.screen === 'newRoll' && state.draft.busy) return;
+  if (state.screen === 'result' && (ds.backDevs !== undefined || ds.home !== undefined || ds.edit !== undefined)) {
+    if (!await commitViewer()) return;
+  }
+  if (ds.layout && state.sheet) { state.sheet = null; return render(); }
   if (el.classList.contains('overlay') && e.target !== el) return;
 
   if (ds.tab) {
@@ -926,7 +990,7 @@ app.addEventListener('click', async (e) => {
     return render();
   }
   if (ds.new !== undefined) {
-    state.draft = { name: `Roll ${await nextRollNumber()}`, length: 12, files: [], busy: '' };
+    state.draft = { name: `Roll ${await nextRollNumber()}`, length: 12, files: [], busy: '', error: '' };
     return go('newRoll');
   }
   if (ds.pick) {
@@ -961,6 +1025,10 @@ app.addEventListener('click', async (e) => {
     state.sheet = null;
     return render();
   }
+  if (ds.confirmRoll || ds.confirmDev) {
+    state.sheet = { kind: ds.confirmRoll ? 'confirmRoll' : 'confirmDev', id: ds.confirmRoll || ds.confirmDev! };
+    return render();
+  }
   if (ds.deleteRoll) {
     const r = state.rolls.find((x) => x.id === ds.deleteRoll);
     if (r) await deleteRoll(r);
@@ -972,7 +1040,9 @@ app.addEventListener('click', async (e) => {
   if (ds.deleteDev) {
     const d = state.devs.find((x) => x.id === ds.deleteDev);
     if (d) await deleteDev(d);
+    for (const key of urls.keys()) if (key.startsWith(`ff:${ds.deleteDev}:`) || key.startsWith(`ft:${ds.deleteDev}:`)) dropUrl(key);
     await refresh();
+    if (state.dev?.id === ds.deleteDev) { state.dev = null; state.screen = 'home'; state.tab = 'devs'; }
     state.sheet = null;
     return render();
   }
@@ -1017,6 +1087,7 @@ app.addEventListener('click', async (e) => {
   }
   if (ds.stop !== undefined) {
     state.developing.stop = true;
+    await developmentTask;
     state.tab = 'devs';
     await refresh();
     return go('home');
@@ -1042,8 +1113,32 @@ app.addEventListener('click', async (e) => {
   }
   if (ds.step) return step(Number(ds.step));
   if (ds.view) {
+    if (Number(ds.view) === state.view || !await commitViewer()) return;
     state.view = Number(ds.view);
     return render();
+  }
+  if (ds.rotateFrame !== undefined) {
+    const d = state.dev!;
+    const frame = state.view;
+    rotatingFrame = true;
+    (el as HTMLButtonElement).disabled = true;
+    try {
+      state.dev = await rotateFrame(d.id, frame);
+      dropUrl(`ff:${d.id}:${frame}`);
+      dropUrl(`ft:${d.id}:${frame}`);
+      await render();
+    } finally { rotatingFrame = false; (el as HTMLButtonElement).disabled = false; }
+    return;
+  }
+  if (ds.viewerLayer) {
+    movingLayer = ds.viewerLayer as MovingLayer;
+    app.querySelectorAll<HTMLElement>('[data-viewer-layer]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.viewerLayer === movingLayer)));
+    return;
+  }
+  if (ds.viewerUndo !== undefined) {
+    if (quickEdit?.undoDraft()) return;
+    if (viewerUndo && await quickEdit?.undo(viewerUndo.edit)) await render();
+    return;
   }
   if (ds.like !== undefined) {
     const d = state.dev!;
@@ -1067,8 +1162,10 @@ app.addEventListener('click', async (e) => {
     return render();
   }
   if (ds.edit !== undefined) {
+    viewerUndo = null; // A later editor save starts a new correction history.
     const d = state.dev!;
     const frame = state.view;
+    clearPhotoZoom?.(); clearPhotoZoom = undefined;
     state.screen = 'edit';
     state.sheet = null;
     await rendering;
@@ -1093,11 +1190,18 @@ app.addEventListener('click', async (e) => {
     if (!a || !b) return;
     return startDevelopment(d);
   }
-});
-
-// офлайн-работа и установка на экран «Домой»
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 }
 
-void refresh().then(render);
+function showError(error: unknown): void {
+  document.getElementById('app-error')?.remove();
+  const note = document.createElement('button');
+  note.id = 'app-error';
+  note.className = 'app-error';
+  note.setAttribute('role', 'alert');
+  note.textContent = `${error instanceof Error ? error.message : 'Something went wrong'}. Tap to dismiss.`;
+  note.onclick = () => note.remove();
+  document.body.append(note);
+}
+
+initPwa(() => state.screen === 'home' && !developmentTask && !startingDevelopment);
+void refresh().then(render).catch(showError);

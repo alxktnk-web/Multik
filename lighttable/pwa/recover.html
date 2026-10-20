@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#2c2926"><title>Multik · Recovery</title>
+<style>:root{color-scheme:dark;background:#2c2926;color:#e6e0d7;font:16px -apple-system,BlinkMacSystemFont,sans-serif}body{max-width:32rem;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 24px calc(100px + env(safe-area-inset-bottom));line-height:1.5}#repair,#open{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:24px;right:24px;text-align:center}body:has(#open:not([hidden])) #repair{display:none}h1{font-size:25px;font-weight:500}p{color:#bbb3a7}button,a{display:inline-block;padding:14px 20px;min-height:44px;border:0;border-radius:16px;background:#a3b2a0;color:#242b23;font:inherit;text-decoration:none}[hidden]{display:none}</style>
+<h1>Multik</h1><p>Restore offline access. Your photos and edits stay safe.</p><button id="repair">Recover</button><p id="status" role="status"></p><a id="open" href="/lighttable/" hidden>Open Multik</a>
+<script>
+const scope=new URL('/lighttable/',location.origin).href,prefix=`multik-lighttable:${scope}:`,button=document.querySelector('#repair'),status=document.querySelector('#status'),open=document.querySelector('#open');
+button.onclick=async()=>{
+  button.disabled=true;open.hidden=true;status.textContent='Preparing…';
+  try{
+    if(!('serviceWorker' in navigator))throw Error('unavailable');
+    for(const registration of await navigator.serviceWorker.getRegistrations())if(registration.scope===scope)await registration.unregister();
+    await Promise.all((await caches.keys()).filter(name=>name.startsWith(prefix)).map(name=>caches.delete(name)));
+    const registration=await navigator.serviceWorker.register(scope+'sw.js',{scope,updateViaCache:'none'});
+    const worker=registration.installing||registration.waiting||registration.active;
+    await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>finish(Error('timeout')),30000);
+      function finish(error){clearTimeout(timer);worker?.removeEventListener('statechange',check);error?reject(error):resolve();}
+      function check(){if(worker?.state==='activated')finish();else if(worker?.state==='redundant')finish(Error('failed'));}
+      worker?.addEventListener('statechange',check);check();
+    });
+    status.textContent='Ready. Your photos and edits are unchanged.';open.hidden=false;
+  }catch{status.textContent='Connect to the internet and try again.';}finally{button.disabled=false;}
+};
+</script></html>
