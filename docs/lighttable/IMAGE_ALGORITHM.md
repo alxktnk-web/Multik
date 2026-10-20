@@ -148,8 +148,10 @@ silhouette и три разные фотопары. Источники с пра
 ## Результаты и A/B review
 
 Проверено на runtime commit `9315887` с новым harness в этой ветке.
-Среда: Node 24.19.0 / npm 11.9.0 / Chromium SwiftShader. CI использует Node 22;
-локальный результат не выдаётся за запуск на Node 22 или Safari.
+Локальная среда: Node 24.19.0 / npm 11.9.0 / Chromium SwiftShader.
+Отдельно GitHub CI Node 22 / unit tests / build на `118d3f4` прошёл:
+[run](https://github.com/alxktnk-web/Multik/actions/runs/39435104615).
+Браузерные результаты не выдаются за Safari.
 
 Сохранённые сравнения: [индекс](film-comparisons/README.md),
 [точные snapshots/числа](film-comparisons/evidence.json),

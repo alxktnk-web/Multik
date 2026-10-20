@@ -29,6 +29,13 @@
 - UI-ALG-001 **proposed**; никаких UI/control/config/deployment изменений. Profile 2 остаётся default и reference. Safari/HEIC/HDR/P3/iPhone hardware acceptance открыты. **Кандидат, не опубликован**.
 - Финальная scope-проверка: 62 защищённых файла byte-identical базе, package/lock/UI contract/deployment config неизменны; frozen shader точно извлечён из базы. Evidence: `film-comparisons/scope.json`.
 
+### Этап A4 — передача на review
+
+- Открыт [PR #1 в main](https://github.com/alxktnk-web/Multik/pull/1), head `research/film-rendering`. Коммиты: `861f872` (анализ/reference), `9315887` (runtime), `118d3f4` (проверки/A/B).
+- Обычный push без force; remote main повторно проверен и остаётся `0dc89b7`. Ни merge, ни публикации не выполнялось.
+- GitHub workflow **Verify source (no deployment)** на `118d3f4`: **SUCCESS**, Node 22 / unit tests / build ([run](https://github.com/alxktnk-web/Multik/actions/runs/39435104615)). Локальные browser suites остаются Chromium SwiftShader.
+- PR оставлен открытым для визуального решения владельца. Profile 3 opt-in, UI-ALG-001 proposed, default 2; **кандидат, не опубликован**. Аппаратные ограничения описаны выше.
+
 - По поручению владельца подготовлена передача соседнему чату: `ALGORITHM_HANDOFF.md`. Работа алгоритма ведётся в `research/film-rendering`, отдельно от main; результат — открытый PR для проверки, без самостоятельного merge/публикации.
 - Зафиксирован подробный текущий UI-контракт в `UI_CONTRACT.md`: экраны, жесты, Pro, параметры, ориентации, импорт, сохранение и Save to Photos. Для чата алгоритма UI и этот контракт read-only.
 - `UI_REQUESTS.md` — единственное место предложений алгоритма к UI, с подробным шаблоном и явными статусами. Предложение не разрешает реализацию; UI занимается отдельный чат по поручению владельца.
