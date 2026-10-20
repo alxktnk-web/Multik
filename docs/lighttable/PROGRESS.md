@@ -4,6 +4,21 @@
 
 ## 20.10.2026 — отдельное направление алгоритма изображения
 
+### Продолжение B1 — запрос на плотные тени и взаимодействие участками
+
+- Пользователь попросил объяснить потерю чёрного, исследовать практические способы и сделать ещё один профиль. Проверены remote: main `0dc89b7`, research `0d5250c`, PR #1 OPEN; чужих изменений нет. Запрет UI/merge/deploy сохраняется.
+- Чёрный в аддитивной модели добавляет 0, поэтому чёрный+серый=серый. Сделать чёрный прозрачным и одновременно сохранить его чёрным в том же пикселе невозможно без смены правила смешения/маски.
+- Изучены официальные Nikon Add/Average/Lighten/Darken и Adobe Blend If. План B2: сравнить усиление теней обоих источников, одного источника и яркостный выбор более тёмного; отдельный opt-in profile 4 с fixed source contrast до gains/addition. Profile 3 не переопределяется.
+- Frozen profile-3 fragment от `0d5250c` сохранён для pixel regression. Runtime/test подготовка ведётся; новые результаты ещё не объявлены PASS.
+
+### Продолжение B2 — отдельный плотный profile 4
+
+- `render/dense-profile.ts`: source-local luminance gate `smoothstep(.02,.4,Y)`, общий множитель RGB **до** gains/balance/addition/exposure. В 4 используются прежние tone/halo 3, user Contrast остаётся в конце. Profile 2/3 не переопределяются.
+- Minimal type/validator расширены до 4, copy сохраняет версии, default новых пар=2. Изменений UI/import/DB schema/export workflow нет; UI-ALG-001 дополнен только proposed вариантом 4.
+- Полный film harness параметризован `LIGHTTABLE_TEST_PROFILE=4`, default по-прежнему 3, assertions/tolerances сохранены. 66 unit tests и сборка прошли. Оба profile harness и frozen 3 — PASS.
+- 64+64 при EV=0/Contrast=1: profile 3 =83/255, profile 4 =5/255; белые нейтральные источники сохраняют tone 3. Слабые детали теней могут исчезать; вернуть их общей Exposure после gate нельзя, но originals не меняются и можно выбрать прежний профиль.
+- Формулы/первичные источники/варианты/ограничения добавлены в IMAGE_ALGORITHM.md. **Кандидат, не опубликован**; PR #1 остаётся открытым.
+
 ### Этап A1 — исследование базы (research/film-rendering)
 
 - Проверены remote HEAD, main и рабочая ветка: все на `0dc89b74d9f6792142769538c7ff285ccf8f9024`; v8 merge `cc5bf66` присутствует. Отдельный чистый checkout `/workspace/Multik`.

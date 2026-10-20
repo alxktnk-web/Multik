@@ -13,7 +13,7 @@ export type Composition = {
   mode: 'manual-pair';
   frame: { widthMm: number; heightMm: number; turns: QuarterTurns };
   layers: [Layer, Layer];
-  profile: { id: 'lighttable-clean-v1'; version: 1 | 2 | 3 };
+  profile: { id: 'lighttable-clean-v1'; version: 1 | 2 | 3 | 4 };
   effects: { halo: number; exposure: number; balance: number; contrast: number; haloRadius: number; haloThreshold: number };
   seed: number;
 };
@@ -27,7 +27,7 @@ export const effectDefaults = { halo: 0.35, exposure: 0, balance: 0, contrast: 1
 // Additive schema-1 defaults: old records remain readable without a database migration.
 export const copyComposition = (value: Composition): Composition => {
   const copy=structuredClone(value);copy.effects={...effectDefaults,...copy.effects};
-  // Preserve v8's 1 -> 2 normalization, but never migrate a pair into/out of 3.
+  // Preserve v8's 1 -> 2 normalization, but never migrate the opt-in profiles.
   if(copy.profile.version===1)copy.profile.version=2;
   return copy;
 };

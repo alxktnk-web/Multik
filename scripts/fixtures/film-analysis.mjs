@@ -3,6 +3,11 @@ export const weights=[.2126,.7152,.0722];
 export const luma=c=>c.reduce((s,v,i)=>s+v*weights[i],0);
 export const decode=v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4;
 export const encode=v=>v<=.0031308?12.92*v:1.055*v**(1/2.4)-.055;
+// Independent CPU oracle for the fixed, source-local profile-4 contrast.
+export function denseReference(rgb){
+  const t=Math.max(0,Math.min(1,(luma(rgb)-.02)/.38));
+  return rgb.map(v=>v*t*t*(3-2*t));
+}
 export function reference3(light,contrast=1){
   const y=luma(light);
   const t=y<=.45?y*(1-.25*(1-y/.45)**2):1-.55*Math.exp(-((y-.45)/.55));

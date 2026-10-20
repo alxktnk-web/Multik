@@ -4,7 +4,9 @@ import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {createServer} from 'vite';
 
-const out='lab-out/lighttable/film';
+const candidateVersion=Number(process.env.LIGHTTABLE_TEST_PROFILE??3);
+assert.ok([3,4].includes(candidateVersion),'Only test profiles 3/4 are supported');
+const out=candidateVersion===3?'lab-out/lighttable/film':'lab-out/lighttable/dense';
 await mkdir(out,{recursive:true});
 const frozen=await readFile('scripts/fixtures/lighttable-profile2.frag','utf8');
 const vite=await createServer({server:{host:'127.0.0.1',port:5192,strictPort:true},logLevel:'error'});
@@ -15,7 +17,7 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(e.stack));
   await page.route('**/film-harness',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Film render test</title>'}));
   await page.goto('http://127.0.0.1:5192/film-harness');
-  await page.evaluate(async(frozen)=>{
+  await page.evaluate(async({frozen,candidateVersion})=>{
     const {Renderer}=await import('/src/lighttable/render/renderer.ts');
     const {Session}=await import('/src/lighttable/model/session.ts');
     const {createComposition}=await import('/src/lighttable/model/types.ts');
@@ -38,8 +40,8 @@ try{
       if(stored)stored.layers.forEach((l,i)=>l.placements[0].source.assetId=inputs[i].id);
       await renderer.loadPair(inputs,true,stored);return inputs;
     }
-    window.h={f,session,renderer,oracle,read,load,composition,black:await f.flat([0,0,0]),atlas:await f.atlas(),artifacts:[]};
-  },frozen);
+    window.h={candidateVersion,f,session,renderer,oracle,read,load,composition,black:await f.flat([0,0,0]),atlas:await f.atlas(),artifacts:[]};
+  },{frozen,candidateVersion});
 
   const numeric=await page.evaluate(async()=>{
     const {f,renderer:r,session:s,oracle,read,load,black,atlas}=window.h;
@@ -50,9 +52,11 @@ try{
       s.draft.effects={...s.draft.effects,halo:0,exposure,contrast};s.draft.profile.version=2;
       const current=read(),program=r.programs.present;r.programs.present=oracle;
       const baseline=read();r.programs.present=program;regression.push(f.diff(current,baseline));
-      s.draft.profile.version=3;const candidate=read();
+      s.draft.profile.version=window.h.candidateVersion;const candidate=read();
       for(let i=0;i<f.patchColors.length;i++){
-        const expected=f.reference3(f.patchColors[i].map(v=>f.decode(v/255)*2**exposure),contrast).map(v=>v*255);
+        const linear=f.patchColors[i].map(v=>f.decode(v/255));
+        const source=window.h.candidateVersion===4?f.denseReference(linear):linear;
+        const expected=f.reference3(source.map(v=>v*2**exposure),contrast).map(v=>v*255);
         const actual=sample(candidate,i);
         oracleErrors.push(Math.max(...actual.map((v,k)=>Math.abs(v-expected[k]))));
       }
@@ -62,21 +66,21 @@ try{
     for(const pair of [[0,0],[32,32],[64,64],[118,0],[118,118],[180,180],[220,220],[255,0],[255,255]]){
       await load(await f.flat([pair[0],pair[0],pair[0]]),await f.flat([pair[1],pair[1],pair[1]]));
       s.draft.effects.halo=0;const result={input:pair};
-      for(const version of [2,3]){s.draft.profile.version=version;result[`p${version}`]=sample(read(),0);}
+      for(const version of [2,window.h.candidateVersion]){s.draft.profile.version=version;result[`p${version}`]=sample(read(),0);}
       steps.push(result);
     }
     // Neutral response must be monotone for every exposure; no NaN / inversion.
-    const ramp=await f.atlas();await load(ramp,black);s.draft.effects.halo=0;s.draft.profile.version=3;
+    const ramp=await f.atlas();await load(ramp,black);s.draft.effects.halo=0;s.draft.profile.version=window.h.candidateVersion;
     const monotone=[];
     for(const ev of [-2,-1,0,1,2]){
       s.draft.effects.exposure=ev;const d=read();monotone.push(Array.from({length:16},(_,i)=>sample(d,i)[0]));
     }
     // No exposure/threshold coupling: two medium lights never create source halo.
-    const gray=await f.flat([180,180,180]);await load(gray,gray);s.draft.profile.version=3;
+    const gray=await f.flat([180,180,180]);await load(gray,gray);s.draft.profile.version=window.h.candidateVersion;
     s.draft.effects.halo=0;const off=read();s.draft.effects.halo=1;const on=read();
     const falseHalo=f.diff(off,on);
     // White interior stays neutral; red spill follows translated source and padding.
-    await load(await f.scene('disc'),black);s.draft.profile.version=3;s.draft.effects.halo=0;
+    await load(await f.scene('disc'),black);s.draft.profile.version=window.h.candidateVersion;s.draft.effects.halo=0;
     const point=(d,x,y)=>Array.from(d.slice((y*800+x)*4,(y*800+x)*4+3));
     const discOff=read();s.draft.effects.halo=1;const discOn=read();
     const center={off:point(discOff,300,300),on:point(discOn,300,300)};
@@ -90,14 +94,14 @@ try{
     s.draft.effects.haloThreshold=.5;s.draft.layers[0].transform={xMm:3,yMm:-2,turns:1,scale:1.7};
     s.draft.profile.version=2;const haloCurrent=read(),program=r.programs.present;r.programs.present=oracle;
     regression.push(f.diff(haloCurrent,read()));r.programs.present=program;
-    await load(branches,texture);s.draft.profile.version=3;s.draft.effects.halo=0;const ab=read();
-    await load(texture,branches);s.draft.profile.version=3;s.draft.effects.halo=0;const ba=read();
+    await load(branches,texture);s.draft.profile.version=window.h.candidateVersion;s.draft.effects.halo=0;const ab=read();
+    await load(texture,branches);s.draft.profile.version=window.h.candidateVersion;s.draft.effects.halo=0;const ba=read();
     const symmetry=f.diff(ab,ba);
     // Cached source masks are profile independent; 2 -> 3 -> 2 must be reversible.
     const inputs=await load(branches,texture);const stored=structuredClone(s.draft);
     await r.loadPair(inputs,true,stored);s.draft.profile.version=2;const before=read();
     const metrics={...r.metrics},builds=r.haloBuilds;
-    s.draft.profile.version=3;read();s.draft.profile.version=2;const back=read();
+    s.draft.profile.version=window.h.candidateVersion;read();s.draft.profile.version=2;const back=read();
     const switchCost={uploads:r.metrics.uploads-metrics.uploads,compilations:r.metrics.compilations-metrics.compilations,bytes:r.metrics.liveBytes-metrics.liveBytes,haloBuilds:r.haloBuilds-builds};
     // Instrument the actual candidate hot path, including changing mask parameters.
     const hot={readPixels:0,encode:0,cpuPixels:0,upload:0,compile:0,idbWrite:0},undo=[];
@@ -113,7 +117,7 @@ try{
     ])wrap(proto,name,key);
     const hotBase=r.metrics.liveBytes;
     try{
-      s.draft.profile.version=3;
+      s.draft.profile.version=window.h.candidateVersion;
       for(let i=0;i<8;i++){
         s.draft.layers[0].transform.xMm=i/4;
         s.draft.effects.haloRadius=i%2?.2:1.6;s.draft.effects.haloThreshold=i%2?.5:.95;
@@ -162,10 +166,10 @@ try{
         ctx.drawImage(im,i*800+(800-im.width*scale)/2,30+(600-im.height*scale)/2,im.width*scale,im.height*scale);im.close();
       }
       const outputs=[];
-      for(const version of [2,3]){
+      for(const [column,version] of [2,window.h.candidateVersion].entries()){
         s.draft.profile.version=version;const data=read();outputs.push(data);
-        ctx.fillStyle='white';ctx.fillText(`Profile ${version}${version===3?' — candidate':''}`,12+(version-2)*800,654);
-        ctx.putImageData(new ImageData(new Uint8ClampedArray(data),800,600),(version-2)*800,660);
+        ctx.fillStyle='white';ctx.fillText(`Profile ${version}${version===window.h.candidateVersion?' — candidate':''}`,12+column*800,654);
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(data),800,600),column*800,660);
       }
       window.h.artifacts.push({name:`${name}.jpg`,data:sheet.toDataURL('image/jpeg',.94)});
       records.push({name,composition:structuredClone(s.draft),difference:f.diff(outputs[0],outputs[1])});
@@ -175,12 +179,12 @@ try{
   for(const artifact of await page.evaluate(()=>window.h.artifacts)){
     await writeFile(`${out}/${artifact.name}`,Buffer.from(artifact.data.split(',')[1],'base64'));
   }
-  console.log('PASS: seven labelled source/profile-2/profile-3 comparisons generated');
+  console.log(`PASS: seven labelled source/profile-2/profile-${candidateVersion} comparisons generated`);
 
   const parity=await page.evaluate(async()=>{
     const {f,renderer:r,session:s,read,load}=window.h;
     const inputs=await load(await f.scene('branches'),await f.scene('texture'));
-    s.draft.profile.version=3;s.draft.effects.halo=1;s.draft.effects.haloRadius=1.6;
+    s.draft.profile.version=window.h.candidateVersion;s.draft.effects.halo=1;s.draft.effects.haloRadius=1.6;
     s.draft.layers[0].transform={xMm:3,yMm:-2,turns:1,scale:1.7};s.draft.frame.turns=1;
     const snapshot=structuredClone(s.draft),base=r.metrics.liveBytes;
     const exportOne=tile=>r.exportImage(snapshot,inputs,2000,new AbortController().signal,()=>{},tile);
@@ -237,7 +241,7 @@ try{
     const old=make('old-pair',[0,1]),candidate=make('candidate-pair',[2,3]);
     old.effects.exposure=-.7;old.layers[0].transform.xMm=2.5;
     await repo.ensureComposition(old);await repo.ensureComposition(candidate);
-    candidate.profile.version=3;candidate.effects.exposure=.4;candidate.layers[1].transform={xMm:-3,yMm:2,turns:1,scale:1.7};
+    candidate.profile.version=window.h.candidateVersion;candidate.effects.exposure=.4;candidate.layers[1].transform={xMm:-3,yMm:2,turns:1,scale:1.7};
     const committed=await repo.commit(candidate,0);
     await repo.close();repo=new Repository();
     const reloaded=await repo.composition(candidate.id),untouched=await repo.composition(old.id);
@@ -260,12 +264,12 @@ try{
   });
   assert.deepEqual(persistence.after,persistence.hashes);
   assert.ok(persistence.roundtrip&&persistence.oldUnchanged&&persistence.restoreUnchanged);
-  assert.equal(persistence.profile,3);assert.equal(persistence.revision,1);
+  assert.equal(persistence.profile,candidateVersion);assert.equal(persistence.revision,1);
   assert.equal(persistence.restorePixels.max,0);
-  console.log('PASS: profile-3 durable roundtrip, independent v8 pair, six original hashes, context restoration');
+  console.log(`PASS: profile-${candidateVersion} durable roundtrip, independent v8 pair, six original hashes, context restoration`);
   assert.deepEqual(errors,[]);
   const disposed=await page.evaluate(()=>{const r=window.h.renderer;r.dispose();return {bytes:r.metrics.liveBytes,textures:r.metrics.liveTextures};});
   assert.deepEqual(disposed,{bytes:0,textures:0});
-  await writeFile(`${out}/evidence.json`,JSON.stringify({environment:'Chromium SwiftShader; not Safari/iPhone/P3/HDR',frozenShaderSha256:createHash('sha256').update(frozen).digest('hex'),numeric,comparisons,parity,persistence,disposed,errors},null,2));
-  console.log('PASS: profile-3 tiled JPEG, preview comparison, snapshot/cancel/budget/dispose');
+  await writeFile(`${out}/evidence.json`,JSON.stringify({candidateVersion,environment:'Chromium SwiftShader; not Safari/iPhone/P3/HDR',frozenShaderSha256:createHash('sha256').update(frozen).digest('hex'),numeric,comparisons,parity,persistence,disposed,errors},null,2));
+  console.log(`PASS: profile-${candidateVersion} tiled JPEG, preview comparison, snapshot/cancel/budget/dispose`);
 }finally{await browser.close();await vite.close();}

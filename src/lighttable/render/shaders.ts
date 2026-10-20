@@ -1,4 +1,5 @@
 import { filmProfileGLSL } from './film-profile';
+import { denseProfileGLSL } from './dense-profile';
 
 export const vertex = `#version 300 es
 out vec2 vUV;
@@ -55,13 +56,21 @@ float halo(sampler2D tex,vec2 uv,vec2 size){
 }
 vec3 display(vec3 c){return mix(12.92*c,1.055*pow(max(c,vec3(.0031308)),vec3(1./2.4))-.055,step(.0031308,c));}
 ${filmProfileGLSL}
+${denseProfileGLSL}
 void main(){
   vec2 p=(uScreenToFilm*vec3(uOrigin+vUV*uViewport,1.)).xy;
   if(any(lessThan(p,vec2(0.)))||any(greaterThan(p,uFrame))){color=vec4(vec3(44.,41.,38.)/255.,1.);return;}
   vec2 a=(uFilmToA*vec3(p,1.)).xy, b=(uFilmToB*vec3(p,1.)).xy;
-  vec3 light=source(uA,a)*uGains.x+source(uB,b)*uGains.y;
+  vec3 light;
+  if(uProfile==4){
+    // Source contrast precedes gains/exposure; existing user Contrast stays last.
+    // Keep emission masks untouched: their threshold is >= .5, above the gate.
+    light=denseSource(source(uA,a))*uGains.x+denseSource(source(uB,b))*uGains.y;
+  }else{
+    light=source(uA,a)*uGains.x+source(uB,b)*uGains.y;
+  }
   float h=halo(uHaloA,a,uSizeA)*uGains.x*uHaloVariation.x+halo(uHaloB,b,uSizeB)*uGains.y*uHaloVariation.y;
-  if(uProfile==3){
+  if(uProfile==3||uProfile==4){
     // Positive spill around each source's emitter, not a red wash inside it.
     // Both textures share source-space padding, transforms and cached extraction.
     float ha=max(halo(uHaloA,a,uSizeA)-halo(uMaskA,a,uSizeA),0.);
@@ -71,7 +80,7 @@ void main(){
   light+=vec3(1.,.055,.012)*h*uHalo*1.8;
   light*=exp2(uExposure);
   vec3 rgb;
-  if(uProfile==3){
+  if(uProfile==3||uProfile==4){
     rgb=clamp(display(max(filmTone(light),vec3(0.))),0.,1.);
   }else{
   // Profile 2: preserve low/mid light, compress only highlights, then a restrained S curve.
