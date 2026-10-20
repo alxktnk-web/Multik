@@ -18,6 +18,17 @@
 - 65 unit tests (включая 3 новых), TypeScript/build прошли. Browser, gestures, data, workspace suites прошли; 13 Classic файлов сборки byte-identical. Полный export/cache и расширенная проверка кандидата — этап A3.
 - Формулы/defaults/cache rationale в `IMAGE_ALGORITHM.md`. `UI-ALG-001` — **proposed**, выбор profile только в harness/API snapshot, без пользовательского переключателя. Защищённые UI и конфигурация не менялись. **Кандидат, не опубликован**.
 
+### Этап A3 — сравнение и проверка изображения
+
+- Runtime `9315887`, база `0dc89b7`, ветка `research/film-rendering`. Новый `scripts/lighttable-film-check.mjs`, независимый test oracle/synthetic fixtures и 4 разрешённых photographic fixtures с provenance. Пользовательские референсы не опубликованы.
+- A/B: 7 подписанных contact sheets, оба исходника/оба профиля/параметры; candidate tiled JPEG и JSON evidence в `docs/lighttable/film-comparisons/`. Все таблицы визуально просмотрены. Формулы, наблюдения, сравнения и ограничения — `IMAGE_ALGORITHM.md`.
+- 65 unit tests, build, browser, gestures, data, workspace, export, cache, Pro и новый film harness **PASS**. Исходные assertions не изменялись. Frozen profile 2 max diff=0 в 10 comparisons. CPU oracle max error .500/255.
+- Candidate tiled/monolithic JPEG MAE .004618/255; preview/downscaled JPEG MAE 1.5079/255 (resampling/JPEG edges, не pixel identity). Snapshot/cancel/context restore — PASS. Hashes 6/6 originals совпали; version 3 roundtrip, соседняя v8 pair и seed/правки сохранены.
+- Hot path 3: 0 readback/encode/CPU pixel ops/upload/compile/DB writes/новых bytes; profile switch без rebuild. Штатные export/cache suites подтверждают прежние budgets; это не iPhone RSS/fps.
+- Явный визуальный компромисс: белое на чёрном при EV=0 у 3 =231 вместо 248 у 2. Кандидат сохраняет градации/цвет в светах, но может выглядеть менее воздушным. Exact matching референсам без исходных пар не доказан.
+- UI-ALG-001 **proposed**; никаких UI/control/config/deployment изменений. Profile 2 остаётся default и reference. Safari/HEIC/HDR/P3/iPhone hardware acceptance открыты. **Кандидат, не опубликован**.
+- Финальная scope-проверка: 62 защищённых файла byte-identical базе, package/lock/UI contract/deployment config неизменны; frozen shader точно извлечён из базы. Evidence: `film-comparisons/scope.json`.
+
 - По поручению владельца подготовлена передача соседнему чату: `ALGORITHM_HANDOFF.md`. Работа алгоритма ведётся в `research/film-rendering`, отдельно от main; результат — открытый PR для проверки, без самостоятельного merge/публикации.
 - Зафиксирован подробный текущий UI-контракт в `UI_CONTRACT.md`: экраны, жесты, Pro, параметры, ориентации, импорт, сохранение и Save to Photos. Для чата алгоритма UI и этот контракт read-only.
 - `UI_REQUESTS.md` — единственное место предложений алгоритма к UI, с подробным шаблоном и явными статусами. Предложение не разрешает реализацию; UI занимается отдельный чат по поручению владельца.
