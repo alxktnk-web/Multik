@@ -16,11 +16,15 @@ import {
   type MixEdit,
   type PhotoEdit,
 } from '../core/edit';
-import { FRAME_H, FRAME_W, PITCH } from '../core/geometry';
+import { FRAME_H, FRAME_W } from '../core/geometry';
 import { placements, randomLeak } from '../core/recipe';
 import { Rng, randomSeed } from '../core/rng';
-import { FrameRenderer, encode } from './develop';
-import { devOriginal, resetEditedFrame, rollThumb, saveEditedFrame, type Development } from './store';
+import { FrameRenderer, encodeFrame } from './develop';
+import { panelHtml, layoutButton, updatePanelChanges, migrateMixTools, type PanelItem } from './panels';
+import { frameTurns, devOriginal, resetEditedFrame, rollThumb, saveEditedFrame, type Development } from './store';
+import { rotatePoint } from '../core/orientation';
+import { drawOriented, orientedBlob } from './orientation';
+import { bindPhotoZoom, type PhotoZoom } from './zoom';
 
 type IconId = 'mix' | 'shift' | 'sun' | 'contrast' | 'black' | 'white' | 'halo' | 'leak' | 'grain' | 'dust' | 'drop' | 'warm' | 'soft';
 
@@ -133,7 +137,7 @@ function mixControls(): { faders: Control[]; knobs: Control[] } {
       c('contrast', 'Contrast', 'contrast', -1, 1, 0.01, hundred, true),
       c('black', 'Black', 'black', -1, 1, 0.01, hundred, true),
     ],
-    knobs: [c('grain', 'Grain', 'grain', 0, 2, 0.05, pct), c('dust', 'Dust', 'dust', 0, 1, 0.05, pct), c('glow', 'Glow', 'soft', 0, 2, 0.05, pct)],
+    knobs: [c('dust', 'Dust', 'dust', 0, 1, 0.05, pct), c('glow', 'Glow', 'soft', 0, 2, 0.05, pct)],
   };
 }
 
@@ -146,7 +150,14 @@ export interface EditorHost {
 
 export async function openEditor(host: EditorHost): Promise<void> {
   const { app, frame: i } = host;
+  migrateMixTools();
+  const turns = frameTurns(host.dev, i);
+  const previewSource = document.createElement('canvas');
+  const zoom: PhotoZoom = { scale: 1, x: 0, y: 0 };
+  let clearZoom: (() => void) | undefined;
   let dev = host.dev;
+  let closed = false;
+  let saving = false;
   const fullPpm = dev.params.ppm;
   app.innerHTML = `<div class="screen dark mixer"><div class="edit-busy"><span class="spinner"></span></div></div>`;
 
@@ -159,16 +170,16 @@ export async function openEditor(host: EditorHost): Promise<void> {
     return;
   }
   const recipe = renderer.recipe;
-  const base = baseEdit(recipe, i, dev.params.whiteMerge ?? 0);
+  const base = baseEdit(recipe, i, dev.params.whiteMerge ?? 0, dev.params.haloAmount ?? 1);
   const saved = storedEdit(dev.edits?.[i]);
   let edit: FrameEdit = structuredClone(saved ?? base);
   const hadEdit = !!dev.edits?.[i];
   const undo: FrameEdit[] = [];
   let snapshot = structuredClone(edit);
-  let channel: Channel = 'bottom';
+  let channel: Channel = 'mix';
   // инструмент «Гало»: точки (spot) и волшебная палочка (wand)
   let tool: 'none' | 'glow' = 'none';
-  let glowMode: GlowItem['kind'] = 'spot';
+  let glowMode: GlowItem['kind'] = 'wand';
   let glowSource: GlowItem['source'] = 'bottom';
   let glowSel = -1;
   const glowNext = { r: 5, tol: 0.35, strength: 1.2 };
@@ -189,16 +200,26 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const blob = photo === null ? null : await rollThumb(roll, photo);
     return blob ? URL.createObjectURL(blob) : '';
   };
-  const urlA = await thumbUrl(dev.rollA, recipe.orderA[i]);
+  const mainA = (e: FrameEdit): number | null => {
+    const { j } = topFrameAt(i, e.mix.bottomShiftMm);
+    return j < 0 || j >= recipe.n ? null : recipe.orderA[j];
+  };
+  let photoA = mainA(edit);
+  let urlA = await thumbUrl(dev.rollA, photoA);
   let photoB = mainB(edit);
   let urlB = await thumbUrl(dev.rollB, photoB);
+  let thumbGeneration = 0;
   async function refreshTopThumb() {
-    const p = mainB(edit);
-    if (p === photoB) return;
-    photoB = p;
-    const old = urlB;
-    urlB = await thumbUrl(dev.rollB, p);
-    if (old) URL.revokeObjectURL(old);
+    const a = mainA(edit), b = mainB(edit);
+    if (a === photoA && b === photoB) return;
+    const generation = ++thumbGeneration;
+    const [nextA, nextB] = await Promise.all([thumbUrl(dev.rollA, a), thumbUrl(dev.rollB, b)]);
+    if (closed || generation !== thumbGeneration) {
+      for (const url of [nextA, nextB]) if (url) URL.revokeObjectURL(url);
+      return;
+    }
+    for (const url of [urlA, urlB]) if (url) URL.revokeObjectURL(url);
+    photoA = a; photoB = b; urlA = nextA; urlB = nextB;
     if (tool === 'none') paint();
   }
 
@@ -210,20 +231,24 @@ export async function openEditor(host: EditorHost): Promise<void> {
   let pending = false;
   let lastImg: ImageData | null = null;
   async function draw() {
+    if (closed || saving) return;
     if (busy) {
       pending = true;
       return;
     }
     busy = true;
     try {
-      lastImg = await renderer.render(i, edit, ppm);
+      const img = await renderer.render(i, structuredClone(edit), ppm);
+      if (closed || saving) return;
+      lastImg = img;
       putPreview();
     } catch (e) {
+      if (closed || saving || (e as Error).name === 'AbortError') return;
       const c = app.querySelector('.edit-count');
       if (c) c.textContent = (e as Error).message;
-    }
-    busy = false;
-    if (pending) {
+    } finally { busy = false; }
+
+    if (pending && !closed && !saving) {
       pending = false;
       void draw();
     }
@@ -231,11 +256,10 @@ export async function openEditor(host: EditorHost): Promise<void> {
   function putPreview() {
     const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas');
     if (!cv || !lastImg) return;
-    if (cv.width !== lastImg.width || cv.height !== lastImg.height) {
-      cv.width = lastImg.width;
-      cv.height = lastImg.height;
-    }
-    cv.getContext('2d')!.putImageData(lastImg, 0, 0);
+    previewSource.width = lastImg.width;
+    previewSource.height = lastImg.height;
+    previewSource.getContext('2d')!.putImageData(lastImg, 0, 0);
+    drawOriented(cv, previewSource, lastImg.width, lastImg.height, turns);
   }
 
   function commit() {
@@ -268,54 +292,29 @@ export async function openEditor(host: EditorHost): Promise<void> {
     return [first, knob('strength', 'Strength', 'halo', 0, 2, 0.05, pct, '#ff5a36'), hue];
   }
 
+  const range = shiftRange(recipe, i);
+  const layerShift = (id: 'shiftMm' | 'bottomShiftMm', label: string): Control => ({
+    id: id === 'shiftMm' ? 'mix.shift' : 'mix.bottomShift', label, icon: 'shift',
+    min: range.min, max: range.max, step: 0.1, tint: '#ffffff', speed: 0.5, vertical: true,
+    get: e => e.mix[id],
+    set: (e, v) => { e.mix[id] = Math.max(range.min, Math.min(range.max, v)); },
+    fmt: v => `${sign(v, 1)} mm`,
+  });
+  const shiftKnobs = [layerShift('shiftMm', 'Top'), layerShift('bottomShiftMm', 'Bottom')];
   const controls = () => {
     if (tool === 'glow') return { faders: [], knobs: glowControls() };
     if (channel !== 'mix') return photoControls(channel);
     const m = mixControls();
-    m.faders.splice(1, 0, shiftFine);
-    return m;
+    return { ...m, knobs: [...shiftKnobs, ...m.knobs] };
   };
-  const all = () => {
-    const c = controls();
-    return [...c.faders, ...c.knobs, ...(tool === 'none' && channel === 'mix' ? [shiftCoarse] : [])];
-  };
-  /**
-   * Сдвиг верхней плёнки (14.10.2026): крутилка — пальцем вверх-вниз, быстро, по всей плёнке;
-   * ползунок под балансом — подстройка, весь ход — от кадра назад до кадра вперёд (середина — где стоит крутилка).
-   */
-  const range = shiftRange(recipe, i);
-  let fine = 0;
-  const clampShift = (v: number) => Math.max(range.min, Math.min(range.max, v));
-  const shiftCoarse: Control = {
-    id: 'mix.shift', label: 'Shift', icon: 'shift', min: range.min, max: range.max, step: 0.5, tint: '#ffffff', speed: 1, vertical: true,
-    get: (e) => e.mix.shiftMm, set: (e, v) => (e.mix.shiftMm = clampShift(v + fine)), fmt: () => '',
-    reset: (e) => {
-      fine = 0;
-      e.mix.shiftMm = base.mix.shiftMm;
-    },
-  };
-  // крутилка берёт значение без подстройки, чтобы подстройка не терялась
-  const coarseGet = (e: FrameEdit) => e.mix.shiftMm - fine;
-  shiftCoarse.get = coarseGet;
-  const shiftFine: Control = {
-    id: 'mix.shiftFine', label: 'Fine shift', icon: 'shift', min: -PITCH, max: PITCH, step: 0.1, bipolar: true, plain: true, fmt: () => '',
-    get: () => fine,
-    set: (e, v) => {
-      const coarse = coarseGet(e);
-      fine = v;
-      e.mix.shiftMm = clampShift(coarse + v);
-    },
-    reset: (e) => shiftFine.set(e, 0),
-  };
-  const shiftKnobs = [shiftCoarse, shiftFine];
-
-  const changed = (c: Control) => (c === shiftFine ? Math.abs(fine) > 1e-6 : Math.abs(c.get(edit) - c.get(base)) > 1e-6);
+  const all = () => { const c = controls(); return [...c.faders, ...c.knobs]; };
+  const changed = (c: Control) => Math.abs(c.get(edit) - c.get(base)) > 1e-6;
   const frac = (c: Control, v: number) => (v - c.min) / (c.max - c.min);
 
   function faderHtml(c: Control): string {
     const end = (url: string, turns: number) => `<span class="mthumb bend" aria-hidden="true">${url ? `<img src="${url}" alt="" style="transform: rotate(${-turns * 90}deg)">` : ''}</span>`;
     const left = c.ends ? end(urlA, edit.bottom.turns) : `<span class="ficon" aria-hidden="true">${c.plain ? '' : ICONS[c.icon]}</span>`;
-    return `<div class="hrow${changed(c) ? ' on' : ''}${c.ends ? ' ends' : ''}" data-c="${c.id}">
+    return `<div class="control-caption"><span>${c.label}</span><output data-value="${c.id}">${c.fmt(c.get(edit))}</output></div><div class="hrow${changed(c) ? ' on' : ''}${c.ends ? ' ends' : ''}" data-c="${c.id}">
       ${left}
       <div class="htrack" role="slider" tabindex="0" aria-label="${c.label}" aria-valuemin="${c.min}" aria-valuemax="${c.max}" aria-valuenow="${c.get(edit)}">
         ${c.bipolar ? '<i class="hzero"></i>' : ''}<i class="hfill"></i><i class="hthumb"></i>
@@ -340,6 +339,9 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const el = app.querySelector<HTMLElement>(`[data-c="${c.id}"]`);
     if (!el) return;
     const v = c.get(edit);
+    const output = app.querySelector(`[data-value="${c.id}"]`);
+    if (output) output.textContent = c.fmt(v);
+    updatePanelChanges(panelId(), new Set(all().filter(changed).map((item) => item.id)));
     el.classList.toggle('on', changed(c));
     const slider = el.matches('[role="slider"]') ? el : el.querySelector<HTMLElement>('[role="slider"]');
     slider?.setAttribute('aria-valuenow', String(v));
@@ -369,7 +371,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
 
   function glowPill(): string {
     const n = edit.glows.length;
-    return `<button type="button" class="mpill${n ? ' on' : ''}" data-ed="glow" aria-label="Glow on bright objects">${ICONS.spark}<span>Glow${n ? ` ${n}` : ''}</span></button>`;
+    return `<button type="button" class="mpill${n ? ' on' : ''}" data-ed="glow" aria-label="Contour halo on a bright object">${ICONS.wand}<span>Halo${n ? ` ${n}` : ''}</span></button>`;
   }
 
   function actionsHtml(): string {
@@ -396,12 +398,13 @@ export async function openEditor(host: EditorHost): Promise<void> {
   function marksHtml(): string {
     return edit.glows
       .map((g, k) => {
-        const left = (g.x / FRAME_W) * 100;
-        const top = (g.y / FRAME_H) * 100;
+        const point = rotatePoint(g.x / FRAME_W, g.y / FRAME_H, turns);
+        const left = point.x * 100;
+        const top = point.y * 100;
         const on = k === glowSel ? ' on' : '';
         if (g.kind === 'spot') {
-          const w = ((2 * g.r) / FRAME_W) * 100;
-          const h = ((2 * g.r) / FRAME_H) * 100;
+          const w = ((2 * g.r) / (turns % 2 ? FRAME_H : FRAME_W)) * 100;
+          const h = ((2 * g.r) / (turns % 2 ? FRAME_W : FRAME_H)) * 100;
           return `<span class="gspot${on}" style="left:${left - w / 2}%;top:${top - h / 2}%;width:${w}%;height:${h}%"></span><span class="gdot${on}" style="left:${left}%;top:${top}%">${k + 1}</span>`;
         }
         return `<span class="gdot wand${on}" style="left:${left}%;top:${top}%">${k + 1}</span>`;
@@ -409,8 +412,25 @@ export async function openEditor(host: EditorHost): Promise<void> {
       .join('');
   }
 
+  const panelId = () => tool === 'glow' ? `edit.glow.${glowMode}` : `edit.${channel}`;
+  function controlPanel(): string {
+    const c = controls();
+    const knobs = c.knobs;
+    const primary = tool === 'glow' ? knobs.map((k) => k.id) : channel === 'mix'
+      ? ['mix.shift', 'mix.bottomShift', 'mix.balance', 'mix.whites', 'mix.leaks', 'mix.halo']
+      : [`${channel}.color`, `${channel}.warmth`, `${channel}.light`, `${channel}.contrast`];
+    const items: PanelItem[] = [
+      ...knobs.map((k) => ({ id: k.id, label: k.label, kind: 'knob' as const, html: knobHtml(k, shiftKnobs.includes(k) ? ' coarse' : ''), changed: changed(k) })),
+      ...c.faders.map((k) => ({ id: k.id, label: k.label, kind: 'row' as const, html: faderHtml(k), changed: changed(k) })),
+    ];
+    items.forEach((item) => { item.placement = primary.includes(item.id) ? 'main' : 'more'; });
+    return panelHtml(panelId(), tool === 'glow' ? 'Glow' : { bottom: 'Bottom photo', top: 'Top photo', mix: 'Mix' }[channel], items, paint);
+  }
+
   function paintGlow() {
+    clearZoom?.();
     const c = glowControls();
+    const panel = controlPanel();
     const src = (id: GlowItem['source'], label: string, art: string) =>
       `<button type="button" role="tab" aria-selected="${glowSource === id}" class="mtab${glowSource === id ? ' on' : ''}" data-ed="glow-src" data-arg="${id}"><span class="mthumb">${art}</span>${label}</button>`;
     const chips = edit.glows
@@ -425,10 +445,10 @@ export async function openEditor(host: EditorHost): Promise<void> {
         </div>
         <button type="button" class="round-btn big yes" data-ed="glow-exit" aria-label="Done with glow">${ICONS.check}</button>
       </div>
-      <div class="epreview">
+      <div class="epreview${turns % 2 ? ' portrait' : ''}"><div class="preview-content">
         <canvas id="edit-canvas" width="${previewPx}" height="${Math.round((previewPx * 3) / 4)}" aria-label="Frame ${i + 1} preview — tap to add glow"></canvas>
         <div class="gmarks">${marksHtml()}</div>
-      </div>
+      </div></div>
       <p class="edit-count" aria-live="polite"></p>
       <div class="mtabs" role="tablist" aria-label="Glow comes from">
         ${src('bottom', 'Bottom', urlA ? `<img src="${urlA}" alt="" style="transform: rotate(${-edit.bottom.turns * 90}deg)">` : '')}
@@ -436,39 +456,44 @@ export async function openEditor(host: EditorHost): Promise<void> {
         ${src('both', 'Both', ICONS.mix)}
       </div>
       <div class="gchips">${chips}<span class="ghint">${ICONS.spark}${glowMode === 'spot' ? 'Tap the photo to add a spot' : 'Tap a bright object'}</span></div>
-      <div class="mknobs big">${c.map((k) => knobHtml(k)).join('')}</div>
-      <div class="mactions">${glowSel >= 0 ? `<button type="button" class="mpill danger" data-ed="glow-del">${ICONS.trash}<span>Delete</span></button>` : ''}</div>
+      <div class="editor-tools">${panel}</div>
+      <div class="mactions">${layoutButton(panelId())}${glowSel >= 0 ? `<button type="button" class="mpill danger" data-ed="glow-del">${ICONS.trash}<span>Delete</span></button>` : ''}</div>
     </div>`;
     c.forEach(updateControl);
+    bindPreviewZoom();
     putPreview();
     void draw();
   }
 
   function paint() {
     if (tool === 'glow') return paintGlow();
-    const c = controls();
+    clearZoom?.();
+    const scroll = app.querySelector('.editor-tools')?.scrollTop ?? 0;
+    const panel = controlPanel();
     app.innerHTML = `<div class="screen dark mixer">
       <div class="mbar">
         <button type="button" class="round-btn big" data-ed="cancel" aria-label="Cancel">${ICONS.x}</button>
         <div class="mbar-mid">
           <button type="button" class="round-btn big" data-ed="original" aria-label="Hold to see the frame before edits">${ICONS.original}</button>
           <button type="button" class="round-btn big" data-ed="undo" aria-label="Undo" ${undo.length ? '' : 'disabled'}>${ICONS.undo}</button>
+          ${layoutButton(panelId())}
         </div>
         <button type="button" class="round-btn big yes" data-ed="done" aria-label="Done">${ICONS.check}</button>
       </div>
-      <div class="epreview">
+      <div class="epreview${turns % 2 ? ' portrait' : ''}"><div class="preview-content">
         <canvas id="edit-canvas" width="${previewPx}" height="${Math.round((previewPx * 3) / 4)}" aria-label="Frame ${i + 1} preview"></canvas>
         <img id="edit-original" alt="" hidden>
-      </div>
+      </div></div>
       <p class="edit-count" aria-live="polite"></p>
       <div class="mtabs" role="tablist" aria-label="Channel">${(['bottom', 'top', 'mix'] as Channel[]).map(tabHtml).join('')}</div>
-      <div class="mknobs">${channel === 'mix' ? `<div class="shiftknobs" role="group" aria-label="Shift the top film">${knobHtml(shiftCoarse, ' coarse')}</div>` : ''}${c.knobs.map((k) => knobHtml(k)).join('')}</div>
-      <div class="mrows">${c.faders.map(faderHtml).join('')}</div>
+      <div class="editor-tools">${panel}</div>
       ${actionsHtml()}
     </div>`;
     all().forEach(updateControl);
+    app.querySelector('.editor-tools')!.scrollTop = scroll;
     putPreview();
     bindOriginal();
+    bindPreviewZoom();
     void draw();
   }
 
@@ -496,9 +521,23 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const cv = app.querySelector<HTMLCanvasElement>('#edit-canvas');
     if (!cv) return null;
     const r = cv.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * FRAME_W;
-    const y = ((e.clientY - r.top) / r.height) * FRAME_H;
+    const point = rotatePoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, -turns);
+    const x = point.x * FRAME_W;
+    const y = point.y * FRAME_H;
     return x < 0 || y < 0 || x > FRAME_W || y > FRAME_H ? null : { x, y };
+  }
+  function bindPreviewZoom() {
+    let before: GlowItem[] = [], selected = -1;
+    clearZoom = bindPhotoZoom(app.querySelector('.epreview')!, app.querySelector('.preview-content')!, {
+      state: zoom, doubleTap: tool !== 'glow',
+      onStart: () => { before = structuredClone(edit.glows); selected = glowSel; },
+      onNavigate: () => {
+        if (tool !== 'glow') return;
+        // A pinch/pan must not leave behind a glow from its first finger.
+        glowDrag = null; edit.glows = before; glowSel = selected;
+        repaintMarks(); void draw();
+      },
+    });
   }
   function repaintMarks() {
     const m = app.querySelector('.gmarks');
@@ -506,6 +545,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
   }
 
   const onDown = (e: PointerEvent) => {
+    if (saving || closed) return;
     const target = e.target as HTMLElement;
     if (tool === 'glow' && target.closest('.epreview')) {
       const at = frameMm(e);
@@ -579,6 +619,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
   }
   // клавиатура: стрелки двигают регулятор в фокусе
   const onKey = (e: KeyboardEvent) => {
+    if (saving || closed) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-c]');
     if (!el || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
     const c = all().find((x) => x.id === el.dataset.c);
@@ -596,21 +637,25 @@ export async function openEditor(host: EditorHost): Promise<void> {
     const btn = app.querySelector<HTMLButtonElement>('[data-ed="original"]');
     const img = app.querySelector<HTMLImageElement>('#edit-original');
     if (!btn || !img) return;
+    let held = false;
     const show = async () => {
+      held = true;
       if (!originalUrl) {
-        const blob = await devOriginal(dev.id, i);
-        if (blob) originalUrl = URL.createObjectURL(blob);
+        const blob = await orientedBlob(await devOriginal(dev.id, i), turns, 1800);
+        if (blob && !closed) originalUrl = URL.createObjectURL(blob);
       }
+      if (!held || closed || !img.isConnected) return;
       img.src = originalUrl;
       img.hidden = false;
     };
-    const hide = () => (img.hidden = true);
+    const hide = () => { held = false; img.hidden = true; };
     btn.addEventListener('pointerdown', () => void show());
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, hide);
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   const onClick = async (e: Event) => {
+    if (saving || closed) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-ed]');
     if (!el) return;
     const arg = el.dataset.arg ?? '';
@@ -626,7 +671,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
         tool = 'glow';
         glowSource = channel === 'mix' ? 'both' : channel;
         glowSel = edit.glows.length ? 0 : -1;
-        if (glowSel >= 0) glowMode = edit.glows[0].kind;
+        glowMode = glowSel >= 0 ? edit.glows[0].kind : 'wand';
         return paint();
       case 'glow-exit':
         tool = 'none';
@@ -682,6 +727,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
   app.addEventListener('click', onClick);
 
   function detach() {
+    clearZoom?.();
     app.removeEventListener('pointerdown', onDown);
     app.removeEventListener('pointermove', onMove);
     app.removeEventListener('pointerup', onUp);
@@ -692,14 +738,21 @@ export async function openEditor(host: EditorHost): Promise<void> {
   }
 
   function close(changedFrame: boolean) {
+    if (closed) return;
+    closed = true;
+    pending = false;
     detach();
     renderer.dispose();
+    previewSource.width = previewSource.height = 1;
     host.onClose(dev, changedFrame);
   }
 
   async function save() {
+    if (saving || closed) return;
     const unchanged = countChanges(edit, base) === 0;
     if (unchanged && !hadEdit) return close(false);
+    saving = true;
+    pending = false;
     const busyBox = document.createElement('div');
     busyBox.className = 'edit-busy overlay-busy';
     busyBox.innerHTML = '<span class="spinner"></span>';
@@ -712,7 +765,7 @@ export async function openEditor(host: EditorHost): Promise<void> {
         const full = await FrameRenderer.open(dev, Math.min(4000, Math.round(36 * fullPpm * 1.15)));
         try {
           const img = await full.render(i, edit, fullPpm);
-          const [jpeg, thumb] = await Promise.all([encode(img), encode(img, 480, 0.8)]);
+          const [jpeg, thumb] = await encodeFrame(img);
           dev = await saveEditedFrame(dev, i, edit, jpeg, thumb);
         } finally {
           full.dispose();
@@ -722,8 +775,8 @@ export async function openEditor(host: EditorHost): Promise<void> {
     } catch (e) {
       busyBox.textContent = `Couldn’t save: ${(e as Error).message}`;
       setTimeout(() => busyBox.remove(), 3000);
-      renderer = await FrameRenderer.open(dev, 1700);
-    }
+      try { renderer.dispose(); renderer = await FrameRenderer.open(dev, 1700); } catch { /* The next save can retry; Cancel remains available. */ }
+    } finally { saving = false; }
   }
 
   paint();

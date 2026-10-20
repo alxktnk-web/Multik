@@ -1,7 +1,8 @@
 // Проявка в приложении: кадр за кадром, в памяти только снимки, нужные текущему кадру.
 // Каждый готовый кадр сразу сохраняется — после прерывания проявка продолжается с того же места.
 
-import { composeKey, editedRecipe, glowTint, type FrameEdit, type PhotoEdit } from '../core/edit';
+import { Rng } from '../core/rng';
+import { baseEdit, composeKey, editedRecipe, glowTint, type FrameEdit, type PhotoEdit } from '../core/edit';
 import { frameA, type Rect } from '../core/geometry';
 import { luminance, photoUv, wandMask } from '../core/glow';
 import { balanceGains, makeRecipe, placements, type PhotoShape, type Recipe } from '../core/recipe';
@@ -9,9 +10,13 @@ import { Developer, type FrameOptions, type GlowOptions, type PassTone, type Sou
 import { LOOKS, withWhiteMerge, type Look } from '../looks';
 import { getRoll, rollPhoto, rollThumb, saveFrame, type Development, type Roll } from './store';
 
-export function lookFor(dev: Development): Look {
+function glowVariation(dev: Development, i: number): number {
+  return dev.params.highlightVariation ? new Rng((dev.seed ^ Math.imul(i + 1, 2654435761)) >>> 0).range(0.6, 1.4) : 1;
+}
+export function lookFor(dev: Development, i = 0): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
-  const look = { ...base, exposure: 2 ** (dev.params.exposureTenths / 10) };
+  const halo = (dev.params.haloAmount ?? 1) * glowVariation(dev, i);
+  const look = { ...base, exposure: 2 ** (dev.params.exposureTenths / 10), halSmall: base.halSmall * halo, halLarge: base.halLarge * halo, bloom: base.bloom * (dev.params.haloAmount === undefined ? 1 : halo) };
   return dev.params.whiteMerge === undefined ? look : withWhiteMerge(look, dev.params.whiteMerge);
 }
 
@@ -27,19 +32,22 @@ async function decode(blob: Blob, maxPx: number): Promise<ImageBitmap | HTMLCanv
   return c;
 }
 
-export function encode(img: ImageData, width?: number, quality = 0.92): Promise<Blob> {
+export async function encodeFrame(img: ImageData): Promise<[Blob, Blob]> {
   const full = document.createElement('canvas');
   full.width = img.width;
   full.height = img.height;
   full.getContext('2d')!.putImageData(img, 0, 0);
-  let out = full;
-  if (width && width < img.width) {
-    out = document.createElement('canvas');
-    out.width = width;
-    out.height = Math.round((img.height / img.width) * width);
-    out.getContext('2d')!.drawImage(full, 0, 0, out.width, out.height);
+  const thumb = document.createElement('canvas');
+  thumb.width = Math.min(480, img.width);
+  thumb.height = Math.round(img.height * thumb.width / img.width);
+  thumb.getContext('2d')!.drawImage(full, 0, 0, thumb.width, thumb.height);
+  const jpeg = (canvas: HTMLCanvasElement, quality: number) => new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Could not save the frame')), 'image/jpeg', quality));
+  try {
+    return await Promise.all([jpeg(full, 0.92), jpeg(thumb, 0.8)]);
+  } finally {
+    full.width = full.height = thumb.width = thumb.height = 1;
   }
-  return new Promise((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not save the frame'))), 'image/jpeg', quality));
 }
 
 export interface Progress {
@@ -53,7 +61,6 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
   const [rollA, rollB] = await Promise.all([getRoll(dev.rollA), getRoll(dev.rollB)]);
   if (!rollA || !rollB) throw new Error('One of the rolls was deleted — this development can’t be resumed');
   const recipe = makeRecipe(dev.n, dev.seed, dev.params.settings);
-  const look = lookFor(dev);
   const shapes = {
     a: rollA.photos.map((p) => ({ portrait: p.h > p.w })),
     b: rollB.photos.map((p) => ({ portrait: p.h > p.w })),
@@ -70,6 +77,7 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
   try {
     for (let i = dev.done; i < dev.n; i++) {
       if (shouldStop()) break;
+      const look = lookFor(dev, i);
       const need = developer.needed(i, recipe, look, shapes);
       const keys = new Set([...need.a.map((k) => `a${k}`), ...need.b.map((k) => `b${k}`)]);
       for (const [key, src] of cache) {
@@ -92,7 +100,7 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
       for (const [key, src] of cache) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
       const img = developer.renderFrame(i, recipe, look, srcA, srcB, ppm, shapes);
       if (lost) throw new Error('The phone interrupted developing — resume it from Developed');
-      const [full, thumb] = await Promise.all([encode(img), encode(img, 480, 0.8)]);
+      const [full, thumb] = await encodeFrame(img);
       dev = await saveFrame(dev, i, full, thumb);
       onFrame({ frame: i, thumb, dev });
       await new Promise((r) => setTimeout(r, 0));
@@ -107,14 +115,14 @@ export async function runDevelopment(dev: Development, onFrame: (p: Progress) =>
 // --- правка кадра (пульт) ---
 
 /** Вид проявки с правками канала Mix: слияние белого, ореол, мягкое свечение, зерно. */
-export function editLook(dev: Development, edit: FrameEdit): Look {
+export function editLook(dev: Development, edit: FrameEdit, i = 0): Look {
   const base = LOOKS.find((l) => l.id === dev.params.lookId) ?? LOOKS[0];
   const look = withWhiteMerge({ ...base, exposure: 2 ** (dev.params.exposureTenths / 10) }, edit.mix.whites);
   return {
     ...look,
-    halSmall: look.halSmall * edit.mix.halo,
-    halLarge: look.halLarge * edit.mix.halo,
-    bloom: look.bloom * edit.mix.glow,
+    halSmall: look.halSmall * edit.mix.halo * glowVariation(dev, i),
+    halLarge: look.halLarge * edit.mix.halo * glowVariation(dev, i),
+    bloom: look.bloom * edit.mix.glow * (dev.params.haloAmount === undefined ? 1 : edit.mix.halo * glowVariation(dev, i)),
     grain: look.grain * edit.mix.grain,
   };
 }
@@ -143,7 +151,7 @@ export function editOptions(edit: FrameEdit): FrameOptions {
  * не повторяется. Если iOS отобрала графику (приложение было свёрнуто), контекст создаётся заново.
  */
 export class FrameRenderer {
-  readonly recipe: Recipe;
+  recipe: Recipe;
   private canvas!: HTMLCanvasElement;
   private developer!: Developer;
   private cache = new Map<string, Source>();
@@ -156,7 +164,7 @@ export class FrameRenderer {
   private disposed = false;
 
   private constructor(
-    readonly dev: Development,
+    public dev: Development,
     readonly rolls: [Roll, Roll],
     private maxPx: number,
   ) {
@@ -184,10 +192,22 @@ export class FrameRenderer {
     return new FrameRenderer(dev, [a, b], maxPx);
   }
 
-  async render(i: number, edit: FrameEdit, ppm: number): Promise<ImageData> {
+  setParams(params: Development['params']): void {
+    if (JSON.stringify(params) === JSON.stringify(this.dev.params)) return;
+    this.dev = { ...this.dev, params: structuredClone(params) };
+    this.recipe = makeRecipe(this.dev.n, this.dev.seed, params.settings);
+    this.lastCompose = '';
+  }
+
+  renderOriginal(i: number, ppm: number): Promise<ImageData> {
+    return this.render(i, baseEdit(this.recipe, i, this.dev.params.whiteMerge ?? 0), ppm, true);
+  }
+
+  async render(i: number, edit: FrameEdit, ppm: number, original = false): Promise<ImageData> {
+    this.assertActive();
     if (this.lost || this.developer.gl.isContextLost()) this.reset();
-    const recipe = editedRecipe(this.recipe, i, edit);
-    const look = editLook(this.dev, edit);
+    const recipe = original ? this.recipe : editedRecipe(this.recipe, i, edit);
+    const look = original ? lookFor(this.dev, i) : editLook(this.dev, edit, i);
     const need = this.developer.needed(i, recipe, look, this.shapes);
     const keys = new Set([...need.a.map((k) => `a${k}`), ...need.b.map((k) => `b${k}`)]);
     // в памяти — только снимки этого кадра
@@ -201,8 +221,13 @@ export class FrameRenderer {
       if (this.cache.has(key)) continue;
       const roll = key[0] === 'a' ? this.rolls[0] : this.rolls[1];
       const blob = await rollPhoto(roll, Number(key.slice(1)));
+      this.assertActive();
       if (!blob) throw new Error(`A photo from “${roll.name}” is missing`);
       const img = await decode(blob, this.maxPx);
+      if (this.disposed) {
+        if (img instanceof ImageBitmap) img.close();
+        this.assertActive();
+      }
       this.cache.set(key, this.developer.upload(img));
       if (img instanceof ImageBitmap) img.close();
       this.lastCompose = '';
@@ -210,9 +235,10 @@ export class FrameRenderer {
     const srcA: (Source | undefined)[] = [];
     const srcB: (Source | undefined)[] = [];
     for (const [key, src] of this.cache) (key[0] === 'a' ? srcA : srcB)[Number(key.slice(1))] = src;
-    const glow = edit.glows.length ? await this.glowOptions(i, edit, recipe) : undefined;
-    const key = `${i}:${ppm}:${composeKey(edit)}`;
-    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, { ...editOptions(edit), glow, filmOnly: key === this.lastCompose });
+    const glow = !original && edit.glows.length ? await this.glowOptions(i, edit, recipe) : undefined;
+    this.assertActive();
+    const key = `${i}:${ppm}:${original ? 'original' : composeKey(edit)}`;
+    const img = this.developer.renderFrame(i, recipe, look, srcA, srcB, ppm, this.shapes, { ...(original ? {} : editOptions(edit)), glow, filmOnly: key === this.lastCompose });
     if (this.lost) {
       this.reset();
       throw new Error('The phone interrupted rendering — try again');
@@ -257,6 +283,7 @@ export class FrameRenderer {
         const roll = key[0] === 'a' ? this.rolls[0] : this.rolls[1];
         const photo = Number(key.slice(1));
         const src = await this.photoLum(roll, photo);
+        this.assertActive();
         const data = new Uint8Array(src.w * src.h * 4);
         for (const it of items) {
           const mask = wandMask(src.lum, src.w, src.h, it.u, it.v, it.tol);
@@ -297,6 +324,11 @@ export class FrameRenderer {
     this.masks.clear();
     this.cache.forEach((src) => this.developer.release(src));
     this.cache.clear();
+    this.lumCache.clear();
     this.developer.gl.getExtension('WEBGL_lose_context')?.loseContext();
+  }
+
+  private assertActive(): void {
+    if (this.disposed) throw new DOMException('Rendering cancelled', 'AbortError');
   }
 }

@@ -4,6 +4,7 @@ import { baseEdit, composeKey, countChanges, curveTable, editedRecipe, shiftRang
 import { photoUv, wandMask } from './glow';
 import { DEFAULT_SETTINGS, balanceGains, makeRecipe, placements, sampleShift } from './recipe';
 import { Rng } from './rng';
+import { quarterTurns, rotatePoint } from './orientation';
 
 describe('Rng', () => {
   it('одинаковый сид — одинаковая последовательность', () => {
@@ -160,15 +161,16 @@ describe('Правка кадра', () => {
     }
   });
 
-  it('поворот нижнего снимка касается только этого кадра, верхний — по правке; шаг 90°', () => {
+  it('повороты каналов применяются к видимым снимкам без изменения исходного рецепта', () => {
     const r = makeRecipe(6, 3, { ...DEFAULT_SETTINGS, exposureJitter: false });
     const shapes = Array.from({ length: 6 }, () => ({ portrait: false }));
     const base = baseEdit(r, 2, 4);
     expect(base.top.turns).toBe(2);
     const e = editedRecipe(r, 2, { ...base, bottom: { ...base.bottom, turns: 1 }, top: { ...base.top, turns: 3 } });
     const { a, b } = placements(e, shapes, shapes);
-    expect(a.map((p) => p.turn)).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(a.every((p) => p.turn === 1)).toBe(true);
     expect(b.every((p) => p.turn === 3)).toBe(true);
+    expect(r.turnA).toBeUndefined();
     const unchanged = placements(editedRecipe(r, 2, base), shapes, shapes);
     expect(unchanged.b.every((p) => p.turn === 2)).toBe(true);
   });
@@ -226,6 +228,24 @@ describe('Гало', () => {
 });
 
 describe('Сдвиг в правке кадра', () => {
+  it('нижняя и верхняя плёнки сдвигаются независимо, окно кадра неподвижно', () => {
+    const r = makeRecipe(6, 3);
+    const shapes = Array.from({ length: 6 }, () => ({ portrait: false }));
+    const e = baseEdit(r, 2, 4);
+    const before = placements(editedRecipe(r, 2, e), shapes, shapes);
+    e.mix.bottomShiftMm = -47;
+    const bottom = placements(editedRecipe(r, 2, e), shapes, shapes);
+    expect(bottom.b).toEqual(before.b);
+    bottom.a.forEach((p, i) => expect(p.rect.x).toBe(before.a[i].rect.x - 47));
+    e.mix.shiftMm += 12;
+    const both = placements(editedRecipe(r, 2, e), shapes, shapes);
+    expect(both.a).toEqual(bottom.a);
+    both.b.forEach((p, i) => expect(p.rect.x).toBeCloseTo(bottom.b[i].rect.x + 12));
+    expect(frameA(2)).toEqual({ x: 2 * PITCH, y: 0, w: 36, h: 27 });
+    const legacy = structuredClone(e) as any;
+    delete legacy.mix.bottomShiftMm;
+    expect(storedEdit(legacy)!.mix.bottomShiftMm).toBe(0);
+  });
   it('крутилка доводит до любого кадра второй плёнки, и сдвиг не обрезается до длины кадра', () => {
     const r = makeRecipe(6, 3);
     const { min, max } = shiftRange(r, 2);
@@ -240,5 +260,18 @@ describe('Сдвиг в правке кадра', () => {
     e.mix.shiftMm = -100;
     expect(editedRecipe(r, 2, e).shiftMm).toBe(-100);
     expect(e.mix.balance).toBe(0);
+  });
+});
+
+describe('Поворот всей композиции', () => {
+  it('поворот и обратное преобразование сохраняют точку гало при всех ориентациях', () => {
+    for (const t of [0, 1, 2, 3, 4]) {
+      const p = rotatePoint(0.2, 0.7, t);
+      const back = rotatePoint(p.x, p.y, -t);
+      expect(back.x).toBeCloseTo(0.2);
+      expect(back.y).toBeCloseTo(0.7);
+    }
+    expect(rotatePoint(0, 0, 1)).toEqual({ x: 1, y: 0 });
+    expect(quarterTurns(4)).toBe(0);
   });
 });

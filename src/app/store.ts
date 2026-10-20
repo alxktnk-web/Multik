@@ -3,6 +3,8 @@
 
 import type { FrameEdit } from '../core/edit';
 import type { RecipeSettings } from '../core/recipe';
+import { quarterTurns } from '../core/orientation';
+import { orientedBlob } from './orientation';
 
 export interface PhotoMeta {
   w: number;
@@ -25,6 +27,10 @@ export interface DevParams {
   exposureTenths: number;
   /** слияние белого 0…10: выше — близкие к белому яркости сливаются в сплошной белый */
   whiteMerge?: number;
+  /** Halation selected before development; legacy default is 1. */
+  haloAmount?: number;
+  /** Seeded variation of bright-object glow; absent on legacy developments. */
+  highlightVariation?: boolean;
   ppm: number;
 }
 
@@ -44,6 +50,8 @@ export interface Development {
   likes: number[];
   /** правки отдельных кадров (панель Edit); исходный кадр хранится рядом с ключом «…:orig» */
   edits?: Record<number, FrameEdit>;
+  /** Clockwise quarter-turns of the entire output, independent of film edits. */
+  frameTurns?: Record<number, number>;
 }
 
 const DB_NAME = 'multik-app';
@@ -141,13 +149,24 @@ export async function renameRoll(roll: Roll, name: string): Promise<void> {
 }
 
 export async function deleteRoll(roll: Roll): Promise<void> {
-  await tx(['rolls', 'photos', 'thumbs'], 'readwrite', (t) => {
-    t.objectStore('rolls').delete(roll.id);
-    roll.photos.forEach((_, i) => {
-      t.objectStore('photos').delete(`${roll.id}:${i}`);
-      t.objectStore('thumbs').delete(`${roll.id}:${i}`);
+  let inUse = false;
+  try {
+    await tx(['rolls', 'photos', 'thumbs', 'devs'], 'readwrite', (t) => {
+      const request = t.objectStore('devs').getAll();
+      request.onsuccess = () => {
+        inUse = (request.result as Development[]).some((d) => d.rollA === roll.id || d.rollB === roll.id);
+        if (inUse) return t.abort();
+        t.objectStore('rolls').delete(roll.id);
+        roll.photos.forEach((_, i) => {
+          t.objectStore('photos').delete(`${roll.id}:${i}`);
+          t.objectStore('thumbs').delete(`${roll.id}:${i}`);
+        });
+      };
     });
-  });
+  } catch (error) {
+    if (inUse) throw new Error('This roll is used by a development. Keep it to edit or resume those frames.');
+    throw error;
+  }
 }
 
 export function rollPhoto(roll: Roll, i: number): Promise<Blob | undefined> {
@@ -251,6 +270,31 @@ export function devFrame(devId: string, i: number): Promise<Blob | undefined> {
 
 export function devThumb(devId: string, i: number): Promise<Blob | undefined> {
   return get<Blob>('frameThumbs', `${devId}:${i}`);
+}
+
+export const frameTurns = (dev: Development, i: number): number => quarterTurns(dev.frameTurns?.[i]);
+export async function displayFrame(dev: Development, i: number): Promise<Blob | undefined> {
+  return orientedBlob(await devFrame(dev.id, i), frameTurns(dev, i), 1800);
+}
+export async function displayThumb(dev: Development, i: number): Promise<Blob | undefined> {
+  return orientedBlob(await devThumb(dev.id, i), frameTurns(dev, i));
+}
+export async function exportFrame(dev: Development, i: number): Promise<Blob | undefined> {
+  return orientedBlob(await devFrame(dev.id, i), frameTurns(dev, i), Infinity, 'image/jpeg');
+}
+export async function rotateFrame(devId: string, i: number): Promise<Development> {
+  let next: Development | undefined;
+  await tx(['devs'], 'readwrite', t => {
+    const store = t.objectStore('devs');
+    const request = store.get(devId);
+    request.onsuccess = () => {
+      const current = request.result as Development | undefined;
+      if (!current || i < 0 || i >= current.done) { t.abort(); return; }
+      next = { ...current, frameTurns: { ...current.frameTurns, [i]: (frameTurns(current, i) + 1) % 4 } };
+      store.put(next);
+    };
+  });
+  return next!;
 }
 
 export async function deleteDev(dev: Development): Promise<void> {

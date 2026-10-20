@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111513">
+<title>Multik — восстановление</title>
+<style>
+  :root{color-scheme:dark;font:17px -apple-system,BlinkMacSystemFont,sans-serif;background:#111513;color:#e1ebe5}
+  body{max-width:32rem;margin:15vh auto;padding:24px;line-height:1.5}
+  h1{font-size:26px;font-weight:600}p{color:#a8b3ac}
+  button,a{display:inline-block;background:#345345;color:#e1ebe5;border:0;border-radius:18px;padding:14px 22px;font:inherit;text-decoration:none}
+  [hidden]{display:none}
+</style>
+<h1>Multik</h1>
+<p id="status" role="status">Обновляем офлайн-компонент…</p>
+<p>Фотографии и настройки сохранятся.</p>
+<button id="retry" hidden>Повторить</button>
+<a id="open" href="./" hidden>Открыть приложение</a>
+<script>
+const status = document.querySelector('#status');
+const retry = document.querySelector('#retry');
+const open = document.querySelector('#open');
+function installed(worker) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error('timeout')), 30000);
+    function finish(error) { clearTimeout(timer); worker.removeEventListener('statechange', check); error ? reject(error) : resolve(); }
+    function check() {
+      if (['installed', 'activated'].includes(worker.state)) finish();
+      if (worker.state === 'redundant') finish(new Error('install failed'));
+    }
+    worker.addEventListener('statechange', check); check();
+  });
+}
+async function recover() {
+  retry.hidden = true; open.hidden = true;
+  status.textContent = 'Обновляем офлайн-компонент…';
+  try {
+    if (!('serviceWorker' in navigator)) throw new Error('unavailable');
+    const registration = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+    await registration.update();
+    if (registration.installing) await installed(registration.installing);
+    if (registration.waiting) {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => finish(new Error('timeout')), 15000);
+        function finish(error) { clearTimeout(timer); navigator.serviceWorker.removeEventListener('controllerchange', changed); error ? reject(error) : resolve(); }
+        function changed() { finish(); }
+        navigator.serviceWorker.addEventListener('controllerchange', changed);
+        registration.waiting.postMessage({ type: 'ACTIVATE_UPDATE' });
+      });
+    }
+    await navigator.serviceWorker.ready;
+    status.textContent = 'Готово. Можно открыть приложение.';
+    open.hidden = false;
+  } catch {
+    status.textContent = 'Не удалось загрузить обновление. Проверь подключение и повтори попытку.';
+    retry.hidden = false;
+  }
+}
+retry.onclick = recover;
+void recover();
+</script>
+</html>

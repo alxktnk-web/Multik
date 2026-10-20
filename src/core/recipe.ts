@@ -120,6 +120,8 @@ export interface Recipe {
   orderB: number[];
   shiftMm: number;
   vShiftMm: number;
+  /** Per-frame editor offset; the output frame window remains fixed. */
+  bottomShiftMm?: number;
   jitterB: { dx: number; dy: number }[];
   evA: number[];
   evB: number[];
@@ -233,7 +235,7 @@ export interface PhotoShape {
 /** Где на плёнке лежат кадры обоих проходов и какие снимки в них. */
 export function placements(recipe: Recipe, shapesA: PhotoShape[], shapesB: PhotoShape[]): { a: Placement[]; b: Placement[] } {
   const a = recipe.orderA.map((photo, i) => ({
-    rect: frameA(i),
+    rect: { ...frameA(i), x: frameA(i).x + (recipe.bottomShiftMm ?? 0) },
     photo,
     turn: ((shapesA[photo].portrait ? 1 : 0) + (recipe.turnA?.[i] ?? 0)) % 4,
     gain: 2 ** recipe.evA[i],
