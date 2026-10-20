@@ -1,0 +1,634 @@
+{
+  "environment": "Chromium SwiftShader, not Safari/iPhone",
+  "regression": [
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    },
+    {
+      "mae": 0,
+      "max": 0
+    }
+  ],
+  "oracleMaxError": 0.505925010532863,
+  "distribution": [
+    {
+      "input": [
+        118,
+        0
+      ],
+      "inputLinearSum": 0.18116424424986022,
+      "p3": 113,
+      "p4": 68
+    },
+    {
+      "input": [
+        86,
+        86
+      ],
+      "inputLinearSum": 0.1861179256933749,
+      "p3": 115,
+      "p4": 31
+    },
+    {
+      "input": [
+        64,
+        64
+      ],
+      "inputLinearSum": 0.10253891674808648,
+      "p3": 83,
+      "p4": 5
+    },
+    {
+      "input": [
+        118,
+        118
+      ],
+      "inputLinearSum": 0.36232848849972044,
+      "p3": 162,
+      "p4": 99
+    },
+    {
+      "input": [
+        160,
+        160
+      ],
+      "inputLinearSum": 0.7030651990008787,
+      "p3": 211,
+      "p4": 208
+    },
+    {
+      "input": [
+        255,
+        0
+      ],
+      "inputLinearSum": 1,
+      "p3": 231,
+      "p4": 231
+    },
+    {
+      "input": [
+        255,
+        255
+      ],
+      "inputLinearSum": 2,
+      "p3": 251,
+      "p4": 251
+    }
+  ],
+  "comparisons": [
+    {
+      "name": "branches",
+      "measurements": [
+        {
+          "id": "profile3",
+          "mean": 201.91040035093118,
+          "nearBlackFraction": 0,
+          "darkFraction": 0,
+          "nearWhiteFraction": 0.11016666666666666,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "profile4",
+          "mean": 195.3532983819766,
+          "nearBlackFraction": 0.03208695652173913,
+          "darkFraction": 0.034721014492753624,
+          "nearWhiteFraction": 0.11016304347826086,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "a-only",
+          "mean": 201.19490034222375,
+          "nearBlackFraction": 0,
+          "darkFraction": 0.02834782608695652,
+          "nearWhiteFraction": 0.11016666666666666,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "b-only",
+          "mean": 196.57711662841703,
+          "nearBlackFraction": 0,
+          "darkFraction": 0.02801449275362319,
+          "nearWhiteFraction": 0.11016304347826086,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "darken",
+          "mean": 79.8063909382035,
+          "nearBlackFraction": 0,
+          "darkFraction": 0.5867608695652174,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "post-contrast",
+          "mean": 221.4229203853032,
+          "nearBlackFraction": 0,
+          "darkFraction": 0.023590579710144926,
+          "nearWhiteFraction": 0.24319927536231883,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "id": "a",
+          "placements": [
+            {
+              "source": {
+                "assetId": "a-18",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 36,
+                "height": 27
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        },
+        {
+          "id": "b",
+          "placements": [
+            {
+              "source": {
+                "assetId": "b-19",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 36,
+                "height": 27
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "portrait-cat",
+      "measurements": [
+        {
+          "id": "profile3",
+          "mean": 165.28051247901917,
+          "nearBlackFraction": 0.002322463768115942,
+          "darkFraction": 0.018184782608695653,
+          "nearWhiteFraction": 0.00004347826086956522,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "profile4",
+          "mean": 135.42471013628716,
+          "nearBlackFraction": 0.05220289855072464,
+          "darkFraction": 0.12721739130434784,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "a-only",
+          "mean": 157.50343165803574,
+          "nearBlackFraction": 0.004398550724637681,
+          "darkFraction": 0.026644927536231884,
+          "nearWhiteFraction": 0.00004347826086956522,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "b-only",
+          "mean": 145.50331062102754,
+          "nearBlackFraction": 0.02805072463768116,
+          "darkFraction": 0.08663405797101449,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "darken",
+          "mean": 77.93385684855261,
+          "nearBlackFraction": 0.17741304347826087,
+          "darkFraction": 0.30631884057971015,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "post-contrast",
+          "mean": 174.41976731158516,
+          "nearBlackFraction": 0.011405797101449275,
+          "darkFraction": 0.03695289855072464,
+          "nearWhiteFraction": 0.12686231884057972,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "id": "a",
+          "placements": [
+            {
+              "source": {
+                "assetId": "a-20",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 4.5,
+                "y": 0,
+                "width": 27,
+                "height": 27
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        },
+        {
+          "id": "b",
+          "placements": [
+            {
+              "source": {
+                "assetId": "b-21",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 1.5266075388026614,
+                "width": 36,
+                "height": 23.946784922394677
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "coffee-cat",
+      "measurements": [
+        {
+          "id": "profile3",
+          "mean": 152.3647623282844,
+          "nearBlackFraction": 0.0002717391304347826,
+          "darkFraction": 0.00822463768115942,
+          "nearWhiteFraction": 0.0007753623188405797,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "profile4",
+          "mean": 113.15369669204573,
+          "nearBlackFraction": 0.03784057971014493,
+          "darkFraction": 0.15063405797101448,
+          "nearWhiteFraction": 0.00039492753623188403,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "a-only",
+          "mean": 139.94618055155829,
+          "nearBlackFraction": 0.0008550724637681159,
+          "darkFraction": 0.0201268115942029,
+          "nearWhiteFraction": 0.0007753623188405797,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "b-only",
+          "mean": 129.67942692683602,
+          "nearBlackFraction": 0.01364855072463768,
+          "darkFraction": 0.05639855072463768,
+          "nearWhiteFraction": 0.00039492753623188403,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "darken",
+          "mean": 71.13585902677367,
+          "nearBlackFraction": 0.1292391304347826,
+          "darkFraction": 0.30226811594202896,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "post-contrast",
+          "mean": 157.5950477050989,
+          "nearBlackFraction": 0.0024492753623188406,
+          "darkFraction": 0.022431159420289854,
+          "nearWhiteFraction": 0.06247101449275362,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "id": "a",
+          "placements": [
+            {
+              "source": {
+                "assetId": "a-22",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 1.5,
+                "width": 36,
+                "height": 24
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        },
+        {
+          "id": "b",
+          "placements": [
+            {
+              "source": {
+                "assetId": "b-23",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 1.5266075388026614,
+                "width": 36,
+                "height": 23.946784922394677
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "rocket-portrait",
+      "measurements": [
+        {
+          "id": "profile3",
+          "mean": 136.519972557255,
+          "nearBlackFraction": 0.00036231884057971015,
+          "darkFraction": 0.08330797101449275,
+          "nearWhiteFraction": 0.0038043478260869567,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "profile4",
+          "mean": 100.87729589571727,
+          "nearBlackFraction": 0.2811775362318841,
+          "darkFraction": 0.36521376811594203,
+          "nearWhiteFraction": 0.0036521739130434784,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "a-only",
+          "mean": 115.86255120438213,
+          "nearBlackFraction": 0.1545144927536232,
+          "darkFraction": 0.25928985507246377,
+          "nearWhiteFraction": 0.003746376811594203,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "b-only",
+          "mean": 125.58666568988775,
+          "nearBlackFraction": 0.0010869565217391304,
+          "darkFraction": 0.13873550724637682,
+          "nearWhiteFraction": 0.0037101449275362317,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "darken",
+          "mean": 44.40823190290271,
+          "nearBlackFraction": 0.1713623188405797,
+          "darkFraction": 0.6235579710144927,
+          "nearWhiteFraction": 0,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        },
+        {
+          "id": "post-contrast",
+          "mean": 138.7242847405685,
+          "nearBlackFraction": 0.020094202898550725,
+          "darkFraction": 0.21531159420289855,
+          "nearWhiteFraction": 0.04602173913043478,
+          "crop": [
+            100,
+            70,
+            700,
+            530
+          ]
+        }
+      ],
+      "geometry": [
+        {
+          "id": "a",
+          "placements": [
+            {
+              "source": {
+                "assetId": "a-24",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 0,
+                "y": 1.4906249999999996,
+                "width": 36,
+                "height": 24.01875
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        },
+        {
+          "id": "b",
+          "placements": [
+            {
+              "source": {
+                "assetId": "b-25",
+                "assetRevision": 1
+              },
+              "rect": {
+                "x": 4.5,
+                "y": 0,
+                "width": 27,
+                "height": 27
+              },
+              "turns": 0,
+              "gain": 1
+            }
+          ],
+          "transform": {
+            "xMm": 0,
+            "yMm": 0,
+            "turns": 0
+          }
+        }
+      ]
+    }
+  ],
+  "disposed": 0
+}

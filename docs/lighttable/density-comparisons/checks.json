@@ -1,0 +1,172 @@
+{
+  "date": "2026-10-20",
+  "continuation_base": "0d5250c06b3cc52dfd00d24ada612334cb2ba222",
+  "runtime_commit": "85cb495345866448eedae33dc0e73aca583915ff",
+  "environment": "Node 24.19.0 / npm 11.9.0 / Chromium SwiftShader; not iPhone",
+  "checks": {
+    "unit": {
+      "status": "passed",
+      "evidence": [
+        "      Tests  66 passed (66)"
+      ]
+    },
+    "build": {
+      "status": "passed",
+      "evidence": [
+        "Combined PWA artifact: /workspace/Multik/dist-combined; 13 Classic files byte-identical"
+      ]
+    },
+    "film": {
+      "status": "passed",
+      "evidence": [
+        "PASS: frozen profile 2, independent CPU oracle, gray steps, halo, commutativity, allocation-free profile switch",
+        "PASS: seven labelled source/profile-2/profile-4 comparisons generated",
+        "PASS: profile-4 durable roundtrip, independent v8 pair, six original hashes, context restoration",
+        "PASS: profile-4 tiled JPEG, preview comparison, snapshot/cancel/budget/dispose"
+      ]
+    },
+    "profile3": {
+      "status": "passed",
+      "evidence": [
+        "PASS: frozen profile 2, independent CPU oracle, gray steps, halo, commutativity, allocation-free profile switch",
+        "PASS: seven labelled source/profile-2/profile-3 comparisons generated",
+        "PASS: profile-3 durable roundtrip, independent v8 pair, six original hashes, context restoration",
+        "PASS: profile-3 tiled JPEG, preview comparison, snapshot/cancel/budget/dispose"
+      ]
+    },
+    "browser": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native diagonal gestures accumulate RAM drafts; zero readback/encode/upload/compile/IDB on movement and lift",
+        "PASS: pinch cancels only active stroke; one remaining finger waits; movement follows finger at all rotations and zoom",
+        "PASS: layer selector and explicit parameter gesture have one owner; closing tools restores layer drag",
+        "PASS: source-anchored red halo, padded source edges, halo=0, no halo triggered by two medium lights",
+        "PASS: stale decode cannot replace the latest complete pair; retired GPU textures released",
+        "PASS: 1024/768/512 presentation tiers retain scene and textures; 100 invalidations coalesce into one draw",
+        "PASS: WebGL context loss/restoration keeps RAM composition and rebuilds bounded resources",
+        "PASS: portrait / landscape layout, rotation independent from phone orientation, controls >=44px",
+        "PASS: no page errors; bounded active GPU allocations. iPhone hardware performance NOT VERIFIED.",
+        "PASS: disposal releases tracked textures, listeners and scheduler"
+      ]
+    },
+    "gestures": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native swipe/move ownership, selected-layer pinch, zero writes on lift, swipe commit/reload/failure retry, safe library navigation, black/mid/white tone GPU probes"
+      ]
+    },
+    "data": {
+      "status": "passed",
+      "evidence": [
+        "PASS: original bytes preserved, CAS conflict + transaction abort/retry, hidden partial imports, bad-file cleanup",
+        "PASS: interrupted legacy adoption resumes/deduplicates, 0 legacy writes, independent originals after Classic deletion"
+      ]
+    },
+    "workspace": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native 6-frame import enforces full/overflow including forged change; failed file can be removed/replaced without losing selection",
+        "PASS: zero commits on lift, exactly one metadata commit at pair navigation, independent pair offsets and reload restoration",
+        "PASS: injected transaction abort prevents navigation and keeps draft; next tap retries successfully",
+        "PASS: serialized navigation ignores a second target while the first metadata commit is pending",
+        "PASS: stale tab cannot overwrite committed revision; explicit copy retains the draft in a separate session",
+        "PASS: independent scroll/selection, collapsible rails, A/center/B landscape and orientation-specific visibility",
+        "PASS: workspace integration has no page errors"
+      ]
+    },
+    "export": {
+      "status": "passed",
+      "evidence": [
+        "PASS: tiled/monolithic geometry and halo, snapshot isolation, cancellation, exact 4000px output, unsupported size, 20-export texture plateau",
+        "PASS: explicit fresh Share retry/download, revision-matched derivative home hero, context-loss recovery, no page errors"
+      ]
+    },
+    "cache": {
+      "status": "passed",
+      "evidence": [
+        "PASS: warm return uploads=0; 100 pair changes bounded to 21609828 tracked bytes (peak 28813104); dispose=0; no unchanged-frame commits"
+      ]
+    },
+    "pro": {
+      "status": "passed",
+      "evidence": [
+        "PASS: home, explicit one-axis/XY, keyboard/ranges, tool lock, pinch rollback, rotate exit, independent persisted effects, coalesced halo rebuild without upload/allocation"
+      ]
+    },
+    "density-study": {
+      "status": "passed",
+      "evidence": [
+        "PASS: frozen profile 3, profile-4 mixed-source oracle, density increase on four pairs, six-way comparison, disposal"
+      ]
+    }
+  },
+  "scope": {
+    "protected_byte_identical_to_main": 62,
+    "protected_paths": [
+      ".github/workflows/pages.yml",
+      ".openai/hosting.json",
+      "deployment/BASELINE.json",
+      "deployment/classic-baseline.tar.gz",
+      "docs/lighttable/UI_CONTRACT.md",
+      "index.html",
+      "lab/index.html",
+      "lighttable/index.html",
+      "lighttable/pwa/manifest.webmanifest",
+      "lighttable/pwa/recover.html",
+      "lighttable/pwa/sw.js",
+      "package-lock.json",
+      "package.json",
+      "public/icon-180.png",
+      "public/icon-192.png",
+      "public/icon-512.png",
+      "public/manifest.webmanifest",
+      "public/recover.html",
+      "public/sw.js",
+      "src/app/develop.ts",
+      "src/app/edit.ts",
+      "src/app/main.ts",
+      "src/app/orientation.ts",
+      "src/app/panels.ts",
+      "src/app/pwa.ts",
+      "src/app/store.ts",
+      "src/app/style.css",
+      "src/app/viewer-drag.ts",
+      "src/app/zoom.ts",
+      "src/core/core.test.ts",
+      "src/core/edit.ts",
+      "src/core/geometry.ts",
+      "src/core/glow.ts",
+      "src/core/orientation.ts",
+      "src/core/recipe.ts",
+      "src/core/rng.ts",
+      "src/gl/pipeline.ts",
+      "src/gl/shaders.ts",
+      "src/lab/feedback.ts",
+      "src/lab/library.ts",
+      "src/lab/main.ts",
+      "src/lab/style.css",
+      "src/lighttable/data/import.ts",
+      "src/lighttable/data/repository.ts",
+      "src/lighttable/input/gestures.ts",
+      "src/lighttable/main.ts",
+      "src/lighttable/model/navigation.ts",
+      "src/lighttable/model/parameters.ts",
+      "src/lighttable/model/session.ts",
+      "src/lighttable/model/transforms.ts",
+      "src/lighttable/style.css",
+      "src/lighttable/ui/export-dialog.ts",
+      "src/lighttable/ui/film-rails.ts",
+      "src/lighttable/ui/fixtures.ts",
+      "src/lighttable/ui/import-roll.ts",
+      "src/lighttable/ui/library.ts",
+      "src/lighttable/ui/pwa.ts",
+      "src/lighttable/ui/workspace.ts",
+      "src/looks/index.ts",
+      "vite.artifact.config.ts",
+      "vite.config.ts",
+      "vite.lighttable.config.ts"
+    ],
+    "frozen_profile3_matches_0d5250c": true,
+    "ui_default_and_controls_unchanged": true
+  }
+}

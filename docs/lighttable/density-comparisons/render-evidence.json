@@ -1,0 +1,976 @@
+{
+  "candidateVersion": 4,
+  "environment": "Chromium SwiftShader; not Safari/iPhone/P3/HDR",
+  "frozenShaderSha256": "dece39a81463b442470de872da823a8b6382d430e3f9e38fdaca84b7de7f7fd2",
+  "numeric": {
+    "regression": [
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      },
+      {
+        "mae": 0,
+        "max": 0
+      }
+    ],
+    "oracleMaxError": 0.49948305771542323,
+    "steps": [
+      {
+        "input": [
+          0,
+          0
+        ],
+        "p2": [
+          0,
+          0,
+          0
+        ],
+        "p4": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "input": [
+          32,
+          32
+        ],
+        "p2": [
+          39,
+          39,
+          39
+        ],
+        "p4": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "input": [
+          64,
+          64
+        ],
+        "p2": [
+          84,
+          84,
+          84
+        ],
+        "p4": [
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "input": [
+          118,
+          0
+        ],
+        "p2": [
+          116,
+          116,
+          116
+        ],
+        "p4": [
+          68,
+          68,
+          68
+        ]
+      },
+      {
+        "input": [
+          118,
+          118
+        ],
+        "p2": [
+          168,
+          168,
+          168
+        ],
+        "p4": [
+          99,
+          99,
+          99
+        ]
+      },
+      {
+        "input": [
+          180,
+          180
+        ],
+        "p2": [
+          244,
+          244,
+          244
+        ],
+        "p4": [
+          226,
+          226,
+          226
+        ]
+      },
+      {
+        "input": [
+          220,
+          220
+        ],
+        "p2": [
+          254,
+          254,
+          254
+        ],
+        "p4": [
+          244,
+          244,
+          244
+        ]
+      },
+      {
+        "input": [
+          255,
+          0
+        ],
+        "p2": [
+          248,
+          248,
+          248
+        ],
+        "p4": [
+          231,
+          231,
+          231
+        ]
+      },
+      {
+        "input": [
+          255,
+          255
+        ],
+        "p2": [
+          255,
+          255,
+          255
+        ],
+        "p4": [
+          251,
+          251,
+          251
+        ]
+      }
+    ],
+    "monotone": [
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        12,
+        41,
+        75,
+        88,
+        100,
+        112,
+        121,
+        128,
+        131,
+        134
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        20,
+        60,
+        108,
+        128,
+        144,
+        161,
+        172,
+        180,
+        184,
+        187
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        32,
+        88,
+        156,
+        180,
+        198,
+        212,
+        221,
+        226,
+        229,
+        231
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5,
+        48,
+        127,
+        208,
+        226,
+        237,
+        244,
+        248,
+        250,
+        251,
+        251
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        10,
+        71,
+        179,
+        242,
+        250,
+        253,
+        254,
+        255,
+        255,
+        255,
+        255
+      ]
+    ],
+    "falseHalo": {
+      "mae": 0,
+      "max": 0
+    },
+    "center": {
+      "off": [
+        231,
+        231,
+        231
+      ],
+      "on": [
+        231,
+        231,
+        231
+      ]
+    },
+    "spill": {
+      "off": [
+        0,
+        0,
+        0
+      ],
+      "on": [
+        108,
+        23,
+        6
+      ]
+    },
+    "edge": [
+      141,
+      32,
+      10
+    ],
+    "translated": [
+      108,
+      23,
+      6
+    ],
+    "symmetry": {
+      "mae": 0,
+      "max": 0
+    },
+    "switchCost": {
+      "uploads": 0,
+      "compilations": 0,
+      "bytes": 0,
+      "haloBuilds": 0
+    },
+    "switchBack": {
+      "mae": 0,
+      "max": 0
+    },
+    "hot": {
+      "readPixels": 0,
+      "encode": 0,
+      "cpuPixels": 0,
+      "upload": 0,
+      "compile": 0,
+      "idbWrite": 0
+    },
+    "hotBytes": 0
+  },
+  "comparisons": [
+    {
+      "name": "patches",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-17\",\"b-17\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-17",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-17",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 34.30555555555556,
+        "max": 240
+      }
+    },
+    {
+      "name": "branches",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-18\",\"b-18\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0.35,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-18",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-18",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 17.240771527777778,
+        "max": 96
+      }
+    },
+    {
+      "name": "silhouette",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-19\",\"b-19\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0.35,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-19",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-19",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 18.713111805555556,
+        "max": 88
+      }
+    },
+    {
+      "name": "portrait-cat",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-20\",\"b-20\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0.35,
+          "exposure": -0.5,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-20",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 4.5,
+                  "y": 0,
+                  "width": 27,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-20",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 1.5266075388026614,
+                  "width": 36,
+                  "height": 23.946784922394677
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 28.67272638888889,
+        "max": 133
+      }
+    },
+    {
+      "name": "coffee-cat",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-21\",\"b-21\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0.35,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-21",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 1.5,
+                  "width": 36,
+                  "height": 24
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-21",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 1.5266075388026614,
+                  "width": 36,
+                  "height": 23.946784922394677
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 38.10021180555555,
+        "max": 155
+      }
+    },
+    {
+      "name": "rocket-portrait",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-22\",\"b-22\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 0.35,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-22",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 1.4906249999999996,
+                  "width": 36,
+                  "height": 24.01875
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-22",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 4.5,
+                  "y": 0,
+                  "width": 27,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 38.061628472222225,
+        "max": 155
+      }
+    },
+    {
+      "name": "halo",
+      "composition": {
+        "schema": 1,
+        "id": "[\"a-23\",\"b-23\"]",
+        "revision": 0,
+        "mode": "manual-pair",
+        "seed": 51,
+        "frame": {
+          "widthMm": 36,
+          "heightMm": 27,
+          "turns": 0
+        },
+        "profile": {
+          "id": "lighttable-clean-v1",
+          "version": 4
+        },
+        "effects": {
+          "halo": 1,
+          "exposure": 0,
+          "balance": 0,
+          "contrast": 1,
+          "haloRadius": 0.65,
+          "haloThreshold": 0.75
+        },
+        "layers": [
+          {
+            "id": "a",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "a-23",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          },
+          {
+            "id": "b",
+            "placements": [
+              {
+                "source": {
+                  "assetId": "b-23",
+                  "assetRevision": 1
+                },
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "width": 36,
+                  "height": 27
+                },
+                "turns": 0,
+                "gain": 1
+              }
+            ],
+            "transform": {
+              "xMm": 0,
+              "yMm": 0,
+              "turns": 0
+            }
+          }
+        ]
+      },
+      "difference": {
+        "mae": 0.8772215277777777,
+        "max": 163
+      }
+    }
+  ],
+  "parity": {
+    "tiled": {
+      "mae": 0.005320888888888889,
+      "max": 6
+    },
+    "previewDifference": {
+      "mae": 1.5215444444444444,
+      "max": 79
+    },
+    "sameResolution": {
+      "mae": 0.8052123333333333,
+      "max": 33
+    },
+    "snapshot": {
+      "mae": 0,
+      "max": 0
+    },
+    "unchanged": true,
+    "cancelled": true,
+    "base": 23910192,
+    "restoredBytes": 23910192,
+    "dimensions": [
+      1500,
+      2000
+    ]
+  },
+  "persistence": {
+    "hashes": [
+      "3ecbb0643ce01bb405aa9a8c7e0ffa4bc874079aaa412d86a5ec6b88c9d0d280",
+      "d193712a4cb8f06034010ef39fb8b4df6e9aaacde8d6221b75e18d0b5c4565cb",
+      "f5724be38a8fa5de752cc128735f961b04ca5589886421f97237d508538c4c66",
+      "8d8b849c30c6bca2856f00c0df4c7a1e34d6452c62ee81a6c90d82d843b5fe1a",
+      "8aa5747afd1018d283a43be1e978be2fcedbe9333c61749d1406ad2a6f56f9c1",
+      "ba8f03ba53309b8079084569c3baa4d93273bccbd9f494e266108fb3e2cd89ce"
+    ],
+    "after": [
+      "3ecbb0643ce01bb405aa9a8c7e0ffa4bc874079aaa412d86a5ec6b88c9d0d280",
+      "d193712a4cb8f06034010ef39fb8b4df6e9aaacde8d6221b75e18d0b5c4565cb",
+      "f5724be38a8fa5de752cc128735f961b04ca5589886421f97237d508538c4c66",
+      "8d8b849c30c6bca2856f00c0df4c7a1e34d6452c62ee81a6c90d82d843b5fe1a",
+      "8aa5747afd1018d283a43be1e978be2fcedbe9333c61749d1406ad2a6f56f9c1",
+      "ba8f03ba53309b8079084569c3baa4d93273bccbd9f494e266108fb3e2cd89ce"
+    ],
+    "roundtrip": true,
+    "oldUnchanged": true,
+    "profile": 4,
+    "revision": 1,
+    "restoreUnchanged": true,
+    "restorePixels": {
+      "mae": 0,
+      "max": 0
+    }
+  },
+  "disposed": {
+    "bytes": 0,
+    "textures": 0
+  },
+  "errors": []
+}

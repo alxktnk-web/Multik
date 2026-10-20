@@ -19,6 +19,14 @@
 - 64+64 при EV=0/Contrast=1: profile 3 =83/255, profile 4 =5/255; белые нейтральные источники сохраняют tone 3. Слабые детали теней могут исчезать; вернуть их общей Exposure после gate нельзя, но originals не меняются и можно выбрать прежний профиль.
 - Формулы/первичные источники/варианты/ограничения добавлены в IMAGE_ALGORITHM.md. **Кандидат, не опубликован**; PR #1 остаётся открытым.
 
+### Продолжение B3 — A/B, численные и регрессионные проверки
+
+- Runtime `85cb495`; `scripts/lighttable-density-check.mjs` сравнивает 6 вариантов на 4 парах. Архив `docs/lighttable/density-comparisons/`: прямые 3↔4, шестисторонние таблицы с sources, 2↔4 patches/halo, candidate JPEG, snapshots/metrics/checks. Визуально просмотрены все четыре исследования и прямой портретный A/B.
+- 66 unit tests, build, browser/export/gestures/data/workspace/cache/Pro, полный film harness в режимах 3 и 4, density-study **PASS**. Старые assertions/tolerances не ослаблены. Frozen 2 max=0; frozen 3 max=0 (7 comparisons); mixed-source oracle 4 max=.506/255.
+- Candidate 4 JPEG tiled/mono MAE=.005321/255; preview/downscaled JPEG MAE=1.5215/255 (max79 на границах; sampling/JPEG не pixel-identical). Snapshot/recovery max=0; 6 original hashes и соседняя v8 pair неизменны; горячий путь без I/O/новых allocations.
+- Повторная scope-проверка: 62 защищённых файла совпадают с main; original package/lock/UI contract/deployment не изменены. Node 24/Chromium локально; CI Node 22 проверяется после push.
+- Рекомендация для запроса: profile 4 (подготовка обоих источников) даёт плотные участки без выбора между объектами. На rocket/portrait может чрезмерно затемнять, поэтому не заменяет 3/2 и не включается автоматически. UI-ALG-001 остаётся proposed. Merge/publish не выполнялись.
+
 ### Этап A1 — исследование базы (research/film-rendering)
 
 - Проверены remote HEAD, main и рабочая ветка: все на `0dc89b74d9f6792142769538c7ff285ccf8f9024`; v8 merge `cc5bf66` присутствует. Отдельный чистый checkout `/workspace/Multik`.
