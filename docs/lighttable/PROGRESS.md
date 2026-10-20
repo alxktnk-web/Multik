@@ -4,6 +4,13 @@
 
 ## 20.10.2026 — отдельное направление алгоритма изображения
 
+### Этап A1 — исследование базы (research/film-rendering)
+
+- Проверены remote HEAD, main и рабочая ветка: все на `0dc89b74d9f6792142769538c7ff285ccf8f9024`; v8 merge `cc5bf66` присутствует. Отдельный чистый checkout `/workspace/Multik`.
+- Прочитаны handoff, UI contract, transfer, план, решения, acceptance и deployment. Выводы пяти референсов перенесены в `IMAGE_ALGORITHM.md`; пользовательские фото не копируются в Git.
+- Подтверждены SRGB8_ALPHA8 sampling, общий present preview/export, profile-2 tone и per-source halo. Независимый frozen profile-2 fragment сохранён для GPU regression.
+- План: opt-in profile 3 в render/model validation, без UI/default migration. Проверки кандидата ещё не выполнены. **Кандидат, не опубликован**; Sites v8 не изменён.
+
 - По поручению владельца подготовлена передача соседнему чату: `ALGORITHM_HANDOFF.md`. Работа алгоритма ведётся в `research/film-rendering`, отдельно от main; результат — открытый PR для проверки, без самостоятельного merge/публикации.
 - Зафиксирован подробный текущий UI-контракт в `UI_CONTRACT.md`: экраны, жесты, Pro, параметры, ориентации, импорт, сохранение и Save to Photos. Для чата алгоритма UI и этот контракт read-only.
 - `UI_REQUESTS.md` — единственное место предложений алгоритма к UI, с подробным шаблоном и явными статусами. Предложение не разрешает реализацию; UI занимается отдельный чат по поручению владельца.
