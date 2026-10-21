@@ -1,5 +1,30 @@
 # Локальная проверка M0–M6
 
+## 21.10.2026 — Lightness-only Levels
+
+- `npm test` / `npm run build` (Node 22): 73 tests PASS, TypeScript/Vite PASS;
+  13 Classic files byte-identical. Runtime change limited to `render/levels.ts`.
+- `npm run test:lighttable:levels`: independent CPU Lab measurements against
+  GPU output; 40 colored probes, 8 preserve a*/b*, 16 gamut-compress at fixed
+  L*/hue, 16 black/white endpoints. L* error <0.6, chromatic error <1.5 Lab
+  units for 8-bit output. Midpoint L*=50 (~119 sRGB), independent source
+  thresholds, neutral Clear addition and hidden-effect bypass PASS.
+- `npm run test:lighttable:editor`: actual ruler input, zero hot-path I/O /
+  uploads / compilation / GPU allocation, Undo/Cancel, commit failure/retry,
+  pair isolation and portrait/landscape PASS.
+- `LIGHTTABLE_TEST_PROFILE=5 npm run test:lighttable:export`: non-neutral
+  Levels for both sources, preview/JPEG comparison, tiled/monolithic output,
+  4000 px, 12MP inputs, snapshot isolation, 20-export plateau, cancel/context
+  loss and Share retry PASS.
+- `node scripts/lighttable-film-check.mjs`: frozen profile 2 unchanged,
+  profile-3 CPU oracle/halo/export/roundtrip PASS with neutral Levels.
+- `node scripts/lighttable-build-check.mjs`: production GPU/UI smoke PASS.
+
+Evidence: `lab-out/lighttable/editor/gpu.json`, editor checks, export and film
+harness outputs. Chromium SwiftShader verifies correctness, not iPhone frame
+rate, Safari color handling or the real Photos share sheet. Lab conversions
+and bounded out-of-gamut chroma search still need hardware timing acceptance.
+
 ## Обновление 20.10.2026 — свайп, размер слоя, тон
 
 Опубликовано как Sites version 8 / d22a3ca, native status succeeded.
