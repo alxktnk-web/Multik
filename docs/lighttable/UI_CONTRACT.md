@@ -15,8 +15,9 @@
   линейке без legend/чисел/пояснений. Hidden ARIA labels остаются. Тап выбирает
   ближайшую точку, drag меняет её; также работают keyboard и вертикальный
   жест на фото. Portrait шкала снизу, landscape справа; I/II и Undo слева.
-- Levels — black/mid/white linear input points, а не output curve. Midpoint
-  отображается в .5; endpoints сохраняют relative midpoint. Параметры в
+- Уточнение 21.10.2026: Levels — black/mid/white входной светлоты CIELAB L*
+  (0…1), а не отдельные RGB-кривые. Midpoint отображается в L*=50;
+  endpoints сохраняют relative midpoint. Параметры в
   optional layer.levels; отсутствие = identity. Originals не переписываются.
 - Looks: Original/2, Film/3, Dense/4, Clear/5. Выбор одним Undo в RAM без modal
   Apply. Clear не применяет автоматические tone/color/halo/gain adjustments;

@@ -10,6 +10,11 @@ of automatic tone/color/halo/gain. No global-tone controls are wanted. The owner
 waived old test-data compatibility; do not restart migration or rebuild the UI.
 UI remains a separate task; requested UI changes still go to UI_REQUESTS.
 
+Owner correction, 21 October: Levels operate on normalized CIELAB L* (D65),
+not on R/G/B independently. Preserve a*/b* in gamut; compress chroma at fixed
+L*/hue only when needed to fit sRGB. Midpoint maps to L*=50. The neutral path
+is exact identity; see render/levels.ts and the latest DECISIONS entry.
+
 
 Статус: инструкция владельца от 20.10.2026. Это разделение ответственности, а не новый дизайн приложения.
 

@@ -2,6 +2,22 @@
 
 Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 10**, deployed source `bf113b8`; GitHub runtime merge `851a47d` (одинаковое source tree).
 
+## 21.10.2026 — точечная поправка Levels / Lightness
+
+- По уточнению владельца изменён только runtime helper `render/levels.ts`:
+  Levels корректируют CIELAB L* каждого исходника. a*/b* сохраняются в gamut;
+  вне gamut chroma уменьшается при прежних L*/hue. Нейтральный путь — identity.
+- Интерфейс, модель сохранения, жесты, сложение и профили не переписывались.
+  Preview, halo extraction и JPEG используют общий helper.
+- Проверено: 73 unit tests, production build, 40 цветных GPU-проб (8 сохранений
+  a*/b*, 16 gamut compression, 16 чёрных/белых границ), середина L*=50,
+  независимость слоёв и Clear linear-light oracle. Editor suite: zero I/O hot
+  path, Undo/Cancel/retry, сохранение/пары, portrait/landscape — PASS.
+- Export suite с разными Levels обоих источников: mono/tiled JPEG, 4000 px,
+  12MP inputs, preview match, snapshot isolation, 20-export plateau и Share
+  retry/context recovery — PASS. Frozen profile 2 / Film harness и production
+  GPU/UI smoke — PASS. Публикация в работе; iPhone не проверялся.
+
 ## 21.10.2026 — реализация Edit / Levels / Clear
 
 - Владелец разрешил реализацию и отдельно снял требование сохранения старых тестовых пар/данных. Специальная миграция/legacy compatibility не делалась; уже работающие default readers оставлены. Очистка браузера не требуется и не выполняется.
