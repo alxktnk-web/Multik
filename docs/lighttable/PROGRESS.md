@@ -1,5 +1,21 @@
 # Multik Lighttable — состояние реализации
 
+## 21.10.2026 — упрощение интерфейса, этапы с сохранением прогресса
+
+План: [UI_SIMPLIFICATION.md](UI_SIMPLIFICATION.md), ветка
+`feat/interface-simplification`. Действующий сайт пока version 11.
+
+- **Этап 1 завершён:** зоны Levels на фото (слева black, центр mid, справа
+  white), выбор фиксируется до lift; второй палец отменяет незавершённые
+  Levels и начинает pinch выбранного слоя. Учтены реальные границы композиции,
+  letterboxing и поворот. Тонкая draggable шкала синхронна с фото: снизу в
+  portrait, у правого края в landscape. Инструменты одним горизонтальным рядом.
+- Проверки этапа 1: 75 unit tests, Node 22 production build, editor browser
+  suite (hot path zero I/O, Undo/Cancel/retry/пары/ориентации) — PASS.
+  Portrait/landscape screenshots просмотрены; iPhone не проверялся.
+- Следующий этап: убрать ↔, Edit начинает Move, вернуть icon-only export в Edit.
+  Затем библиотека/rename/import progress и общая публикация.
+
 Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 11**, deployed source `0c5008f`; GitHub runtime merge `36b2a92` (одинаковое source tree).
 
 ## 21.10.2026 — точечная поправка Levels / Lightness

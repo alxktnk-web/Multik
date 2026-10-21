@@ -88,7 +88,7 @@ export class Editor {
     for(const b of this.element.querySelectorAll<HTMLButtonElement>('[data-profile-version]'))b.setAttribute('aria-pressed',String(Number(b.dataset.profileVersion)===s.draft.profile.version));
   }
   sync(locked:boolean){
-    this.locked=locked;this.element.hidden=!this.session.editing;
+    this.locked=locked;this.element.hidden=!this.session.editing;this.element.parentElement!.dataset.editMode=this.mode;
     for(const b of this.element.querySelectorAll<HTMLButtonElement>('button'))b.disabled=locked;
     for(const b of this.element.querySelectorAll<HTMLButtonElement>('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===this.mode));
     for(const [selector,mode] of [['.levels-ruler','levels'],['.look-options','looks'],['.layer-controls','layers'],['.pro-controls','pro']])this.element.querySelector<HTMLElement>(selector)!.hidden=this.mode!==mode;

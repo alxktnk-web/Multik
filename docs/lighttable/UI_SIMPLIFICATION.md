@@ -5,7 +5,7 @@ image algorithm change. Baseline main e726aff / Sites version 11.
 
 ## Milestones
 
-1. [ ] Levels: photo thirds choose black/mid/white at touch-down; drag vertically.
+1. [x] Levels: photo thirds choose black/mid/white at touch-down; drag vertically.
    Keep the chosen point until release. Pinch cancels the unfinished Levels
    gesture and scales the selected source. Synchronized draggable thin ruler:
    horizontal immediately below photo in portrait, vertical far right in

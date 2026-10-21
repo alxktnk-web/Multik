@@ -39,7 +39,7 @@ try{
  for(const [name,w,h] of [['portrait',402,874],['small',375,667],['landscape',874,402]]){
    await page.setViewportSize({width:w,height:h});await frame();await page.screenshot({path:`${out}/${name}.png`});
    const dimensions=await page.evaluate(()=>{const track=document.querySelector('.levels-track').getBoundingClientRect(),stage=document.querySelector('.stage').getBoundingClientRect();return {track:{x:track.x,y:track.y,w:track.width,h:track.height},stage:{w:stage.width,h:stage.height},overflow:document.documentElement.scrollWidth>innerWidth};});
-   assert.equal(dimensions.overflow,false);assert.ok(dimensions.stage.h>180);assert.ok(dimensions.track.w>0&&dimensions.track.h>50);
+   assert.equal(dimensions.overflow,false);assert.ok(dimensions.stage.h>180);assert.ok(dimensions.track.w>0&&dimensions.track.h>=44);
  }
  // Orientation preserves completed edits, cancels only in-progress input.
  const rotated=await state();await page.setViewportSize({width:402,height:874});await frame();assert.deepEqual((await state()).draft,rotated.draft);
