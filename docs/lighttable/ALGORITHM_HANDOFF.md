@@ -1,5 +1,16 @@
 # Задание отдельному чату: только алгоритм изображения
 
+## Update 21 October 2026 — current renderer contract
+
+Main now includes per-source Levels and Clear/version 5 (Sites version 10;
+PROGRESS/DEPLOYMENT record exact commits). Read current UI_CONTRACT before new
+algorithm work. Preserve input Levels independently for I/II, identity defaults,
+shared preview/export, level-aware halo extraction and Clear's explicit bypass
+of automatic tone/color/halo/gain. No global-tone controls are wanted. The owner
+waived old test-data compatibility; do not restart migration or rebuild the UI.
+UI remains a separate task; requested UI changes still go to UI_REQUESTS.
+
+
 Статус: инструкция владельца от 20.10.2026. Это разделение ответственности, а не новый дизайн приложения.
 
 ## Цель и границы

@@ -1,4 +1,4 @@
-> Live release: **Sites version 9** (21 October 2026), with per-pair Original / Film / Dense profiles in Pro. Installed PWA: info → Update. [Publication record](docs/lighttable/DEPLOYMENT.md).
+> Live release: **Sites version 10** (21 October 2026): per-source Levels, Clear profile and Photos-style editing. Installed PWA: info → Update. [Publication record](docs/lighttable/DEPLOYMENT.md).
 > Current development base: Multik Lighttable v8 in `main` (20 October 2026), imported from `multik-v8-source` at `4f139e6`.
 > Start with [PROGRESS.md](docs/lighttable/PROGRESS.md) and [TRANSFER.md](TRANSFER.md). GitHub Actions verifies tests/build only; it does not deploy. The live app remains on [Sites at /lighttable/](https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/).
 > The Classic description below is historical. Current hosting and source rollback instructions are in [DEPLOYMENT.md](docs/lighttable/DEPLOYMENT.md).

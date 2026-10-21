@@ -1,6 +1,6 @@
 # Multik Lighttable — состояние реализации
 
-Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 9**, deployed source `b21533c`; GitHub runtime merge `c3372d9` (одинаковое source tree).
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 10**, deployed source `bf113b8`; GitHub runtime merge `851a47d` (одинаковое source tree).
 
 ## 21.10.2026 — реализация Edit / Levels / Clear
 
@@ -10,7 +10,7 @@
 - Clear/version 5: прямое сложение линейного света после ручных Levels, sRGB output и clipping. Игнорирует halo, художественные кривые/chroma, общие exposure/contrast/balance и placement gains; metadata не сбрасываются при переключении профиля. В интерфейсе нет общей тональной коррекции.
 - Session checkpoint: Cancel возвращает начало Edit и прежнюю историю, Undo внутри Edit не выходит за checkpoint; Done коммитит один раз, no-op не пишет. Ошибка DB/CAS оставляет редактор/draft/Undo и Retry/Save a separate copy. Resize/background/context loss отменяют только активное касание.
 - Завершены: 73 unit tests, Node 22 production build; новый editor browser suite, отдельный Clear/Levels GPU oracle, прежние browse/move/pinch, profile-3 harness, workspace/import/CAS/rails; Clear + разные Levels обоих источников: JPEG mono/tiled, 2000/4000 px, 12MP synthetic inputs, 20-export plateau, cancel/context loss, Share retry; production smoke и PWA offline/update/recovery.
-- Публикация ещё не выполнена в этой записи. Hardware iPhone 16 Pro остаётся NOT VERIFIED. Точный release/source/результат публикации будут добавлены после завершения.
+- **Опубликовано как Sites version 10**: native deployment `appgdep_6ad852d9099c8191bd6a8722ca6697c1`, succeeded 21.10.2026 05:51 UTC. GitHub main merge `851a47d`, CI [39551785695](https://github.com/alxktnk-web/Multik/actions/runs/39551785695) success. Sites source `bf113b8` имеет точно то же source tree. 22 статических файла совпали с проверенной сборкой; детали в DEPLOYMENT.md. Hardware iPhone 16 Pro остаётся NOT VERIFIED.
 
 ## 21.10.2026 — упрощение Levels после review
 
@@ -232,6 +232,6 @@
 
 ## Следующий этап
 
-Version 9 размещена. Следующие действия: feedback владельца по Original / Film / Dense на своих парах (особенно детали теней Dense и яркость светов Film), сравнение JPEG/Photos, прежние browse/move и pinch на реальных фото iPhone 16 Pro; Safari/PWA install, native picker, Save Image, offline, wake/auth и hardware gesture timings. Не просить повторного разрешения на уже состоявшуюся публикацию и не публиковать её заново ради документации. M7 отменён; M10 переключение root остаётся отдельным решением.
+Version 10 размещена. Следующие действия: feedback владельца по Levels I/II, Clear и новым controls в portrait/landscape; сравнение JPEG/Photos и проверка Done/Cancel/Undo, browse/move/pinch на реальном iPhone 16 Pro; Safari/PWA install, native picker, Save Image, offline, wake/auth и hardware gesture timings. Не просить повторного разрешения на уже состоявшуюся публикацию и не публиковать её заново ради документации. M7 отменён; M10 переключение root остаётся отдельным решением.
 
 В новом чате не начинать M0 заново: читать этот файл и фактический Git. В portable package новый код — `implementation/repository.bundle`/`source.zip`; `baseline/` оставлен для отката. После следующего этапа обновить файл и его зеркало в handoff.

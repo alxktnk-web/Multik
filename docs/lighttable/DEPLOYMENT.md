@@ -1,3 +1,19 @@
+# Current release — Sites version 10, 21 October 2026
+
+- Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Native private deployment: `appgdep_6ad852d9099c8191bd6a8722ca6697c1`, **succeeded** at 2026-10-21 05:51:34 UTC. Owner-only access, existing origin and root Classic retained.
+- Saved version: `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_7be94984510c81918c2b56c5a4217b1c`, confirmed version number 10.
+- GitHub implementation `afc4f7f`, main merge `851a47d61428233e1e1a456beb83c0e5629bb896`; CI [39551785695](https://github.com/alxktnk-web/Multik/actions/runs/39551785695) succeeded. Backup reference `backup/main-before-levels-2026-10-21` points to `fc4f28f`.
+- Sites source `bf113b812f5d789db12e7937057e998fdf4e832c` merges the GitHub release with the previous Sites history. Exact shared source tree `6146152100966df4df271a36ae7d6f5908fcd1ee`. Private Sites history was not pushed to GitHub.
+- Archive `/workspace/multik-levels-editor-deploy.tar.gz`, local SHA-256 `cb17cf32785cb0f9ca9ded5b05451670ee767e7a540bfb0495ff871cd74b5abc`; backend stored tar hash `sha256:40bbd5e5d5412a1920811ef219e93d7be62b708cba414ee13d8655e08f116650`, 23 files. Independent Node 22 build matched all 22 tested static files. 13 Classic files identical to baseline.
+- Features: Edit checkpoint/Done/Cancel, source Levels without a legend, Looks Original/Film/Dense/Clear, portrait/landscape controls, standardized local Lucide SVG. Clear/version 5 uses manual source Levels plus linear addition and clipping, with no automatic effects.
+- Installed PWA: info → Update, then Edit → Levels / Looks. Hardware Safari/Photos/latency acceptance is still open. Validation commands and limits: VALIDATION.md.
+- No separate data migration was added: the owner waived preservation of old test data. The release does not clear browser storage. Readers before this release do not implement Levels/Clear; prefer a forward fix for live issues. A Git revert is source rollback, not a browser-data rollback.
+- Publication used the existing documented helper-unavailable fallback: clean isolated checkout, short-lived credential in hidden stdin/RAM only, non-force source push and remote-SHA verification, exact-source build/archive, native owner-private publication. No token persisted or printed. GitHub Pages remains disabled.
+- Publication-record-only commits after the runtime merge do not require another deployment.
+
+---
+
 # Film / Dense integration — Sites version 9
 
 Published 21 October 2026 after the owner requested integrating the completed research into the application.
