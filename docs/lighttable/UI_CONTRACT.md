@@ -4,7 +4,42 @@
 
 **Чат алгоритма читает этот файл, но не редактирует интерфейс или сам контракт.** Его предложения записываются в [UI_REQUESTS.md](UI_REQUESTS.md). Этот документ может менять чат интерфейса по отдельному заданию владельца, фиксируя дату/решение. Последняя явная инструкция владельца имеет приоритет.
 
-## Дополнение 21.10.2026 — выбор профиля изображения
+## Реализованное дополнение 21.10.2026 — Edit / Levels / Clear
+
+Этот раздел заменяет прежние описания Pro и profile modal ниже. Владелец
+разрешил реализацию и снял требование миграции старых тестовых данных.
+
+- Edit открывается нижним значком sliders, после прежнего входного boundary.
+  Разделы: Levels, Looks, Layers, Pro. Общей тональной коррекции в UI нет.
+- I/II выбирают исходник. Levels текущего слоя локальны паре: три точки на
+  линейке без legend/чисел/пояснений. Hidden ARIA labels остаются. Тап выбирает
+  ближайшую точку, drag меняет её; также работают keyboard и вертикальный
+  жест на фото. Portrait шкала снизу, landscape справа; I/II и Undo слева.
+- Levels — black/mid/white linear input points, а не output curve. Midpoint
+  отображается в .5; endpoints сохраняют relative midpoint. Параметры в
+  optional layer.levels; отсутствие = identity. Originals не переписываются.
+- Looks: Original/2, Film/3, Dense/4, Clear/5. Выбор одним Undo в RAM без modal
+  Apply. Clear не применяет автоматические tone/color/halo/gain adjustments;
+  ручные Levels и геометрия остаются. Пересвет при сложении клиппируется.
+- Layers: move по фото, selected-layer pinch .5–4, 90° layer rotate, Center,
+  доступный Scale range. Browse и whole-composition rotate остаются вне Edit.
+- Pro: halo strength/radius/threshold, явно выбранный Halo XY, Reset Levels
+  текущего слоя. В Clear halo controls disabled, Reset Levels доступен.
+- Вход фиксирует checkpoint/history; Undo не уходит за начало текущего Edit.
+  Cancel подтверждает Discard changes снизу и восстанавливает checkpoint.
+  Done коммитит metadata и выходит только после успеха; повторный Done даёт
+  retry при ошибке. No-op и lift не записывают DB. Cancel не меняет originals.
+- Во время Edit ленты временно скрыты, их preference не меняется. Навигация/
+  библиотека/export закрыты до Done/Cancel; Update также блокируется.
+  Ориентация/фон/context loss отменяют лишь незавершённое касание, сохраняют
+  завершённые RAM-правки. Убийство Safari до Done может потерять RAM draft.
+- SVG Lucide 0.468.0; 44–48 px targets с press state. Снятие pointer ownership
+  возвращает controls в доступное состояние; stale pointer сбрасывается на blur.
+
+Реализация и проверки — PROGRESS. Chromium не подтверждает надёжность touch,
+производительность или native Share на iPhone.
+
+## Дополнение 21.10.2026 — выбор профиля изображения (история)
 
 По поручению владельца об интеграции алгоритма добавлен Image profile в основной ряд Pro (значок двух кадров). В обычном режиме нового control нет. Остальные существующие инструменты, ranges/defaults и жесты не меняются.
 

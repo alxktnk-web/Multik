@@ -138,3 +138,40 @@ Node 22.23.3 / npm 10.9.9, Chromium SwiftShader. Это не hardware acceptance
 - `node scripts/lighttable-build-check.mjs`: production без dev hooks, явный выбор Dense через UI — PASS.
 - `npm run test:lighttable:pwa`: dual offline, update guards, recovery, redirects/MIME — PASS.
 - JPEG/SwiftShader результаты не доказывают Safari/P3/HDR/HEIC, реальный Share в Photos или аппаратную плавность. Эти проверки на iPhone 16 Pro остаются открытыми.
+
+
+## 21.10.2026 — Levels editor and Clear
+
+Node 22.23.3 / npm 10.9.9 for unit/build/production smoke/PWA; local Chromium
+SwiftShader browser checks. No iPhone hardware claim.
+
+- `npm test`: 73 PASS, including midpoint math/order, invalid input, edit
+  checkpoint/history, retry state, per-layer state and Clear persistence.
+- `npm run build`: TypeScript/Vite + dual artifact, 13 Classic files identical.
+- `npm run test:lighttable:editor`: real ruler pointer input, zero IDB/readback/
+  encode/upload/compile/new GPU bytes during input, independent I/II, Undo,
+  full Cancel, failed Done/retry, one commit, reload and independent pairs;
+  375×667, 402×874 and 874×402, rotation preserves completed edits.
+- `npm run test:lighttable:levels`: independent linear-light CPU oracle for
+  Clear, highlight clipping, black/mid/white probes, source isolation and
+  bypass of saved halo/exposure/contrast/balance/gain effects.
+- `LIGHTTABLE_TEST_PROFILE=5 npm run test:lighttable:export`: non-neutral
+  Levels on both sources; monolithic/tiled JPEG, 2000/4000 px, 12MP inputs,
+  snapshot isolation while live Levels change, 20-job memory plateau,
+  cancellation/context loss, fresh Share retry/download and thumbnail failure.
+- `npm run test:lighttable:gestures` and `test:lighttable:workspace`: native
+  touch browse/move/pinch, lift has no writes, serialized navigation/retry/CAS,
+  native import overflow, rail scroll/selection and orientations PASS.
+- `node scripts/lighttable-film-check.mjs`: profile-3 oracle, existing profile-2
+  identity, halo, durable roundtrip, export/context recovery PASS.
+- `node scripts/lighttable-build-check.mjs`: actual production Clear/Levels
+  controls, no dev hook, scoped worker PASS.
+- `npm run test:lighttable:pwa`: offline/update/recovery/auth/MIME PASS;
+  editor checkpoint now blocks applying a waiting update, even if not dirty.
+
+Old Pro/profile-modal script entry points now run the new editor contract;
+removed global-tone controls and nested Apply modal are not expected by tests.
+Evidence: `lab-out/lighttable/editor/`, `export-evidence.json`, workspace/PWA
+and film harness outputs. Screenshots were visually reviewed. Owner device
+checks remain: finger accuracy, Safari colour/HDR/P3, real Photos share, heat
+and gesture latency; Chromium does not establish these.

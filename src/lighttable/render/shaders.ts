@@ -1,3 +1,4 @@
+import { levelsGLSL } from './levels';
 import { filmProfileGLSL } from './film-profile';
 import { denseProfileGLSL } from './dense-profile';
 
@@ -14,13 +15,15 @@ out vec4 color;
 `;
 export const extract = head+`
 uniform sampler2D uSource;
+uniform vec3 uLevels;
+${levelsGLSL}
 uniform vec2 uSize;
 uniform float uPad, uThreshold;
 void main(){
   vec2 uv=(vUV*(uSize+2.*uPad)-uPad)/uSize;
   float h=0.;
   if(all(greaterThanEqual(uv,vec2(0.)))&&all(lessThanEqual(uv,vec2(1.)))){
-    vec3 c=texture(uSource,uv).rgb;
+    vec3 c=inputLevels(texture(uSource,uv).rgb,uLevels);
     h=smoothstep(uThreshold,1.,dot(c,vec3(.2126,.7152,.0722)));
   }
   color=vec4(h,h,h,1.);
@@ -42,6 +45,8 @@ void main(){
 export const present=head+`
 uniform sampler2D uA, uB, uHaloA, uHaloB, uMaskA, uMaskB;
 uniform int uProfile;
+uniform vec3 uLevelsA, uLevelsB;
+${levelsGLSL}
 uniform mat3 uScreenToFilm, uFilmToA, uFilmToB;
 uniform vec2 uViewport, uOrigin, uFrame, uSizeA, uSizeB, uGains, uHaloVariation;
 uniform float uPad, uHalo, uExposure, uContrast;
@@ -61,13 +66,16 @@ void main(){
   vec2 p=(uScreenToFilm*vec3(uOrigin+vUV*uViewport,1.)).xy;
   if(any(lessThan(p,vec2(0.)))||any(greaterThan(p,uFrame))){color=vec4(vec3(44.,41.,38.)/255.,1.);return;}
   vec2 a=(uFilmToA*vec3(p,1.)).xy, b=(uFilmToB*vec3(p,1.)).xy;
+  vec3 ca=inputLevels(source(uA,a),uLevelsA), cb=inputLevels(source(uB,b),uLevelsB);
+  // Clear deliberately bypasses all automatic tone/color, gains, exposure and halo.
+  if(uProfile==5){color=vec4(display(clamp(ca+cb,0.,1.)),1.);return;}
   vec3 light;
   if(uProfile==4){
     // Source contrast precedes gains/exposure; existing user Contrast stays last.
     // Keep emission masks untouched: their threshold is >= .5, above the gate.
-    light=denseSource(source(uA,a))*uGains.x+denseSource(source(uB,b))*uGains.y;
+    light=denseSource(ca)*uGains.x+denseSource(cb)*uGains.y;
   }else{
-    light=source(uA,a)*uGains.x+source(uB,b)*uGains.y;
+    light=ca*uGains.x+cb*uGains.y;
   }
   float h=halo(uHaloA,a,uSizeA)*uGains.x*uHaloVariation.x+halo(uHaloB,b,uSizeB)*uGains.y*uHaloVariation.y;
   if(uProfile==3||uProfile==4){

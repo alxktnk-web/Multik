@@ -1,3 +1,4 @@
+import { getLevels } from '../model/levels';
 import { balanceGains } from '../../core/recipe';
 import { Rng } from '../../core/rng';
 import { filmToScreen, glMatrix, inverse, sourceToFilm } from '../model/transforms';
@@ -93,19 +94,21 @@ export class Renderer {
       const temp=this.resources.texture(width,height,undefined,budget);made.push(temp);
       const halo=this.resources.texture(width,height,undefined,budget);made.push(halo);
       const source={image,halo,mask,temp,widthMm:r.width,heightMm:r.height,haloKey:''};
-      this.updateHalo(source,composition);
+      this.updateHalo(source,composition,index);
       return source;
     }catch(e){for(const t of made)this.resources.release(t);throw e;}
     finally{gl.bindFramebuffer(gl.FRAMEBUFFER,null);}
   }
   // Cache source uploads independently from derived masks. The signature is checked
   // once per animation frame; radius/threshold never decode, upload or allocate.
-  private updateHalo(source:PreparedSource,composition:Composition){
+  private updateHalo(source:PreparedSource,composition:Composition,index:number){
+    const levels=getLevels(composition.layers[index]);
     const {haloRadius,haloThreshold}=composition.effects;
-    const key=`${haloRadius}:${haloThreshold}`;
+    const key=`${haloRadius}:${haloThreshold}:${levels.black}:${levels.mid}:${levels.white}`;
     if(source.haloKey===key)return;
     const gl=this.gl,{image,mask,temp,halo,widthMm:width,heightMm:height}=source;
     const extract=this.programs.extract;gl.useProgram(extract.program);this.target(mask);this.bind(extract,'uSource',image,0);
+    gl.uniform3f(extract.uniform('uLevels'),levels.black,levels.mid,levels.white);
     gl.uniform2f(extract.uniform('uSize'),width,height);gl.uniform1f(extract.uniform('uPad'),PAD_MM);gl.uniform1f(extract.uniform('uThreshold'),haloThreshold);gl.drawArrays(gl.TRIANGLES,0,3);
     const blur=this.programs.blur;gl.useProgram(blur.program);this.target(temp);this.bind(blur,'uSource',mask,0);
     gl.uniform2f(blur.uniform('uStep'),haloRadius/(width+2*PAD_MM),0);gl.drawArrays(gl.TRIANGLES,0,3);
@@ -128,7 +131,7 @@ export class Renderer {
   async loadPair(inputs:[SourceInput,SourceInput],replace=true,stored?:Composition,beforePresent?:()=>Promise<void>):Promise<boolean>{
     // Durable asset id + revision is immutable. Demo inputs intentionally bypass this cache.
     inputs=inputs.map(source=>({...source})) as [SourceInput,SourceInput];stored=stored?copyComposition(stored):undefined;
-    const keys=inputs.map((input,i)=>{const p=stored?.layers[i].placements[0];return p?JSON.stringify([input.id,p.source.assetRevision,p.rect.width,p.rect.height,p.turns%2,'clean-halo-variable-2']):'';});
+    const keys=inputs.map((input,i)=>{const p=stored?.layers[i].placements[0];return p?JSON.stringify([input.id,p.source.assetRevision,p.rect.width,p.rect.height,p.turns%2,'levels-halo-3',i]):'';});
     const epoch=++this.selection,generation=this.generation;
     const decoded:(Decoded|undefined)[]=[];
     const pinned:PreparedSource[]=[];
@@ -158,7 +161,7 @@ export class Renderer {
     const w=Math.max(1,Math.round(v.width*ratio)),h=Math.max(1,Math.round(v.height*ratio));
     if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
     // Latest values only: all pointer events before this rAF coalesce here.
-    for(const source of new Set(this.pair!))this.updateHalo(source,c);
+    if(c.profile.version!==5)this.pair!.forEach((source,i)=>this.updateHalo(source,c,i));
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);gl.disable(gl.BLEND);
     this.present(c,this.pair!,inverse(filmToScreen(c.frame,v)),v.width,v.height);
     this.metrics.frames++;
@@ -175,6 +178,7 @@ export class Renderer {
     // Profile-independent source masks are reused; switching look needs no rebuild.
     this.bind(p,'uMaskA',a.mask,4);this.bind(p,'uMaskB',b.mask,5);
     gl.uniform1i(p.uniform('uProfile'),c.profile.version);
+    for(const [i,name] of ['uLevelsA','uLevelsB'].entries()){const l=getLevels(c.layers[i]);gl.uniform3f(p.uniform(name),l.black,l.mid,l.white);}
     gl.uniformMatrix3fv(p.uniform('uScreenToFilm'),false,glMatrix(screenToFilm));
     gl.uniformMatrix3fv(p.uniform('uFilmToA'),false,glMatrix(inverse(sourceToFilm(c.frame,c.layers[0],c.layers[0].placements[0]))));
     gl.uniformMatrix3fv(p.uniform('uFilmToB'),false,glMatrix(inverse(sourceToFilm(c.frame,c.layers[1],c.layers[1].placements[0]))));
