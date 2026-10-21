@@ -2,7 +2,7 @@
 
 ## Update 21 October 2026 — current renderer contract
 
-Main now includes per-source Levels and Clear/version 5 (Sites version 10;
+Main now includes per-source Lightness Levels and Clear/version 5 (Sites version 11;
 PROGRESS/DEPLOYMENT record exact commits). Read current UI_CONTRACT before new
 algorithm work. Preserve input Levels independently for I/II, identity defaults,
 shared preview/export, level-aware halo extraction and Clear's explicit bypass

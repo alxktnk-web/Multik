@@ -1,4 +1,18 @@
-# Current release — Sites version 10, 21 October 2026
+# Current release — Sites version 11, 21 October 2026
+
+- Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Native owner-private deployment `appgdep_6ad89986a4fc819198d6534fd8d90aca`, **succeeded** at 2026-10-21 10:53:06 UTC. Existing origin, audience and root Classic retained.
+- Saved version `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_a07879f48e94819185a0f94592bfadac`, confirmed version number 11.
+- GitHub fix `3b6729a`, main merge `36b2a92cc8430afc24a97138ed750d9dab0e8125`; CI [39587642725](https://github.com/alxktnk-web/Multik/actions/runs/39587642725) success. Parent `4cb5f11` retains the previous release; no history rewrite. Source rollback is a normal first-parent revert, not a browser-data rollback.
+- Sites source `0c5008fa2f0c3511f4a0ae39203c6a67cfc66c55` preserves existing private history and has the same source tree `701411e45da64fd42b3e1f5b6a6e8f9f5375007a` as the public runtime merge. Private history was not pushed to GitHub.
+- Archive `/workspace/multik-lightness-deploy.tar.gz`, local SHA-256 `11f42e51a5d3357e916c06a986c45cf6f52a3e63b173505ce925f6e8991de5f4`; backend hash `sha256:cd102bcda1bc7403ce9d3f27c9b2acf8b49b29df669cff04ff9d3da360a08cd3`, 23 files. Independent Node 22 build matched all 22 tested static files; 13 Classic files unchanged.
+- Only runtime change: `render/levels.ts` applies Levels to CIELAB L* per source, preserving a*/b* in gamut and compressing chroma at fixed L*/hue outside it. Exact neutral bypass; shared preview/export/halo helper. No UI or storage code changes. Existing test Levels are interpreted in L* without migration or clearing, as authorized by the owner.
+- Checks: 73 unit tests, production build/smoke, 40 colored GPU probes, editor hot path/Undo/retry/layout, Clear JPEG preview/tiled/4000px/12MP/snapshot/20-export plateau, frozen Original and Film harness all PASS. See VALIDATION.md; real iPhone/Safari timing and Photos acceptance remain open.
+- Installed PWA: info → **Update**. Publication used the documented helper-unavailable fallback: hidden stdin/RAM credential, non-force source push and remote SHA verification, exact-source archive, native private deployment. GitHub Pages remains disabled. Subsequent publication-record commits do not require republishing unchanged runtime.
+
+---
+
+# Previous release — Sites version 10, 21 October 2026
 
 - Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Native private deployment: `appgdep_6ad852d9099c8191bd6a8722ca6697c1`, **succeeded** at 2026-10-21 05:51:34 UTC. Owner-only access, existing origin and root Classic retained.

@@ -1,6 +1,6 @@
 # Multik Lighttable — состояние реализации
 
-Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 10**, deployed source `bf113b8`; GitHub runtime merge `851a47d` (одинаковое source tree).
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 11**, deployed source `0c5008f`; GitHub runtime merge `36b2a92` (одинаковое source tree).
 
 ## 21.10.2026 — точечная поправка Levels / Lightness
 
@@ -16,7 +16,12 @@
 - Export suite с разными Levels обоих источников: mono/tiled JPEG, 4000 px,
   12MP inputs, preview match, snapshot isolation, 20-export plateau и Share
   retry/context recovery — PASS. Frozen profile 2 / Film harness и production
-  GPU/UI smoke — PASS. Публикация в работе; iPhone не проверялся.
+  GPU/UI smoke — PASS. iPhone не проверялся.
+- Опубликовано как **Sites version 11**: `appgdep_6ad89986a4fc819198d6534fd8d90aca`,
+  succeeded 21.10.2026 10:53 UTC. GitHub merge `36b2a92`, CI
+  [39587642725](https://github.com/alxktnk-web/Multik/actions/runs/39587642725)
+  success; Sites source `0c5008f`, source trees и 22 статических файла совпали.
+  Прежний адрес и owner-private audience сохранены. В установленной PWA: info → Update.
 
 ## 21.10.2026 — реализация Edit / Levels / Clear
 
