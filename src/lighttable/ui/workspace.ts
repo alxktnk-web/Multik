@@ -19,13 +19,13 @@ import { demoSources } from './fixtures';
 export async function mountWorkspace(root:HTMLElement){
   root.innerHTML=`<main class="workspace">
     <header class="topbar">${button('library','Open library','back')}<span class="wordmark">multik</span>${button('info','About Multik','info')}</header>
-    <section class="stage" aria-label="Lighttable"><canvas tabindex="0" aria-label="Photo. Swipe to browse. Select a layer to move. Pinch resizes the selected layer."></canvas></section>
+    <section class="stage" aria-label="Lighttable"><canvas tabindex="0" aria-label="Photo. Swipe to browse. Edit to move a selected photo."></canvas></section>
     <p class="status" role="status" aria-live="polite"></p>
     <footer class="toolbar glass"><div class="sources">
       <button type="button" data-layer="a" aria-label="Select photo I" aria-pressed="false"><img alt=""/><span class="layer-depth" aria-hidden="true">I</span></button>
       <button type="button" data-layer="b" aria-label="Select photo II" aria-pressed="true"><img alt=""/><span class="layer-depth" aria-hidden="true">II</span></button>
-    </div><span class="divider"></span>${button('browse','Browse frames','browse')}${button('rotate','Rotate photo 90 degrees','rotate')}${button('export','Save to Photos','export')}${button('pro','Edit photo','pro')}${button('undo','Undo','undo')}</footer>
-    <dialog class="info-dialog"><div class="sheet-content"><h1>Lighttable</h1><p>Swipe to change pairs. Tap I or II to move a photo; tap it again or Browse to return. Pinch resizes only the selected photo.</p><p>Edit → Levels adjusts the selected photo. Drag the black, middle or white point. You can also slide vertically on the photo to change the selected point.</p><p>Looks changes the rendering profile. Clear adds linear light without automatic tone, color or halo effects; bright overlaps can clip to white. Your manual Levels still apply.</p><p>Done saves edits. Cancel restores the start of this edit. Lifting your finger does not save. Save to Photos prepares a JPEG; on iPhone choose Save Image in the share sheet.</p><p class="prototype-note">Install: Safari → Share → Add to Home Screen.</p><p class="prototype-note" data-pwa-state></p><a class="text-button recovery-link" href="/lighttable/recover.html">Recover app</a></div><form method="dialog" class="sheet-dock sheet-actions"><button class="close-dialog" aria-label="Close">×</button><button type="button" class="mix-button" data-pwa-update hidden>Update</button></form></dialog>
+    </div><span class="divider"></span>${button('rotate','Rotate photo 90 degrees','rotate')}${button('export','Save to Photos','export')}${button('pro','Edit photo','pro')}${button('undo','Undo','undo')}</footer>
+    <dialog class="info-dialog"><div class="sheet-content"><h1>Lighttable</h1><p>Swipe to change pairs. Edit opens Move. Select I or II, then drag to move that photo or pinch to resize it. Done returns to browsing.</p><p>Edit → Levels adjusts the selected photo. Slide vertically on the left, middle or right third of the photo to adjust black, midtones or white. The ruler follows your gesture and can also be dragged directly.</p><p>Looks changes the rendering profile. Clear adds linear light without automatic tone, color or halo effects; bright overlaps can clip to white. Your manual Levels still apply.</p><p>Done saves edits. Cancel restores the start of this edit. Lifting your finger does not save. Save to Photos prepares a JPEG; on iPhone choose Save Image in the share sheet.</p><p class="prototype-note">Install: Safari → Share → Add to Home Screen.</p><p class="prototype-note" data-pwa-state></p><a class="text-button recovery-link" href="/lighttable/recover.html">Recover app</a></div><form method="dialog" class="sheet-dock sheet-actions"><button class="close-dialog" aria-label="Close">×</button><button type="button" class="mix-button" data-pwa-update hidden>Update</button></form></dialog>
   </main>`;
   const workspace=root.querySelector<HTMLElement>('.workspace')!,canvas=root.querySelector('canvas')!,stage=root.querySelector<HTMLElement>('.stage')!;
   const session=new Session(createComposition('empty',[{assetId:'a',assetRevision:1},{assetId:'b',assetRevision:1}],[{x:4,y:3},{x:4,y:3}]));
@@ -35,6 +35,7 @@ export async function mountWorkspace(root:HTMLElement){
   const repo=new Repository(),navigation=new Navigation(repo,session,renderer);
   const status=root.querySelector<HTMLElement>('.status')!,info=root.querySelector<HTMLDialogElement>('.info-dialog')!;
   const action=(id:string)=>root.querySelector<HTMLButtonElement>(`[data-action="${id}"]`)!;
+  action('pro').insertAdjacentHTML('beforeend','<span>Edit</span>');
   const copy=document.createElement('button');copy.className='conflict-copy';copy.textContent='Save a separate copy';copy.hidden=true;workspace.append(copy);
   let noticeTimer=0;
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
@@ -45,19 +46,21 @@ export async function mountWorkspace(root:HTMLElement){
   const baseLocked=()=>busy||exportBusy||navigation.busy;
   const locked=()=>baseLocked()||gestures.active||session.gesturing;
   const sync=()=>{
+    const save=action('export'),dock=session.editing?editor.element.querySelector('.edit-actions')!:workspace.querySelector('.toolbar')!;
+    if(save.parentElement!==dock)dock.insertBefore(save,session.editing?editor.element.querySelector('[data-edit-done]'):action('pro'));
     const lock=locked();workspace.classList.toggle('editing',session.editing);workspace.classList.toggle('moving-layer',session.interaction==='move');
     for(const b of root.querySelectorAll<HTMLButtonElement>('.toolbar button'))b.disabled=lock;
     action('export').disabled=lock||!navigation.sources;
     action('undo').disabled=lock||!session.canUndo;
     action('library').disabled=lock||session.editing;
     action('info').disabled=lock||session.editing;
-    action('browse').setAttribute('aria-pressed',String(session.interaction==='browse'));
     action('pro').setAttribute('aria-expanded',String(session.editing));
     for(const b of root.querySelectorAll<HTMLButtonElement>('[data-layer]'))b.setAttribute('aria-pressed',String(b.dataset.layer===session.activeLayer));
     editor.sync(lock);
+    action('export').disabled=lock||!navigation.sources;
     const selected=session.tool.kind==='parameter'?session.tool.parameter:session.tool.kind==='xy'?session.tool.pair:'';
     for(const b of root.querySelectorAll<HTMLButtonElement>('.pro-options [data-action]'))b.setAttribute('aria-pressed',String(b.dataset.action===selected));
-    canvas.setAttribute('aria-label',session.tool.kind==='levels'?`Levels of photo ${session.activeLayer==='a'?'I':'II'}. Slide up to increase ${session.tool.point}. Pinch resizes the selected layer.`:session.tool.kind==='xy'?xyTools[session.tool.pair].label:session.tool.kind==='parameter'?`${parameters[session.tool.parameter].label}. Slide up to increase.`:'Photo. Swipe to browse, select a layer to move. Pinch resizes the selected layer.');
+    canvas.setAttribute('aria-label',session.tool.kind==='levels'?`Levels of photo ${session.activeLayer==='a'?'I':'II'}. Left, middle and right thirds adjust black, midtones and white. Slide vertically. Pinch resizes the selected layer.`:session.tool.kind==='xy'?xyTools[session.tool.pair].label:session.tool.kind==='parameter'?`${parameters[session.tool.parameter].label}. Slide up to increase.`:'Photo. Swipe to browse. Edit to move a selected photo.');
     canvas.style.pointerEvents=baseLocked()||editor.activeGesture?'none':'';
     rails.setLocked(lock||session.editing);pwa?.refresh();
   };
@@ -92,23 +95,22 @@ export async function mountWorkspace(root:HTMLElement){
     const id=target.dataset.action;
     if(target.dataset.layer){
       const layer=target.dataset.layer as LayerId;
-      if(session.editing){session.activeLayer=layer;session.interaction='move';}
-      else{session.interaction=session.activeLayer===layer&&session.interaction==='move'?'browse':'move';session.activeLayer=layer;session.tool={kind:'layer'};}
+      if(!session.editing)return;
+      session.activeLayer=layer;session.interaction='move';
       void rails.update().catch(reportError);
     }
     if(id==='info'&&!session.editing){pwa?.refresh();info.showModal();return;}
-    if(id==='browse'&&!session.editing){session.interaction='browse';session.tool={kind:'layer'};}
     if(id==='rotate'&&!session.editing){session.rotate();session.viewport.pan={x:0,y:0};session.tool={kind:'layer'};}
     if(id==='undo')session.undo();
     if(id==='rotate-layer')session.rotateLayer();
     if(id==='reset')session.resetLayer();
     if(id==='reset-levels'){session.begin();delete session.layer.levels;session.end();}
     if(id==='pro'&&!session.editing){
-      void navigation.boundary(async()=>{session.beginEdit();editor.mode='levels';session.interaction='move';session.tool={kind:'levels',point:'black'};report('');sync();}).catch(reportError);return;
+      void navigation.boundary(async()=>{session.beginEdit();editor.mode='layers';session.interaction='move';session.tool={kind:'layer'};report('');sync();}).catch(reportError);return;
     }
     if(id&&['halo','haloRadius','haloThreshold'].includes(id)&&session.draft.profile.version!==5)session.tool={kind:'parameter',parameter:id as ParameterId};
     if(id==='haloXY'&&session.draft.profile.version!==5)session.tool={kind:'xy',pair:'haloXY'};
-    if(id==='export'&&!session.editing){void navigation.boundary(async()=>{if(navigation.sources&&navigation.project)exportDialog.open(session.draft,navigation.sources,navigation.project.id);}).catch(reportError);return;}
+    if(id==='export'){void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
     if(id==='library'&&!session.editing){void navigation.boundary(()=>library.open()).catch(reportError);return;}
     sync();renderer.invalidate();
   },opts);

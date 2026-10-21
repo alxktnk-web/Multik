@@ -16,16 +16,16 @@ try{
  const wait=()=>page.waitForFunction(()=>!window.__lighttable.navigation.busy);
  async function drag(dx,dy){const r=await page.locator('canvas').boundingBox(),x=r.x+r.width/2,y=r.y+r.height/2;await send('touchStart',[[x,y]]);await send('touchMove',[[x+dx/2,y+dy/2]]);await send('touchMove',[[x+dx,y+dy]]);await send('touchEnd',[]);await wait();await frame();}
  let start=await state();assert.equal(start.mode,'browse');await drag(-90,0);assert.equal((await state()).project.a,1);assert.equal((await state()).project.b,1);assert.equal((await state()).commits,0);
- await page.click('[data-layer=b]');await drag(28,22);const moved=await state();assert.equal(moved.project.a,1);assert.equal(moved.writes,0);assert.equal(moved.dirty,true);
+ await page.click('[data-action=pro]');await page.click('[data-layer=b]');await drag(28,22);const moved=await state();assert.equal(moved.project.a,1);assert.equal(moved.writes,0);assert.equal(moved.dirty,true);
  const r=await page.locator('canvas').boundingBox(),x=r.x+r.width/2,y=r.y+r.height/2;
  await send('touchStart',[[x-40,y]]);await send('touchStart',[[x-40,y],[x+40,y]]);await send('touchMove',[[x-80,y],[x+80,y]]);await send('touchEnd',[[x-80,y]]);await send('touchMove',[[x-110,y+35]]);await send('touchEnd',[]);await frame();
  const scaled=await state();assert.equal(scaled.draft.layers[1].transform.scale,2);assert.deepEqual(scaled.draft.layers[0],moved.draft.layers[0]);assert.deepEqual(scaled.view,moved.view);assert.equal(scaled.writes,0);
- await page.click('[data-action=browse]');assert.equal((await state()).writes,0);await drag(-90,0);assert.equal((await state()).commits,1);assert.equal((await state()).draft.layers[1].transform.scale,undefined);await drag(90,0);assert.deepEqual((await state()).draft.layers,scaled.draft.layers);
+ await page.click('[data-edit-done]');await wait();assert.equal((await state()).writes,1);await drag(-90,0);assert.equal((await state()).commits,1);assert.equal((await state()).draft.layers[1].transform.scale,undefined);await drag(90,0);assert.deepEqual((await state()).draft.layers,scaled.draft.layers);
  await page.reload();await page.waitForFunction(()=>window.__lighttable?.navigation.project);assert.deepEqual((await state()).draft.layers,scaled.draft.layers);assert.equal((await state()).mode,'browse');
- await page.click('[data-layer=b]');assert.equal((await state()).mode,'move');await page.click('[data-layer=b]');assert.equal((await state()).mode,'browse');
- // Failure retains exact draft and frame; a subsequent swipe retries through the same commit boundary.
- await page.click('[data-layer=b]');await drag(12,4);const dirty=await state();await page.click('[data-action=browse]');
- await page.evaluate(()=>{const l=window.__lighttable,commit=l.repo.commit.bind(l.repo);l.repo.commit=async()=>{throw Error('Injected storage failure');};window.__restore=()=>l.repo.commit=commit;});await drag(-90,0);assert.deepEqual((await state()).draft,dirty.draft);assert.equal((await state()).project.a,1);await page.evaluate(()=>window.__restore());await drag(-90,0);assert.equal((await state()).project.a,2);
+ await page.click('[data-action=pro]');await page.click('[data-layer=b]');assert.equal((await state()).mode,'move');await page.click('[data-layer=b]');assert.equal((await state()).mode,'move');await page.click('[data-edit-done]');await wait();assert.equal((await state()).mode,'browse');
+ // Failed Done retains exact draft and Edit; retry completes before browsing resumes.
+ await page.click('[data-action=pro]');await page.click('[data-layer=b]');await drag(12,4);const dirty=await state();
+ await page.evaluate(()=>{const l=window.__lighttable,commit=l.repo.commit.bind(l.repo);l.repo.commit=async()=>{throw Error('Injected storage failure');};window.__restore=()=>l.repo.commit=commit;});await page.click('[data-edit-done]');await wait();assert.deepEqual((await state()).draft,dirty.draft);assert.equal((await state()).project.a,1);await page.evaluate(()=>window.__restore());await page.click('[data-edit-done]');await wait();await drag(-90,0);assert.equal((await state()).project.a,2);
  await page.click('[data-action=library]');assert.ok(page.url().endsWith('/lighttable/'));assert.equal(await page.locator('.library-dialog').isVisible(),true);assert.equal(await page.locator('a[href="/"]').count(),0);await page.click('[data-close-library]');
  await mkdir('lab-out/lighttable',{recursive:true});await page.screenshot({path:'lab-out/lighttable/gesture-v2-portrait.png'});await page.setViewportSize({width:874,height:402});await frame();await page.screenshot({path:'lab-out/lighttable/gesture-v2-landscape.png'});
  // GPU samples verify range and neutrality independently of subjective photographs.
@@ -39,6 +39,6 @@ try{
   }return out;
  });
  assert.deepEqual(tone[0].rgb,[0,0,0]);assert.ok(tone[1].rgb[0]<32);assert.ok(Math.abs(tone[2].rgb[0]-128)<3);assert.ok(tone[3].rgb[0]>=245);assert.ok(tone[4].rgb[0]>tone[2].rgb[0]+35);assert.deepEqual(tone[5].rgb,[255,255,255]);for(const p of tone)assert.ok(Math.max(...p.rgb)-Math.min(...p.rgb)<=1);
- assert.deepEqual(errors,[]);await writeFile('lab-out/lighttable/gesture-v2-evidence.json',JSON.stringify({tone,scale:scaled.draft.layers[1].transform,zeroWritesOnLift:true,commitOnSwipe:true,reload:true,storageFailureRetainsDraft:true,noClassicNavigation:true,hardware:'Chromium SwiftShader; not iPhone hardware'},null,2));
- console.log('PASS: native swipe/move ownership, selected-layer pinch, zero writes on lift, swipe commit/reload/failure retry, safe library navigation, black/mid/white tone GPU probes');
+ assert.deepEqual(errors,[]);await writeFile('lab-out/lighttable/gesture-v2-evidence.json',JSON.stringify({tone,scale:scaled.draft.layers[1].transform,zeroWritesOnLift:true,commitOnDone:true,reload:true,storageFailureRetainsDraft:true,noClassicNavigation:true,hardware:'Chromium SwiftShader; not iPhone hardware'},null,2));
+ console.log('PASS: native swipe/move ownership, selected-layer pinch, zero writes on lift, Done commit/reload/failure retry, safe library navigation, black/mid/white tone GPU probes');
 }finally{await browser.close();await vite.close();}

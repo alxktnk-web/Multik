@@ -24,6 +24,11 @@ export class Gestures {
     this.points.set(id,p);
     const s=this.session;
     if(this.points.size===1){
+      if(s.tool.kind==='levels'){
+        const m=filmToScreen(s.draft.frame,s.viewport),a=point(m,{x:0,y:0}),b=point(m,{x:s.draft.frame.widthMm,y:s.draft.frame.heightMm});
+        const fraction=(p.x-Math.min(a.x,b.x))/Math.max(1,Math.abs(b.x-a.x));
+        s.tool={kind:'levels',point:(['black','mid','white'] as const)[clamp(Math.floor(fraction*3),0,2)]};
+      }
       s.begin();
       this.single={start:p,last:p,x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},levels:{...getLevels(s.layer)},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
     }else if(this.points.size===2){

@@ -29,6 +29,13 @@ export class Repository {
   }
   async listRolls(){return (await this.all<Roll>('rolls')).map(validateRoll).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
   async roll(id:string){const r=await this.read<Roll>('rolls',id);if(!r)throw Error('Roll unavailable');return validateRoll(r);}
+  async renameRoll(id:string,name:string){
+    const clean=name.trim();if(!clean||clean.length>80)throw Error('Enter a name between 1 and 80 characters');
+    await this.write(['rolls'],(tx,fail)=>{
+      const store=tx.objectStore('rolls'),req=store.get(id);
+      req.onsuccess=()=>{try{const roll=validateRoll(req.result);store.put({...roll,name:clean});}catch(e){fail(e as Error);}};
+    });
+  }
   async asset(id:string){const a=await this.read<Asset>('assets',id);if(!a||a.id!==id||a.revision!==1||!(a.blob instanceof Blob)||!(a.preview instanceof Blob)||!(a.thumb instanceof Blob)||!Number.isFinite(a.width)||!Number.isFinite(a.height)||a.width<=0||a.height<=0)throw Error('Photo unavailable');return a;}
   async composition(id:string){const c=await this.read<Composition>('compositions',id);if(c)assertComposition(c);return c?copyComposition(c):c;}
   async ensureComposition(c:Composition){assertComposition(c);let result=c;

@@ -6,7 +6,8 @@ const vite=await createServer({server:{host:'127.0.0.1',port:5187,strictPort:tru
 const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 try{
  const page=await browser.newPage({viewport:{width:402,height:874},hasTouch:true,isMobile:true});page.setDefaultTimeout(20000);
- const errors=[];page.on('pageerror',e=>errors.push(e.stack));
+ page.on('filechooser',()=>{}); // Keep the native chooser pending for setInputFiles in headless tests.
+const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  await page.goto('http://127.0.0.1:5187/lighttable/');await page.waitForFunction(()=>window.__lighttable?.renderer.ready);
  await page.click('[data-new-roll]');assert.match(await page.inputValue('[data-roll-name]'),/^\d\d [A-Z][a-z]{2} · \d\d:\d\d$/);
  const photos=await page.evaluate(()=>{
@@ -48,7 +49,7 @@ try{
  const save=await page.locator('[data-action=export]').boundingBox();assert.ok(save.y>750);await page.screenshot({path:'lab-out/lighttable/onehand-workspace.png'});
  // Rotation changes only this pair and still waits for navigation before commit.
  const before=await page.evaluate(()=>window.__lighttable.repo.counters.compositionCommits);await page.click('[data-action=pro]');await page.click('[data-action=rotate-layer]');assert.equal(await page.evaluate(()=>window.__lighttable.repo.counters.compositionCommits),before);
- await page.click('[data-rail=a] [data-index="1"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.layer.transform.turns),0);
+ await page.click('[data-edit-done]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);await page.click('[data-rail=a] [data-index="1"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.layer.transform.turns),0);
  await page.click('[data-rail=a] [data-index="0"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.draft.layers[1].transform.turns),1);
  assert.deepEqual(errors,[]);await mkdir('lab-out/lighttable',{recursive:true});await writeFile('lab-out/lighttable/onehand-evidence.json',JSON.stringify({geometry,direction,environment:'Chromium SwiftShader. Native iOS picker and Photos not device-verified.'},null,2));
  console.log('PASS: 12/13 full/overflow, bottom dock in 3 sizes at both scroll ends, auto name, equal landscape/portrait placement and halo/JPEG, original bytes, per-pair manual rotation');
