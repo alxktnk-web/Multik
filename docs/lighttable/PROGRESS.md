@@ -33,6 +33,9 @@
   75 unit tests и production build — PASS. PWA offline/update/recovery — PASS.
   Просмотрены library/import/editor screenshots. Остались финальная регрессия,
   объединение с main и публикация; live пока version 11.
+- Финальная browser renderer/UI regression — PASS (hot path, rotations, halo,
+  recovery/disposal, visible targets >=44 px). Этапы сохранены коммитами
+  `3d5bef5`, `08aaf82`, `8778646`. Готово к интеграции и публикации.
 
 Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 11**, deployed source `0c5008f`; GitHub runtime merge `36b2a92` (одинаковое source tree).
 

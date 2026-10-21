@@ -1,5 +1,34 @@
 # Локальная проверка M0–M6
 
+## 21.10.2026 — упрощение интерфейса по этапам
+
+- 75 unit tests: дополнены реальный выбор трети композиции при разных viewport
+  и всех 90° rotations, фиксация точки при пересечении зон, Undo/source isolation,
+  отмена незавершённых Levels при переходе к pinch.
+- Node 22 production build / TypeScript: PASS; 13 Classic files byte-identical.
+- Editor browser suite: rulers, zero hot-path writes/readback/encode/upload/
+  compile/allocations, Undo/Cancel/Done/retry/pairs, default Move, icon-only export
+  in Edit, export commit failure/retry, portrait/landscape — PASS.
+- Native gesture suite: Browse → Edit/Move → selected-layer pinch → Done,
+  no writes on lift, commit retry and reload — PASS.
+- Workspace suite: native picker activation, 7/6 overflow and forged change,
+  real import progress with delayed storage, bad image replacement, long press
+  Rename and failure/retry, unchanged roll metadata apart from name, saved mixes
+  (including conflict copies), latest-pair resume and picker cancellation — PASS.
+  Existing navigation/CAS/copy/rails checks remain passing.
+- Onehand suite: 12/13 selection, dock visibility at both scroll ends in
+  375×667 / 402×874 / 874×402, auto name, original bytes, portrait/landscape
+  placement and JPEG, manual per-pair rotation — PASS.
+- Production smoke and PWA offline/update guards/recovery/auth/MIME — PASS.
+- Full browser renderer/UI regression: zero gesture I/O, all rotation axes,
+  halo, stale decode, bounded GPU resources, context recovery/disposal and
+  visible controls >=44 px at four viewport sizes — PASS.
+- Screenshots of editor, library and import progress visually reviewed.
+
+Renderer and Lightness math are byte-identical to version 11. Chromium checks
+do not establish actual iPhone finger accuracy, native picker options, heat,
+frame pacing, Safari keyboard layout or real Photos sharing.
+
 ## 21.10.2026 — Lightness-only Levels
 
 - `npm test` / `npm run build` (Node 22): 73 tests PASS, TypeScript/Vite PASS;
