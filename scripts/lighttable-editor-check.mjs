@@ -16,7 +16,7 @@ try{
    const roll=await importFiles(l.repo,s,'Levels fixtures',()=>{});await l.navigation.open(await l.repo.createProject(roll.id,roll.id));await l.navigation.select('b',1);
  });
  await page.click('[data-action="pro"]');await frame();assert.equal((await state()).editing,true);
- await page.click('[data-layer="a"]');
+ await page.click('[data-layer="a"]');await page.click('[data-mode="levels"]');
  const before=await state();
  // Real pointer input on the ruler, no writes/readback/encoding/uploads/allocations.
  await page.evaluate(()=>{const l=window.__lighttable;window.__io={read:0,encode:0,write:0};const read=l.renderer.gl.readPixels.bind(l.renderer.gl),blob=HTMLCanvasElement.prototype.toBlob,put=IDBObjectStore.prototype.put;l.renderer.gl.readPixels=(...a)=>{window.__io.read++;return read(...a)};HTMLCanvasElement.prototype.toBlob=function(...a){window.__io.encode++;return blob.apply(this,a)};IDBObjectStore.prototype.put=function(...a){window.__io.write++;return put.apply(this,a)};window.__metrics={uploads:l.renderer.metrics.uploads,compilations:l.renderer.metrics.compilations,bytes:l.renderer.metrics.liveBytes};window.__restore=()=>{l.renderer.gl.readPixels=read;HTMLCanvasElement.prototype.toBlob=blob;IDBObjectStore.prototype.put=put};});
@@ -35,7 +35,7 @@ try{
  await page.reload();await page.waitForFunction(()=>window.__lighttable?.navigation.project);assert.equal((await state()).draft.profile.version,5);assert.ok((await state()).draft.layers[0].levels.black>0);
  // Each pair is independent; return restores both Levels and profile.
  await page.evaluate(()=>window.__lighttable.navigation.step(1));assert.equal((await state()).draft.profile.version,2);assert.equal((await state()).draft.layers[0].levels,undefined);await page.evaluate(()=>window.__lighttable.navigation.step(-1));assert.equal((await state()).draft.profile.version,5);
- await page.click('[data-action="pro"]');
+ await page.click('[data-action="pro"]');await page.click('[data-mode="levels"]');
  for(const [name,w,h] of [['portrait',402,874],['small',375,667],['landscape',874,402]]){
    await page.setViewportSize({width:w,height:h});await frame();await page.screenshot({path:`${out}/${name}.png`});
    const dimensions=await page.evaluate(()=>{const track=document.querySelector('.levels-track').getBoundingClientRect(),stage=document.querySelector('.stage').getBoundingClientRect();return {track:{x:track.x,y:track.y,w:track.width,h:track.height},stage:{w:stage.width,h:stage.height},overflow:document.documentElement.scrollWidth>innerWidth};});
@@ -44,6 +44,19 @@ try{
  // Orientation preserves completed edits, cancels only in-progress input.
  const rotated=await state();await page.setViewportSize({width:402,height:874});await frame();assert.deepEqual((await state()).draft,rotated.draft);
  await page.click('[data-edit-cancel]');assert.equal((await state()).editing,false);
- assert.deepEqual(errors,[]);await writeFile(`${out}/checks.json`,JSON.stringify({environment:'Chromium, not iPhone hardware',passed:['ruler hot path','source isolation','Undo','Cancel checkpoint','Clear selection','failed Done retry','Done one commit','reload','pair isolation','portrait/landscape layout','rotation']},null,2));
+ // Export remains available in Edit and is a guarded save boundary.
+ assert.equal(await page.locator('[data-action="browse"]').count(),0);
+ assert.equal(await page.locator('.sources').isVisible(),false);
+ await page.click('[data-action="pro"]');assert.equal(await page.locator('[data-mode="layers"]').getAttribute('aria-pressed'),'true');
+ assert.equal(await page.locator('[data-action="export"]').isVisible(),true);
+ await page.click('[data-mode="levels"]');await page.locator('[data-level="black"]').focus();await page.keyboard.press('ArrowRight');
+ const exportDraft=await state();
+ await page.evaluate(()=>{const r=window.__lighttable.repo;window.__commit=r.commit.bind(r);r.commit=async()=>{throw Error('Test save failure');};});
+ await page.click('[data-action="export"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);
+ assert.equal((await state()).editing,true);assert.deepEqual((await state()).draft,exportDraft.draft);assert.equal(await page.locator('.export-dialog').isVisible(),false);
+ await page.evaluate(()=>window.__lighttable.repo.commit=window.__commit);
+ await page.click('[data-action="export"]');await page.locator('.export-dialog').waitFor({state:'visible'});assert.equal(await page.locator('.export-dialog').isVisible(),true);assert.equal((await state()).editing,false);assert.equal((await state()).commits,exportDraft.commits+1);
+ await page.click('[data-close-export]');assert.equal(await page.locator('[data-action="export"]').isVisible(),true);
+ assert.deepEqual(errors,[]);await writeFile(`${out}/checks.json`,JSON.stringify({environment:'Chromium, not iPhone hardware',passed:['ruler hot path','source isolation','Undo','Cancel checkpoint','Clear selection','failed Done retry','Done one commit','reload','pair isolation','portrait/landscape layout','rotation','export visible in Edit','export commit failure and retry','explicit Move entry']},null,2));
  console.log('PASS: Levels editor real input, zero I/O hot path, Undo/Cancel, failed commit retry, persistence, pairs, layouts');
 }finally{await browser.close();await vite.close();}

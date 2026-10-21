@@ -44,6 +44,8 @@ button{touch-action:manipulation}button:active:not(:disabled){background-color:#
 .topbar button{width:48px;height:44px;background:none;border:0;border-radius:24px;display:grid;place-items:center;color:var(--muted)}
 .toolbar{gap:4px;padding:6px}.toolbar button{width:48px;height:48px}.sources{gap:4px}.sources button[aria-pressed=true]{outline:2px solid var(--sage);outline-offset:-2px}
 .toolbar [data-action=undo]{display:none}.editor{display:contents}
+.workspace:not(.editing) .toolbar .sources,.workspace:not(.editing) .toolbar .divider{display:none}
+.toolbar [data-action=pro]{display:flex;flex-direction:column;justify-content:center;gap:2px;font-size:10px}
 .edit-modes{display:flex;align-items:center;justify-content:space-evenly;border-radius:26px;padding:4px;gap:2px;margin:4px 8px 4px 0;min-width:0}
 .edit-modes button{width:44px;min-width:44px;height:52px;border:0;border-radius:19px;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--muted)}
 .edit-modes button[aria-pressed=true],.pro-options button[aria-pressed=true]{background:#a3b2a027;color:#d1dbce}
@@ -53,6 +55,7 @@ button{touch-action:manipulation}button:active:not(:disabled){background-color:#
 .level-handle i{height:12px;width:12px;border-radius:50%;background:var(--dot);border:1px solid #d5d0c7;pointer-events:none;box-shadow:0 2px 4px #0006}.level-handle.selected i{outline:2px solid var(--sage);outline-offset:3px}
 .look-options{display:flex;gap:8px;padding:8px 16px}.look-options button{flex:1;min-height:48px;min-width:0;border:1px solid transparent;border-radius:18px;background:#ffffff08;font-size:13px}.look-options button[aria-pressed=true]{border-color:#a3b2a080;background:#a3b2a027;color:#d1dbce}
 .edit-actions{display:flex;justify-content:space-between;align-items:center;padding:4px 18px 8px;gap:12px}.edit-actions button{height:48px;min-width:84px;padding:0 20px;border:0;border-radius:28px;background:#ffffff0a}.edit-actions [data-edit-done]{background:var(--sage);color:#232a20;font-weight:600}
+.edit-actions [data-action=export]{display:grid;place-items:center;min-width:48px;width:48px;padding:0;color:#d1dbce;background:#a3b2a025}
 .layer-controls{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px}.layer-controls button,.pro-options button{width:48px;height:48px;flex-shrink:0;border:0;border-radius:24px;background:#ffffff08;display:grid;place-items:center}
 .layer-controls label,.pro-range-label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--muted)}.layer-controls label{flex:1;max-width:240px;min-width:80px}.layer-controls input,.effect-range{width:100%;min-height:44px;accent-color:var(--sage);margin:0;touch-action:none}
 .pro-controls{padding:4px 16px 8px}.pro-options{display:flex;justify-content:center;gap:8px}.pro-range-label{max-width:360px;margin:4px auto 0}.pro-range-label span{text-align:center}
@@ -68,6 +71,14 @@ button{touch-action:manipulation}button:active:not(:disabled){background-color:#
 .editing .edit-actions{grid-column:1/-1;grid-row:5;padding:4px 16px;gap:8px}
 .editing .status{bottom:116px}.editing .conflict-copy{bottom:164px}
 @media(orientation:landscape){
+  .workspace:not(.editing),.workspace.has-rails.rails-collapsed:not(.editing){grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 60px}
+  .workspace.has-rails:not(.rails-collapsed):not(.editing){grid-template-columns:68px minmax(0,1fr) 68px;grid-template-rows:minmax(0,1fr) 60px}
+  .workspace:not(.editing) .stage{grid-column:1;grid-row:1}.workspace.has-rails:not(.rails-collapsed):not(.editing) .stage{grid-column:2}
+  .workspace:not(.editing) .toolbar{grid-column:1/-1;grid-row:2;flex-direction:row;margin:2px;padding:4px;gap:4px}
+  .workspace:not(.editing) .rail-a{grid-column:1}.workspace:not(.editing) .rail-b{grid-column:3}
+  .workspace:not(.editing) .topbar{left:env(safe-area-inset-left);right:env(safe-area-inset-right)}
+  .workspace.has-rails:not(.rails-collapsed):not(.editing) .topbar{left:calc(68px + env(safe-area-inset-left));right:calc(68px + env(safe-area-inset-right))}
+  .workspace:not(.editing) .rail-handle{left:calc(30px + env(safe-area-inset-left));bottom:calc(8px + env(safe-area-inset-bottom))}
   .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{grid-template-columns:156px minmax(184px,1fr) 204px 44px;grid-template-rows:minmax(0,1fr) 60px;column-gap:4px}
   .editing .stage,.has-rails.editing .stage{grid-column:1/4;grid-row:1}
   .editing .topbar{display:none}

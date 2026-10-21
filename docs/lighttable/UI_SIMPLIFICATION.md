@@ -10,7 +10,7 @@ image algorithm change. Baseline main e726aff / Sites version 11.
    gesture and scales the selected source. Synchronized draggable thin ruler:
    horizontal immediately below photo in portrait, vertical far right in
    landscape. Tools in one horizontal row, generous invisible hit targets.
-2. [ ] Browse/Edit: remove ↔, explicit Edit starts Move; source thumbnails only
+2. [x] Browse/Edit: remove ↔, explicit Edit starts Move; source thumbnails only
    in Edit, Move/Levels/Looks/Pro. Done returns to browsing. Icon-only export
    visible in both modes. Export commits and completes Edit only after success;
    failed saves retain draft/checkpoint/Undo. No long-press gesture on photo.
