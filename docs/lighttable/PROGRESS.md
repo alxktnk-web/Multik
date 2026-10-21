@@ -1,6 +1,16 @@
 # Multik Lighttable — состояние реализации
 
-Обновлено: 20.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск по feedback владельца: **Sites version 8**, deployed commit `d22a3ca`.
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск по feedback владельца: **Sites version 8**, deployed commit `d22a3ca`.
+
+## 21.10.2026 — интеграция Film / Dense
+
+- По новой команде владельца проверен PR #1, head `319e3f8`; интеграция ведётся в `integrate/film-profiles` поверх этой ветки. Ограничение «не merge/deploy» относилось к исследовательскому чату; текущая задача владельца — подключить готовый алгоритм в приложение.
+- Выбрано явное включение на пару: Pro → Image profile → Original (2) / Film (3) / Dense (4). Default остаётся 2; старые пары не мигрируют. Film/Dense отмечены experimental; Dense может терять слабые теневые детали.
+- Новый компактный preview chooser: варианты меняют только RAM, Apply — один Undo, Cancel/Escape возвращают предыдущее состояние вместе с прежними правками. При resize/background/context loss незавершённое сравнение отменяется. Gestures/navigation/export/update блокируются на время выбора.
+- Запись — на прежней metadata boundary, не на выборе или Apply. Ошибка commit сохраняет draft и Undo. Original blobs, schema DB и независимость пар сохранены.
+- Экспорт дополнительно инвалидирует готовый JPEG по profile.version, даже при равных id/revision. Thumbnail guard уже учитывает version.
+- Проверки: Node 22.23.3 / npm 10.9.9, 66 unit tests; оба film harness (3/4), density study, browser/gestures/Pro/workspace, полный export suite на profile 4 (включая 4000 px/12MP inputs/20 exports), production smoke и scoped PWA — PASS. Frozen profiles 2/3 совпадают точно; 13 Classic files byte-identical. Новая UI-suite PASS: Cancel/Undo/no-op, ноль writes/readback/encode/upload/compile при сравнении, failure/retry, per-pair/reload, cache JPEG/thumbnail, 375×667 / 402×874 / 874×402, resize/context loss, hashes originals. Найденное растягивание dialog на всю высоту исправлено через fit-content и проверено скриншотами.
+- Sites пока version 8; публикация интеграции ещё не выполнена. Профили не объявляются проверенными на iPhone.
 
 ## 20.10.2026 — отдельное направление алгоритма изображения
 

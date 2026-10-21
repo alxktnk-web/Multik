@@ -29,7 +29,7 @@ export class ExportDialog {
   }
   open(snapshot:Composition,sources:[Asset,Asset],projectId:string){
     if(this.controller)return;
-    if(this.snapshot?.id!==snapshot.id||this.snapshot.revision!==snapshot.revision)this.clearResult();
+    if(this.snapshot?.id!==snapshot.id||this.snapshot.revision!==snapshot.revision||this.snapshot.profile.version!==snapshot.profile.version)this.clearResult();
     this.snapshot=copyComposition(snapshot);this.sources=[...sources];this.projectId=projectId;this.message.textContent='';this.sync();this.dialog.showModal();if(!this.file)void this.generate();
   }
   private clearResult(){if(this.url)URL.revokeObjectURL(this.url);this.url='';this.file=undefined;this.dialog.querySelector('img')!.removeAttribute('src');}
