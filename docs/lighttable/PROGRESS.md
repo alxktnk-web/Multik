@@ -3,7 +3,7 @@
 ## 21.10.2026 — упрощение интерфейса, этапы с сохранением прогресса
 
 План: [UI_SIMPLIFICATION.md](UI_SIMPLIFICATION.md), ветка
-`feat/interface-simplification`. Действующий сайт пока version 11.
+`feat/interface-simplification` объединена с main. Действующий сайт — **Sites version 12**.
 
 - **Этап 1 завершён:** зоны Levels на фото (слева black, центр mid, справа
   white), выбор фиксируется до lift; второй палец отменяет незавершённые
@@ -20,7 +20,7 @@
   draft/checkpoint/Undo. Основной toolbar в landscape тоже горизонтальный.
 - Проверки этапа 2: production build, editor suite с export failure/retry,
   native touch browse/Edit/move/pinch/Done/reload — PASS. Скриншоты 375×667
-  и landscape просмотрены. Следующий этап: библиотека/rename/import progress.
+  и landscape просмотрены.
 - **Этап 3 завершён:** минимальная библиотека без hero, ＋ вызывает системный
   picker, крупные roll cards, удержание/F2 для Rename. Ошибка rename оставляет
   введённое имя; исходники не меняются. Saved mixes внутри меню плёнки сохраняет
@@ -31,13 +31,18 @@
   decoder error/retry, rename failure/retry, сохранность metadata, saved mixes,
   отмена picker, CAS/copy/rails), onehand 375/402/874 и production smoke — PASS.
   75 unit tests и production build — PASS. PWA offline/update/recovery — PASS.
-  Просмотрены library/import/editor screenshots. Остались финальная регрессия,
-  объединение с main и публикация; live пока version 11.
+  Просмотрены library/import/editor screenshots.
 - Финальная browser renderer/UI regression — PASS (hot path, rotations, halo,
   recovery/disposal, visible targets >=44 px). Этапы сохранены коммитами
-  `3d5bef5`, `08aaf82`, `8778646`. Готово к интеграции и публикации.
+  `3d5bef5`, `08aaf82`, `8778646`.
+- **Опубликовано как Sites version 12**: deployment `appgdep_6ad8e04844ec8191b7a34a45ec05352a`,
+  succeeded 21.10.2026 15:55 UTC. GitHub merge `517f06f`, CI
+  [39629768898](https://github.com/alxktnk-web/Multik/actions/runs/39629768898) success.
+  Sites source `38e1afa`, одинаковое source tree и все 22 файла сборки.
+  Backup `backup/main-before-ui-2026-10-21` на `e726aff`. Прежний адрес,
+  owner-private audience и root Classic сохранены. Установленная PWA: info → Update.
 
-Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 11**, deployed source `0c5008f`; GitHub runtime merge `36b2a92` (одинаковое source tree).
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 12**, deployed source `38e1afa`; GitHub runtime merge `517f06f` (одинаковое source tree).
 
 ## 21.10.2026 — точечная поправка Levels / Lightness
 

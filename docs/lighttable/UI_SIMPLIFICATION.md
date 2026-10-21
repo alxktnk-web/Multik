@@ -17,7 +17,7 @@ image algorithm change. Baseline main e726aff / Sites version 11.
 3. [x] Library/import: plus at top, roll cards below, long press Rename.
    Plus immediately invokes system photo picker. Clear import progress distinct
    from selection capacity. English UI, no decorative hero or intro copy.
-4. [ ] Final checks, main integration, same-origin owner-private Sites release.
+4. [x] Final checks, main integration, same-origin owner-private Sites release.
 
 ## Resume protocol
 
@@ -26,3 +26,6 @@ gets its own commit and remote branch push. Leave checked runtime on branch
 until integration; do not claim publication until native deployment succeeds.
 Preserve new drafts and originals. Prior test-data migration is not required.
 Chromium checks do not establish iPhone performance or Photos acceptance.
+
+Completed: stages 3d5bef5 / 08aaf82 / 8778646; main merge 517f06f.
+Published as Sites version 12, source 38e1afa. See DEPLOYMENT.md.
