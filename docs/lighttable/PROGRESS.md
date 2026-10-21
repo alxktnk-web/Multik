@@ -1,6 +1,6 @@
 # Multik Lighttable — состояние реализации
 
-Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск по feedback владельца: **Sites version 8**, deployed commit `d22a3ca`.
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 9**, deployed source `b21533c`; GitHub runtime merge `c3372d9` (одинаковое source tree).
 
 ## 21.10.2026 — интеграция Film / Dense
 
@@ -10,7 +10,9 @@
 - Запись — на прежней metadata boundary, не на выборе или Apply. Ошибка commit сохраняет draft и Undo. Original blobs, schema DB и независимость пар сохранены.
 - Экспорт дополнительно инвалидирует готовый JPEG по profile.version, даже при равных id/revision. Thumbnail guard уже учитывает version.
 - Проверки: Node 22.23.3 / npm 10.9.9, 66 unit tests; оба film harness (3/4), density study, browser/gestures/Pro/workspace, полный export suite на profile 4 (включая 4000 px/12MP inputs/20 exports), production smoke и scoped PWA — PASS. Frozen profiles 2/3 совпадают точно; 13 Classic files byte-identical. Новая UI-suite PASS: Cancel/Undo/no-op, ноль writes/readback/encode/upload/compile при сравнении, failure/retry, per-pair/reload, cache JPEG/thumbnail, 375×667 / 402×874 / 874×402, resize/context loss, hashes originals. Найденное растягивание dialog на всю высоту исправлено через fit-content и проверено скриншотами.
-- Sites пока version 8; публикация интеграции ещё не выполнена. Профили не объявляются проверенными на iPhone.
+- Интеграция включена в GitHub main merge-коммитом `c3372d9a209a68baa0f812ddb0b25ac73ac9a2ec`, PR #1 merged; backup `backup/main-before-profiles-2026-10-21` на `0dc89b7`. GitHub CI [39521219112](https://github.com/alxktnk-web/Multik/actions/runs/39521219112) — success.
+- **Опубликовано как Sites version 9**, native deployment `appgdep_6ad806c9cf988191a064d4dab77a5d9c`, succeeded 21.10.2026 00:27 UTC. Sites source `b21533c1470f84862b9e3c22903dd42107c82d90` сохраняет прежнюю Sites history; source tree совпадает с GitHub runtime merge. Все 22 статических файла публикации совпали с проверенной сборкой. Подробности/rollback — DEPLOYMENT.md.
+- Адрес `/lighttable/`, owner-private и root Classic сохранены. Для установленной PWA: info → Update. Затем Pro → Image profile → Original / Film / Dense → Apply. Не очищать Safari data. Профили не объявляются проверенными на iPhone.
 
 ## 20.10.2026 — отдельное направление алгоритма изображения
 
@@ -115,7 +117,7 @@
 - **Рабочая база:** GitHub `alxktnk-web/Multik`, ветка `main`; текущий checkout `/workspace/Multik`. Исторические `/workspace/sites/...` и handoff-пути относятся к прежней среде и могут отсутствовать.
 - **Точки восстановления:** `multik-v8-source` (`4f139e6`), `backup/main-before-v8-2026-10-20` (`57ce58e6`). Classic production baseline сохранён в `deployment/classic-baseline.tar.gz`, сведения — `deployment/BASELINE.json`.
 - План/решения/приёмка: рядом в `docs/lighttable/`. Последние датированные решения важнее раннего плана; GitHub теперь разрешён. CI не публикует сайт.
-- Пилот: **https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/**. Sites version 8, owner-private. Root Classic сохранён побайтово.
+- Пилот: **https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/**. Sites version 9, owner-private. Root Classic сохранён побайтово.
 - Устройство владельца: **iPhone 16 Pro**, версия iOS сообщена как **«27.01»** (записано буквально, не проверено на устройстве).
 
 ## Этапы
@@ -202,6 +204,6 @@
 
 ## Следующий этап
 
-Version 8 размещена. Следующие действия: feedback владельца по явному browse/move, pinch выбранного слоя и новому тону на реальных фото iPhone 16 Pro; Safari/PWA install, native picker, Save Image, offline, wake/auth и hardware gesture timings. Не просить повторного разрешения на уже состоявшуюся публикацию и не публиковать её заново ради документации. M7 отменён; M10 переключение root остаётся отдельным решением.
+Version 9 размещена. Следующие действия: feedback владельца по Original / Film / Dense на своих парах (особенно детали теней Dense и яркость светов Film), сравнение JPEG/Photos, прежние browse/move и pinch на реальных фото iPhone 16 Pro; Safari/PWA install, native picker, Save Image, offline, wake/auth и hardware gesture timings. Не просить повторного разрешения на уже состоявшуюся публикацию и не публиковать её заново ради документации. M7 отменён; M10 переключение root остаётся отдельным решением.
 
 В новом чате не начинать M0 заново: читать этот файл и фактический Git. В portable package новый код — `implementation/repository.bundle`/`source.zip`; `baseline/` оставлен для отката. После следующего этапа обновить файл и его зеркало в handoff.

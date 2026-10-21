@@ -1,3 +1,29 @@
+# Film / Dense integration — Sites version 9
+
+Published 21 October 2026 after the owner requested integrating the completed research into the application.
+
+- Live app: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/
+- Project: `appgprj_6ad0be6c39f48191b3dad11c00502dc4`.
+- Saved version: `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_aa9caf3ac1908191b17950cae7bc6722` (version 9).
+- Deployment: `appgdep_6ad806c9cf988191a064d4dab77a5d9c`, native status **succeeded**, `2026-10-21T00:27:03.554870+00:00`.
+- GitHub runtime merge: `c3372d9a209a68baa0f812ddb0b25ac73ac9a2ec`; integration change `962c727`, research head `319e3f8`. PR #1 is merged. [Node 22 CI succeeded](https://github.com/alxktnk-web/Multik/actions/runs/39521219112).
+- Sites source: `b21533c1470f84862b9e3c22903dd42107c82d90`. Parents preserve the prior Sites `d22a3ca` history and the GitHub runtime merge. Shared source tree: `005af8c90ab536661a69dd5bb27dc55090d19fd5`. The private Sites history was not pushed to public GitHub.
+- Archive: `/workspace/multik-film-profiles-deploy.tar.gz`, local SHA-256 `e95dbb18be2dbe1689d1876661467fa475891571c78534bc3fa6b864dd8a8db7`. Saved backend tar hash `sha256:3c0a3507f8f646566fd74712c0114cba46dfb5b7f8283532d9dfe9183444d186`, 23 files. Keep the archive unchanged.
+- Independent publish checkout built the exact source tree; all 22 static files matched the tested build byte-for-byte. All 13 Classic files remain identical to the vendored baseline.
+- `get_site` confirmed owner-only custom access before publication; private deployment preserved it. Origin, root Classic, DB schema, original blobs and existing profile-2 pairs were not migrated. Pages remains verification-only.
+- The Sites source helper is absent in this environment. Used the documented RAM/hidden-stdin Git credential fallback, non-force source push with ancestry/remote SHA verification, exact-tree build and native archive-backed private publication. No credential was persisted or printed.
+- Validation: 66 unit tests, frozen profile 2/3 + CPU candidate oracles, both film harnesses, density comparison, new profile UI suite, browser/gestures/Pro/workspace, profile-4 4000px export/12MP fixtures/20-export plateau, production smoke and scoped PWA — PASS. See VALIDATION.md. Safari/iPhone hardware acceptance remains open.
+
+## Using the update and rollback limits
+
+Installed PWA: info → **Update**. Open Pro → the two-frame **Image profile** icon. Original/Film/Dense preview the current pair; Cancel restores its previous draft, Apply adds one RAM Undo, and the normal navigation/export boundary saves metadata. New pairs remain Original. Do not clear Safari data.
+
+GitHub backup `backup/main-before-profiles-2026-10-21` preserves `0dc89b7`. A source rollback is a normal reviewed revert of merge `c3372d9` with first parent 1; it does not deploy or restore browser data. Once a user saves profile 3/4, the old v8 reader cannot read that composition. Prefer a forward fix retaining 3/4 support. An explicit switch of a selected pair to Original in the current app is reversible and preserves its originals/geometry/effects; there is no bulk downgrade.
+
+Version 8 remains a saved hosting artifact, not a guaranteed data-compatible downgrade. Preserve both databases and cache/update semantics. Subsequent publication-record commits on GitHub only update documentation; do not republish the same runtime for documentation alone.
+
+---
+
 # GitHub development base — 20 October 2026
 
 The source repository is now `https://github.com/alxktnk-web/Multik`, with v8 as the development base of `main`. This is a source integration only. No Sites publication, Pages publication, origin change, root switch or browser-data migration is part of this operation.
