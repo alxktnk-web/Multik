@@ -25,3 +25,15 @@ dialog{color:var(--ink);border:1px solid #ffffff18;border-radius:30px 30px 0 0;p
 .sheet-mark svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}.candidate img:not([src]){visibility:hidden}
 .toolbar button[data-action=browse][aria-pressed=true]{background:#a3b2a024;color:#d1dbce}.sources button[aria-pressed=true]{outline-color:#817b72}.moving-layer .sources button[aria-pressed=true]{outline:2px solid #a3b2a0;outline-offset:-2px}.workspace:not(.moving-layer) .stage canvas{cursor:ew-resize}.moving-layer .stage canvas{cursor:grab}
 @media(orientation:landscape) and (max-height:370px){.toolbar,.has-rails .toolbar{padding:2px}.divider{margin:1px 0}}
+
+/* Keep the photograph visible while comparing looks; the modal owns input only. */
+.profile-dialog{width:min(360px,100%);height:fit-content;top:auto;bottom:0;max-height:100dvh;margin:0 auto;border-radius:24px 24px 0 0;background:#35312df5}
+.profile-dialog::backdrop{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.profile-content{padding:16px 16px 0}.profile-dialog h1{font-size:16px;margin:0 0 12px}
+.profile-options{display:flex;gap:4px;border-radius:16px;background:#2c2926;padding:4px}
+.profile-options button{flex:1;min-height:44px;border:0;border-radius:12px;background:none;color:var(--muted);font-size:14px}
+.profile-options button[aria-pressed=true]{background:#a3b2a026;color:#d1dbce;box-shadow:inset 0 0 0 1px #a3b2a060}
+.profile-dialog p{min-height:36px;margin:10px 0;font-size:12px}
+.profile-dialog .sheet-dock{padding-top:10px}
+@media(orientation:landscape){.profile-dialog{margin:auto 12px max(8px,env(safe-area-inset-bottom)) auto;border-radius:24px;width:330px}.profile-dialog .sheet-dock{border-radius:0 0 24px 24px}}
+@media(prefers-reduced-transparency:reduce){.profile-dialog{background:#35312d}}

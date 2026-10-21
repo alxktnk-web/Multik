@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-20",
+  "base": "0dc89b74d9f6792142769538c7ff285ccf8f9024",
+  "runtime_commit": "9315887",
+  "environment": "Node v24.19.0, npm 11.9.0, Chromium SwiftShader; not iPhone",
+  "checks": {
+    "unit": {
+      "status": "passed",
+      "evidence": [
+        "      Tests  65 passed (65)"
+      ]
+    },
+    "build": {
+      "status": "passed",
+      "evidence": [
+        "Combined PWA artifact: /workspace/Multik/dist-combined; 13 Classic files byte-identical"
+      ]
+    },
+    "browser": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native diagonal gestures accumulate RAM drafts; zero readback/encode/upload/compile/IDB on movement and lift",
+        "PASS: pinch cancels only active stroke; one remaining finger waits; movement follows finger at all rotations and zoom",
+        "PASS: layer selector and explicit parameter gesture have one owner; closing tools restores layer drag",
+        "PASS: source-anchored red halo, padded source edges, halo=0, no halo triggered by two medium lights",
+        "PASS: stale decode cannot replace the latest complete pair; retired GPU textures released",
+        "PASS: 1024/768/512 presentation tiers retain scene and textures; 100 invalidations coalesce into one draw",
+        "PASS: WebGL context loss/restoration keeps RAM composition and rebuilds bounded resources",
+        "PASS: portrait / landscape layout, rotation independent from phone orientation, controls >=44px",
+        "PASS: no page errors; bounded active GPU allocations. iPhone hardware performance NOT VERIFIED.",
+        "PASS: disposal releases tracked textures, listeners and scheduler"
+      ]
+    },
+    "gestures": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native swipe/move ownership, selected-layer pinch, zero writes on lift, swipe commit/reload/failure retry, safe library navigation, black/mid/white tone GPU probes"
+      ]
+    },
+    "data": {
+      "status": "passed",
+      "evidence": [
+        "PASS: original bytes preserved, CAS conflict + transaction abort/retry, hidden partial imports, bad-file cleanup",
+        "PASS: interrupted legacy adoption resumes/deduplicates, 0 legacy writes, independent originals after Classic deletion"
+      ]
+    },
+    "workspace": {
+      "status": "passed",
+      "evidence": [
+        "PASS: native 6-frame import enforces full/overflow including forged change; failed file can be removed/replaced without losing selection",
+        "PASS: zero commits on lift, exactly one metadata commit at pair navigation, independent pair offsets and reload restoration",
+        "PASS: injected transaction abort prevents navigation and keeps draft; next tap retries successfully",
+        "PASS: serialized navigation ignores a second target while the first metadata commit is pending",
+        "PASS: stale tab cannot overwrite committed revision; explicit copy retains the draft in a separate session",
+        "PASS: independent scroll/selection, collapsible rails, A/center/B landscape and orientation-specific visibility",
+        "PASS: workspace integration has no page errors"
+      ]
+    },
+    "export": {
+      "status": "passed",
+      "evidence": [
+        "PASS: tiled/monolithic geometry and halo, snapshot isolation, cancellation, exact 4000px output, unsupported size, 20-export texture plateau",
+        "PASS: explicit fresh Share retry/download, revision-matched derivative home hero, context-loss recovery, no page errors"
+      ]
+    },
+    "cache": {
+      "status": "passed",
+      "evidence": [
+        "PASS: warm return uploads=0; 100 pair changes bounded to 21609828 tracked bytes (peak 28813104); dispose=0; no unchanged-frame commits"
+      ]
+    },
+    "pro": {
+      "status": "passed",
+      "evidence": [
+        "PASS: home, explicit one-axis/XY, keyboard/ranges, tool lock, pinch rollback, rotate exit, independent persisted effects, coalesced halo rebuild without upload/allocation"
+      ]
+    },
+    "film": {
+      "status": "passed",
+      "evidence": [
+        "PASS: frozen profile 2, independent CPU oracle, gray steps, halo, commutativity, allocation-free profile switch",
+        "PASS: seven labelled source/profile-2/profile-3 comparisons generated",
+        "PASS: profile-3 durable roundtrip, independent v8 pair, six original hashes, context restoration",
+        "PASS: profile-3 tiled JPEG, preview comparison, snapshot/cancel/budget/dispose"
+      ]
+    }
+  }
+}

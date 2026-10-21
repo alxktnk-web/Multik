@@ -1,8 +1,73 @@
 # Multik Lighttable — состояние реализации
 
-Обновлено: 20.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск по feedback владельца: **Sites version 8**, deployed commit `d22a3ca`.
+Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск по feedback владельца: **Sites version 8**, deployed commit `d22a3ca`.
+
+## 21.10.2026 — интеграция Film / Dense
+
+- По новой команде владельца проверен PR #1, head `319e3f8`; интеграция ведётся в `integrate/film-profiles` поверх этой ветки. Ограничение «не merge/deploy» относилось к исследовательскому чату; текущая задача владельца — подключить готовый алгоритм в приложение.
+- Выбрано явное включение на пару: Pro → Image profile → Original (2) / Film (3) / Dense (4). Default остаётся 2; старые пары не мигрируют. Film/Dense отмечены experimental; Dense может терять слабые теневые детали.
+- Новый компактный preview chooser: варианты меняют только RAM, Apply — один Undo, Cancel/Escape возвращают предыдущее состояние вместе с прежними правками. При resize/background/context loss незавершённое сравнение отменяется. Gestures/navigation/export/update блокируются на время выбора.
+- Запись — на прежней metadata boundary, не на выборе или Apply. Ошибка commit сохраняет draft и Undo. Original blobs, schema DB и независимость пар сохранены.
+- Экспорт дополнительно инвалидирует готовый JPEG по profile.version, даже при равных id/revision. Thumbnail guard уже учитывает version.
+- Проверки: Node 22.23.3 / npm 10.9.9, 66 unit tests; оба film harness (3/4), density study, browser/gestures/Pro/workspace, полный export suite на profile 4 (включая 4000 px/12MP inputs/20 exports), production smoke и scoped PWA — PASS. Frozen profiles 2/3 совпадают точно; 13 Classic files byte-identical. Новая UI-suite PASS: Cancel/Undo/no-op, ноль writes/readback/encode/upload/compile при сравнении, failure/retry, per-pair/reload, cache JPEG/thumbnail, 375×667 / 402×874 / 874×402, resize/context loss, hashes originals. Найденное растягивание dialog на всю высоту исправлено через fit-content и проверено скриншотами.
+- Sites пока version 8; публикация интеграции ещё не выполнена. Профили не объявляются проверенными на iPhone.
 
 ## 20.10.2026 — отдельное направление алгоритма изображения
+
+### Продолжение B1 — запрос на плотные тени и взаимодействие участками
+
+- Пользователь попросил объяснить потерю чёрного, исследовать практические способы и сделать ещё один профиль. Проверены remote: main `0dc89b7`, research `0d5250c`, PR #1 OPEN; чужих изменений нет. Запрет UI/merge/deploy сохраняется.
+- Чёрный в аддитивной модели добавляет 0, поэтому чёрный+серый=серый. Сделать чёрный прозрачным и одновременно сохранить его чёрным в том же пикселе невозможно без смены правила смешения/маски.
+- Изучены официальные Nikon Add/Average/Lighten/Darken и Adobe Blend If. План B2: сравнить усиление теней обоих источников, одного источника и яркостный выбор более тёмного; отдельный opt-in profile 4 с fixed source contrast до gains/addition. Profile 3 не переопределяется.
+- Frozen profile-3 fragment от `0d5250c` сохранён для pixel regression. Runtime/test подготовка ведётся; новые результаты ещё не объявлены PASS.
+
+### Продолжение B2 — отдельный плотный profile 4
+
+- `render/dense-profile.ts`: source-local luminance gate `smoothstep(.02,.4,Y)`, общий множитель RGB **до** gains/balance/addition/exposure. В 4 используются прежние tone/halo 3, user Contrast остаётся в конце. Profile 2/3 не переопределяются.
+- Minimal type/validator расширены до 4, copy сохраняет версии, default новых пар=2. Изменений UI/import/DB schema/export workflow нет; UI-ALG-001 дополнен только proposed вариантом 4.
+- Полный film harness параметризован `LIGHTTABLE_TEST_PROFILE=4`, default по-прежнему 3, assertions/tolerances сохранены. 66 unit tests и сборка прошли. Оба profile harness и frozen 3 — PASS.
+- 64+64 при EV=0/Contrast=1: profile 3 =83/255, profile 4 =5/255; белые нейтральные источники сохраняют tone 3. Слабые детали теней могут исчезать; вернуть их общей Exposure после gate нельзя, но originals не меняются и можно выбрать прежний профиль.
+- Формулы/первичные источники/варианты/ограничения добавлены в IMAGE_ALGORITHM.md. **Кандидат, не опубликован**; PR #1 остаётся открытым.
+
+### Продолжение B3 — A/B, численные и регрессионные проверки
+
+- Runtime `85cb495`; `scripts/lighttable-density-check.mjs` сравнивает 6 вариантов на 4 парах. Архив `docs/lighttable/density-comparisons/`: прямые 3↔4, шестисторонние таблицы с sources, 2↔4 patches/halo, candidate JPEG, snapshots/metrics/checks. Визуально просмотрены все четыре исследования и прямой портретный A/B.
+- 66 unit tests, build, browser/export/gestures/data/workspace/cache/Pro, полный film harness в режимах 3 и 4, density-study **PASS**. Старые assertions/tolerances не ослаблены. Frozen 2 max=0; frozen 3 max=0 (7 comparisons); mixed-source oracle 4 max=.506/255.
+- Candidate 4 JPEG tiled/mono MAE=.005321/255; preview/downscaled JPEG MAE=1.5215/255 (max79 на границах; sampling/JPEG не pixel-identical). Snapshot/recovery max=0; 6 original hashes и соседняя v8 pair неизменны; горячий путь без I/O/новых allocations.
+- Повторная scope-проверка: 62 защищённых файла совпадают с main; original package/lock/UI contract/deployment не изменены. Node 24/Chromium локально; CI Node 22 проверяется после push.
+- Рекомендация для запроса: profile 4 (подготовка обоих источников) даёт плотные участки без выбора между объектами. На rocket/portrait может чрезмерно затемнять, поэтому не заменяет 3/2 и не включается автоматически. UI-ALG-001 остаётся proposed. Merge/publish не выполнялись.
+
+### Этап A1 — исследование базы (research/film-rendering)
+
+- Проверены remote HEAD, main и рабочая ветка: все на `0dc89b74d9f6792142769538c7ff285ccf8f9024`; v8 merge `cc5bf66` присутствует. Отдельный чистый checkout `/workspace/Multik`.
+- Прочитаны handoff, UI contract, transfer, план, решения, acceptance и deployment. Выводы пяти референсов перенесены в `IMAGE_ALGORITHM.md`; пользовательские фото не копируются в Git.
+- Подтверждены SRGB8_ALPHA8 sampling, общий present preview/export, profile-2 tone и per-source halo. Независимый frozen profile-2 fragment сохранён для GPU regression.
+- План: opt-in profile 3 в render/model validation, без UI/default migration. Проверки кандидата ещё не выполнены. **Кандидат, не опубликован**; Sites v8 не изменён.
+
+### Этап A2 — opt-in profile 3 в общем renderer
+
+- Добавлен `render/film-profile.ts`: непрерывная toe/shoulder, luminance scaling и мягкая chroma compression. В `shaders.ts` отдельная ветка 3 и halo spill `max(blur-mask,0)`; прежняя ветка 2 сохранена. `renderer.ts` передаёт version/mask uniforms без новых GPU ресурсов или изменения контракта UI.
+- Минимальные type/validator изменения: принимается 3, `copyComposition` сохраняет 3; прежнее 1→2 остаётся, новые пары default=2. Нет DB schema/import/original changes.
+- 65 unit tests (включая 3 новых), TypeScript/build прошли. Browser, gestures, data, workspace suites прошли; 13 Classic файлов сборки byte-identical. Полный export/cache и расширенная проверка кандидата — этап A3.
+- Формулы/defaults/cache rationale в `IMAGE_ALGORITHM.md`. `UI-ALG-001` — **proposed**, выбор profile только в harness/API snapshot, без пользовательского переключателя. Защищённые UI и конфигурация не менялись. **Кандидат, не опубликован**.
+
+### Этап A3 — сравнение и проверка изображения
+
+- Runtime `9315887`, база `0dc89b7`, ветка `research/film-rendering`. Новый `scripts/lighttable-film-check.mjs`, независимый test oracle/synthetic fixtures и 4 разрешённых photographic fixtures с provenance. Пользовательские референсы не опубликованы.
+- A/B: 7 подписанных contact sheets, оба исходника/оба профиля/параметры; candidate tiled JPEG и JSON evidence в `docs/lighttable/film-comparisons/`. Все таблицы визуально просмотрены. Формулы, наблюдения, сравнения и ограничения — `IMAGE_ALGORITHM.md`.
+- 65 unit tests, build, browser, gestures, data, workspace, export, cache, Pro и новый film harness **PASS**. Исходные assertions не изменялись. Frozen profile 2 max diff=0 в 10 comparisons. CPU oracle max error .500/255.
+- Candidate tiled/monolithic JPEG MAE .004618/255; preview/downscaled JPEG MAE 1.5079/255 (resampling/JPEG edges, не pixel identity). Snapshot/cancel/context restore — PASS. Hashes 6/6 originals совпали; version 3 roundtrip, соседняя v8 pair и seed/правки сохранены.
+- Hot path 3: 0 readback/encode/CPU pixel ops/upload/compile/DB writes/новых bytes; profile switch без rebuild. Штатные export/cache suites подтверждают прежние budgets; это не iPhone RSS/fps.
+- Явный визуальный компромисс: белое на чёрном при EV=0 у 3 =231 вместо 248 у 2. Кандидат сохраняет градации/цвет в светах, но может выглядеть менее воздушным. Exact matching референсам без исходных пар не доказан.
+- UI-ALG-001 **proposed**; никаких UI/control/config/deployment изменений. Profile 2 остаётся default и reference. Safari/HEIC/HDR/P3/iPhone hardware acceptance открыты. **Кандидат, не опубликован**.
+- Финальная scope-проверка: 62 защищённых файла byte-identical базе, package/lock/UI contract/deployment config неизменны; frozen shader точно извлечён из базы. Evidence: `film-comparisons/scope.json`.
+
+### Этап A4 — передача на review
+
+- Открыт [PR #1 в main](https://github.com/alxktnk-web/Multik/pull/1), head `research/film-rendering`. Коммиты: `861f872` (анализ/reference), `9315887` (runtime), `118d3f4` (проверки/A/B).
+- Обычный push без force; remote main повторно проверен и остаётся `0dc89b7`. Ни merge, ни публикации не выполнялось.
+- GitHub workflow **Verify source (no deployment)** на `118d3f4`: **SUCCESS**, Node 22 / unit tests / build ([run](https://github.com/alxktnk-web/Multik/actions/runs/39435104615)). Локальные browser suites остаются Chromium SwiftShader.
+- PR оставлен открытым для визуального решения владельца. Profile 3 opt-in, UI-ALG-001 proposed, default 2; **кандидат, не опубликован**. Аппаратные ограничения описаны выше.
 
 - По поручению владельца подготовлена передача соседнему чату: `ALGORITHM_HANDOFF.md`. Работа алгоритма ведётся в `research/film-rendering`, отдельно от main; результат — открытый PR для проверки, без самостоятельного merge/публикации.
 - Зафиксирован подробный текущий UI-контракт в `UI_CONTRACT.md`: экраны, жесты, Pro, параметры, ориентации, импорт, сохранение и Save to Photos. Для чата алгоритма UI и этот контракт read-only.

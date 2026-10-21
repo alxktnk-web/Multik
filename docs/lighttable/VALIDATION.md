@@ -123,3 +123,18 @@ Sites save_version_and_deploy_private returned succeeded for version 6 / source 
 Native iOS picker limit/Done position is outside HTML file-input control. Actual iPhone Photos share and timing remain NOT VERIFIED. No claims of native picker hard limit, silent Camera Roll write, or guaranteed 60 fps.
 
 GPU/native-touch browser suite and 100-pair cache stress also pass after the UI/placement changes: zero readback/encode/upload/compile/IDB during movement/lift; warm return uploads=0; settled tracked texture bytes 21,609,828, peak 28,813,104, dispose=0. Recovery-page changes after the PWA suite are English copy and bottom-positioned controls only; worker/data logic unchanged.
+
+
+## 21.10.2026 — интеграция профилей в Pro
+
+Node 22.23.3 / npm 10.9.9, Chromium SwiftShader. Это не hardware acceptance.
+
+- `npm test`: 66/66. `npm run build`: TypeScript и production сборка, 13 Classic baseline files byte-identical.
+- `node scripts/lighttable-film-check.mjs` и `LIGHTTABLE_TEST_PROFILE=4 node scripts/lighttable-film-check.mjs`: frozen profile 2, CPU oracle, halo, hot path, durable roundtrip, originals/context recovery и JPEG — PASS.
+- `node scripts/lighttable-density-check.mjs`: frozen profile 3, mixed-source oracle и comparisons — PASS.
+- `node scripts/lighttable-profile-ui-check.mjs`: новый пользовательский выбор, Cancel/Escape/Apply/Undo/no-op, сохранение прошлой dirty-правки, zero-I/O preview, блокировки, ошибка commit/retry, независимые pairs/reload, JPEG profile invalidation (включая equal-revision snapshot), stale thumbnails, portrait/landscape и context loss — PASS. Evidence/screenshots: `lab-out/lighttable/profile-ui/`.
+- `npm run test:lighttable:browser`, `test:lighttable:gestures`, `test:lighttable:pro`, `test:lighttable:workspace` — PASS.
+- `LIGHTTABLE_TEST_PROFILE=4 npm run test:lighttable:export`: profile 4, mono/tiled, 4000 px, 12MP synthetic originals, 20-export plateau, cancel/context loss, snapshot, Share retry/download и thumbnail quota — PASS. Script default остаётся 2; можно отдельно задавать 3/4. Evidence: `lab-out/lighttable/export-evidence.json`.
+- `node scripts/lighttable-build-check.mjs`: production без dev hooks, явный выбор Dense через UI — PASS.
+- `npm run test:lighttable:pwa`: dual offline, update guards, recovery, redirects/MIME — PASS.
+- JPEG/SwiftShader результаты не доказывают Safari/P3/HDR/HEIC, реальный Share в Photos или аппаратную плавность. Эти проверки на iPhone 16 Pro остаются открытыми.

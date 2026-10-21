@@ -26,7 +26,8 @@ try{
   await page.waitForFunction(()=>navigator.serviceWorker.controller?.scriptURL.endsWith('/lighttable/sw.js'));
   assert.equal(await page.evaluate(async()=>(await navigator.serviceWorker.getRegistrations()).length),1);
   assert.deepEqual(await page.evaluate(async()=>(await indexedDB.databases()).map(db=>db.name)),['multik-lighttable']);
-  await page.click('[data-action="rotate"]');await page.click('[data-action="pro"]');await page.click('[data-action="halo"]');
+  await page.click('[data-action="rotate"]');await page.click('[data-action="pro"]');await page.click('[data-action="profile"]');await page.click('[data-profile-version="4"]');await page.click('[data-apply-profile]');
+  await page.click('[data-action="profile"]');assert.equal(await page.locator('[data-profile-version="4"]').getAttribute('aria-pressed'),'true');await page.click('[data-cancel-profile]');await page.click('[data-action="halo"]');
   assert.deepEqual(errors,[]);await page.screenshot({path:'lab-out/lighttable/production-smoke.png'});
   console.log('PASS: isolated production entry/assets, no dev hook, scoped PWA worker and no legacy DB; production GPU/UI smoke');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
