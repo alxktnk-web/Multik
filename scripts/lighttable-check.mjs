@@ -25,13 +25,13 @@ async function drag(dx,dy){await page.evaluate(()=>window.__lighttable.session.i
   await send('touchStart',[[x,y]]);for(let k=1;k<=4;k++)await send('touchMove',[[x+dx*k/4,y+dy*k/4]]);await send('touchEnd',[]);await frame();}
 try{
   await page.goto(base+'/lighttable/');await page.waitForFunction(()=>window.__lighttable?.renderer.metrics.frames>0);
-  await page.click('[data-close-library]');
+  await page.click('[data-close-library]');await page.click('[data-action="pro"]');
   assert.equal(await page.locator('.status').isVisible(),false);
   await page.evaluate(()=>{for(const key of Object.keys(window.__counts))window.__counts[key]=0;});
   const start=await state();await drag(24,18);const moved=await state();
   assert.deepEqual(moved.draft.layers[0],start.draft.layers[0]);assert.ok(moved.draft.layers[1].transform.xMm>0);assert.ok(moved.draft.layers[1].transform.yMm>0);assert.equal(moved.draft.revision,0);
   await drag(12,-8);const repeated=await state();assert.ok(repeated.draft.layers[1].transform.xMm>moved.draft.layers[1].transform.xMm);
-  await page.click('[data-action="pro"]');await page.click('[data-action="undo"]');await page.click('[data-action="pro"]');assert.deepEqual((await state()).draft.layers[1].transform,moved.draft.layers[1].transform);
+  await page.click('[data-action="undo"]');assert.deepEqual((await state()).draft.layers[1].transform,moved.draft.layers[1].transform);
   const counts=await page.evaluate(()=>window.__counts);assert.deepEqual(counts,{readPixels:0,encode:0,putImageData:0,upload:0,compile:0,idb:0});
   console.log('PASS: native diagonal gestures accumulate RAM drafts; zero readback/encode/upload/compile/IDB on movement and lift');
 
@@ -52,9 +52,9 @@ try{
   }
   console.log('PASS: pinch cancels only active stroke; one remaining finger waits; movement follows finger at all rotations and zoom');
   await page.click('[data-layer="a"]');await drag(-10,12);assert.equal((await state()).draft.layers[0].transform.yMm!==0,true);
-  await page.click('[data-action="pro"]');await page.click('[data-action="halo"]');const beforeEffect=await state();await drag(0,-40);
+  await page.click('[data-mode="pro"]');await page.click('[data-action="halo"]');const beforeEffect=await state();await drag(0,-40);
   const afterEffect=await state();assert.deepEqual(afterEffect.draft.layers,beforeEffect.draft.layers);assert.ok(afterEffect.draft.effects.halo>beforeEffect.draft.effects.halo);
-  await page.click('[data-action="pro"]');await drag(8,8);assert.notDeepEqual((await state()).draft.layers[0].transform,afterEffect.draft.layers[0].transform);
+  await page.click('[data-mode="layers"]');await drag(8,8);assert.notDeepEqual((await state()).draft.layers[0].transform,afterEffect.draft.layers[0].transform);
   console.log('PASS: layer selector and explicit parameter gesture have one owner; closing tools restores layer drag');
 
   // Explicit GPU reads below are test probes only, not production preview/export code.
@@ -124,7 +124,7 @@ try{
   await page.screenshot({path:resolve(output,'landscape.png')});
   for(const size of [{width:375,height:667},{width:430,height:932},{width:667,height:375},{width:932,height:430}]){
     await page.setViewportSize(size);await frame();
-    const bounds=await page.locator('.toolbar button').evaluateAll(buttons=>buttons.map(b=>{const r=b.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
+    const bounds=await page.locator('.toolbar button').evaluateAll(buttons=>buttons.filter(b=>b.getClientRects().length).map(b=>{const r=b.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
     for(const r of bounds){assert.ok(r.x>=0&&r.y>=0&&r.x+r.w<=size.width+1&&r.y+r.h<=size.height+1,JSON.stringify({size,r}));assert.ok(r.w>=44&&r.h>=44);}
   }
   console.log('PASS: portrait / landscape layout, rotation independent from phone orientation, controls >=44px');

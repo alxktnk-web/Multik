@@ -14,7 +14,7 @@ image algorithm change. Baseline main e726aff / Sites version 11.
    in Edit, Move/Levels/Looks/Pro. Done returns to browsing. Icon-only export
    visible in both modes. Export commits and completes Edit only after success;
    failed saves retain draft/checkpoint/Undo. No long-press gesture on photo.
-3. [ ] Library/import: plus at top, roll cards below, long press Rename.
+3. [x] Library/import: plus at top, roll cards below, long press Rename.
    Plus immediately invokes system photo picker. Clear import progress distinct
    from selection capacity. English UI, no decorative hero or intro copy.
 4. [ ] Final checks, main integration, same-origin owner-private Sites release.

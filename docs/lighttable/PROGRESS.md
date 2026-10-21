@@ -21,6 +21,18 @@
 - Проверки этапа 2: production build, editor suite с export failure/retry,
   native touch browse/Edit/move/pinch/Done/reload — PASS. Скриншоты 375×667
   и landscape просмотрены. Следующий этап: библиотека/rename/import progress.
+- **Этап 3 завершён:** минимальная библиотека без hero, ＋ вызывает системный
+  picker, крупные roll cards, удержание/F2 для Rename. Ошибка rename оставляет
+  введённое имя; исходники не меняются. Saved mixes внутри меню плёнки сохраняет
+  доступ к прежним сессиям/конфликтным копиям; Mix возвращает последнюю сессию
+  той же пары. Import progress отделён от capacity; во время записи видны
+  Importing X of Y и Cancel. Пустая отмена picker возвращает библиотеку.
+- Проверки этапа 3: workspace/import suite (native picker, progress, overflow,
+  decoder error/retry, rename failure/retry, сохранность metadata, saved mixes,
+  отмена picker, CAS/copy/rails), onehand 375/402/874 и production smoke — PASS.
+  75 unit tests и production build — PASS. PWA offline/update/recovery — PASS.
+  Просмотрены library/import/editor screenshots. Остались финальная регрессия,
+  объединение с main и публикация; live пока version 11.
 
 Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 11**, deployed source `0c5008f`; GitHub runtime merge `36b2a92` (одинаковое source tree).
 
