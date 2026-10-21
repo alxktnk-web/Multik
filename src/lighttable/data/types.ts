@@ -13,10 +13,12 @@ export function assertComposition(value:unknown):asserts value is Composition {
   const finite=(x:unknown,min:number,max:number)=>typeof x==='number'&&Number.isFinite(x)&&x>=min&&x<=max;
   const quarter=(x:unknown)=>finite(x,0,3)&&Number.isInteger(x);
   const id=(x:unknown)=>typeof x==='string'&&x.length>0&&x.length<4096;
-  if(c.schema!==1||c.mode!=='manual-pair'||!id(c.id)||!Number.isInteger(c.revision)||c.revision<0||c.profile?.id!=='lighttable-clean-v1'||![1,2,3,4].includes(c.profile.version)||c.frame?.widthMm!==36||c.frame.heightMm!==27||!quarter(c.frame.turns)||!finite(c.seed,0,0xffffffff)||!Array.isArray(c.layers)||c.layers.length!==2||!finite(c.effects?.halo,0,1)||!finite(c.effects.exposure,-2,2)||!finite(c.effects.balance,-2,2))throw Error('Unsupported or damaged composition');
+  if(c.schema!==1||c.mode!=='manual-pair'||!id(c.id)||!Number.isInteger(c.revision)||c.revision<0||c.profile?.id!=='lighttable-clean-v1'||![1,2,3,4,5].includes(c.profile.version)||c.frame?.widthMm!==36||c.frame.heightMm!==27||!quarter(c.frame.turns)||!finite(c.seed,0,0xffffffff)||!Array.isArray(c.layers)||c.layers.length!==2||!finite(c.effects?.halo,0,1)||!finite(c.effects.exposure,-2,2)||!finite(c.effects.balance,-2,2))throw Error('Unsupported or damaged composition');
   for(const key of ['contrast','haloRadius','haloThreshold'] as const){const p=parameters[key],v=c.effects[key];if(v!==undefined&&!finite(v,p.min,p.max))throw Error('Effect data is damaged');}
   for(const [i,layer] of c.layers.entries()){
     if(layer.id!==(i?'b':'a')||!Array.isArray(layer.placements)||layer.placements.length!==1||!finite(layer.transform?.xMm,-36,36)||!finite(layer.transform.yMm,-27,27)||!quarter(layer.transform.turns)||(layer.transform.scale!==undefined&&!finite(layer.transform.scale,.5,4)))throw Error('Layer data is damaged');
+    const l=layer.levels;
+    if(l!==undefined&&(!l||typeof l!=='object'||!finite(l.black,0,.98)||!finite(l.mid,0,1)||!finite(l.white,.02,1)||l.mid-l.black<.0009||l.white-l.mid<.0009))throw Error('Levels data is damaged');
     const p=layer.placements[0],r=p.rect;
     if(!id(p.source?.assetId)||p.source.assetRevision!==1||!quarter(p.turns)||!finite(p.gain,0,4)||!finite(r?.x,-36,36)||!finite(r.y,-27,27)||!finite(r.width,.0001,36)||!finite(r.height,.0001,27))throw Error('Layer source is damaged');
   }

@@ -2,6 +2,34 @@
 
 Обновлено: 21.10.2026. Пользователь разрешил продолжить; локально реализованы M0–M6, экспорт M8 и PWA/dual artifact M9. Совместимость со старыми плёнками/проявками отменена владельцем; M7 пропускаем. Текущий выпуск: **Sites version 9**, deployed source `b21533c`; GitHub runtime merge `c3372d9` (одинаковое source tree).
 
+## 21.10.2026 — реализация Edit / Levels / Clear
+
+- Владелец разрешил реализацию и отдельно снял требование сохранения старых тестовых пар/данных. Специальная миграция/legacy compatibility не делалась; уже работающие default readers оставлены. Очистка браузера не требуется и не выполняется.
+- Ветка `feat/levels-editor-clear` от main `fc4f28f`: новый редактор Levels / Looks / Layers / Pro вместо старого Pro/modal. I/II и Undo слева в landscape, controls справа; шкала с тремя точками без легенды, локальные SVG Lucide, targets 44–48 px. Ленты временно скрыты в Edit, preference остаётся прежним.
+- `layer.levels={black,mid,white}` — отдельное состояние слоя в паре. Input Levels в linear RGB до Dense и сложения; midpoint задаёт gamma. Halo extraction учитывает Levels, derived cache разделён по стороне. Identity не меняет исходный сигнал. На drag/lift нет DB/readback/JPEG/uploads/новых GPU allocations.
+- Clear/version 5: прямое сложение линейного света после ручных Levels, sRGB output и clipping. Игнорирует halo, художественные кривые/chroma, общие exposure/contrast/balance и placement gains; metadata не сбрасываются при переключении профиля. В интерфейсе нет общей тональной коррекции.
+- Session checkpoint: Cancel возвращает начало Edit и прежнюю историю, Undo внутри Edit не выходит за checkpoint; Done коммитит один раз, no-op не пишет. Ошибка DB/CAS оставляет редактор/draft/Undo и Retry/Save a separate copy. Resize/background/context loss отменяют только активное касание.
+- Завершены: 73 unit tests, Node 22 production build; новый editor browser suite, отдельный Clear/Levels GPU oracle, прежние browse/move/pinch, profile-3 harness, workspace/import/CAS/rails; Clear + разные Levels обоих источников: JPEG mono/tiled, 2000/4000 px, 12MP synthetic inputs, 20-export plateau, cancel/context loss, Share retry; production smoke и PWA offline/update/recovery.
+- Публикация ещё не выполнена в этой записи. Hardware iPhone 16 Pro остаётся NOT VERIFIED. Точный release/source/результат публикации будут добавлены после завершения.
+
+## 21.10.2026 — упрощение Levels после review
+
+- По уточнению владельца убраны легенда Black/Mid/White, повторные переключатели точек, заголовок/значение и пояснение выбранного слоя. Осталась шкала с тремя цветными точками; доступные имена скрыты визуально.
+- Portrait: удалённые строки больше не занимают высоту; landscape: правая панель сужена со 150 до 112 px. Обновлены HTML и изображения макета. Production runtime и публикация не менялись.
+
+## 21.10.2026 — Levels по слоям, превью для обсуждения
+
+- Уточнение владельца: тональные настройки только отдельно для I/II; общие Levels/Exposure/Contrast результата не нужны. Выбор Original/Film/Dense остаётся. Новое требование записано в PHOTOS_UI_PLAN и DECISIONS; сохранённые параметры не сбрасываются.
+- Создано изолированное `ui-previews/levels-review.html`: три точки на шкале без histogram/curves, portrait снизу, landscape справа, выбор слоя/Undo слева. Lucide 0.468.0 SVG с лицензией. Это интерактивный макет controls со статичной иллюстрацией, **не реализованный Levels renderer**.
+- Получены portrait 402×874 / landscape 874×402; проверены выбор слоя, keyboard adjustment и независимость mock values. Production runtime/DB/публикация не менялись; аппаратная проверка отсутствует.
+
+## 21.10.2026 — исследование интерфейса Photos (план)
+
+- По запросу владельца изучены его скриншот Photos Crop, официальные материалы Apple и текущие workspace/CSS/rails/session, включая локальные скриншоты portrait/landscape. Реального теста касаний на iPhone в этом этапе не было.
+- Подготовлен [PHOTOS_UI_PLAN.md](PHOTOS_UI_PLAN.md): единый Edit с Looks/Adjust/Layers, крупные SVG Lucide, шкала параметра, диагностика пропущенных taps, сохранность edit draft и этапы проверки.
+- Targets dock/Pro уже 44×44 px, но SVG 22 px/stroke 1.35 и gap 2 px; busy/gesture guards временно отклоняют действия. Это направления проверки, не доказанный диагноз устройства.
+- План **proposed**, не реализован: Cancel/Done внизу, общий checkpoint и новая Done save boundary — предложения, не текущий UI contract. Runtime, алгоритм и публикация не менялись; Sites version 9 остаётся действующей. Runtime-тесты для документации не перезапускались.
+
 ## 21.10.2026 — интеграция Film / Dense
 
 - По новой команде владельца проверен PR #1, head `319e3f8`; интеграция ведётся в `integrate/film-profiles` поверх этой ветки. Ограничение «не merge/deploy» относилось к исследовательскому чату; текущая задача владельца — подключить готовый алгоритм в приложение.

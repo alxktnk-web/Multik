@@ -5,7 +5,10 @@ export type RectMm = Point & { width: number; height: number };
 export type SourceRef = { assetId: string; assetRevision: number };
 export type Transform = { xMm: number; yMm: number; turns: QuarterTurns; scale?: number };
 export type Placement = { source: SourceRef; rect: RectMm; turns: QuarterTurns; gain: number };
-export type Layer = { id: LayerId; placements: Placement[]; transform: Transform };
+export type Levels = { black: number; mid: number; white: number };
+export type LevelPoint = keyof Levels;
+export const neutralLevels: Readonly<Levels> = { black: 0, mid: .5, white: 1 };
+export type Layer = { levels?: Levels; id: LayerId; placements: Placement[]; transform: Transform };
 export type Composition = {
   schema: 1;
   id: string;
@@ -13,14 +16,14 @@ export type Composition = {
   mode: 'manual-pair';
   frame: { widthMm: number; heightMm: number; turns: QuarterTurns };
   layers: [Layer, Layer];
-  profile: { id: 'lighttable-clean-v1'; version: 1 | 2 | 3 | 4 };
+  profile: { id: 'lighttable-clean-v1'; version: 1 | 2 | 3 | 4 | 5 };
   effects: { halo: number; exposure: number; balance: number; contrast: number; haloRadius: number; haloThreshold: number };
   seed: number;
 };
 export type Viewport = { width: number; height: number; zoom: number; pan: Point };
 export type ParameterId = keyof Composition['effects'];
 export type XYId = 'lightXY' | 'haloXY';
-export type Tool = { kind: 'layer' } | { kind: 'parameter'; parameter: ParameterId } | { kind: 'xy'; pair: XYId };
+export type Tool = { kind: 'layer' } | { kind: 'levels'; point: LevelPoint } | { kind: 'parameter'; parameter: ParameterId } | { kind: 'xy'; pair: XYId };
 export const turns = (n: number): QuarterTurns => ((Math.round(n) % 4 + 4) % 4) as QuarterTurns;
 export const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 export const effectDefaults = { halo: 0.35, exposure: 0, balance: 0, contrast: 1, haloRadius: 0.65, haloThreshold: 0.75 };

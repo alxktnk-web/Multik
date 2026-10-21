@@ -11,7 +11,7 @@ describe('explicit rendering profile identity', () => {
   it('keeps new/v8 pairs on 2 and only preserves the existing 1 -> 2 rule', () => {
     const c=fixture();
     expect(c.profile.version).toBe(2);
-    for(const version of [1,2,3,4] as const){
+    for(const version of [1,2,3,4,5] as const){
       c.profile.version=version;
       const copy=copyComposition(c);
       expect(copy.profile.version).toBe(version===1?2:version);
@@ -24,7 +24,7 @@ describe('explicit rendering profile identity', () => {
   });
   it('rejects unknown profile versions rather than silently selecting a look', () => {
     const c=fixture();
-    for(const version of [0,5,-1,2.5,NaN,Infinity,'3','4',null]){
+    for(const version of [0,6,-1,2.5,NaN,Infinity,'3','4',null]){
       expect(()=>assertComposition({...c,profile:{...c.profile,version}})).toThrow();
     }
   });

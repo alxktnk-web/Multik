@@ -21,7 +21,7 @@ try{
   await page.click('[data-close-library]');
   const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=400;c.height=300;const x=c.getContext('2d');x.fillStyle='#234';x.fillRect(0,0,400,300);x.fillStyle='#fff';x.fillRect(100,100,50,50);return c.toDataURL('image/png').split(',')[1];});
   const photo=i=>({name:`photo${i}.png`,mimeType:'image/png',buffer:Buffer.from(png,'base64')});
-  await page.click('[data-action="import"]');await page.click('[data-new-roll]');await page.selectOption('[data-capacity]','6');
+  await page.click('[data-action="library"]');await page.click('[data-new-roll]');await page.selectOption('[data-capacity]','6');
   await page.setInputFiles('[data-roll-files]',Array.from({length:7},(_,i)=>photo(i)));
   assert.equal(await page.locator('[data-save-roll]').isDisabled(),true);assert.ok((await page.locator('.import-count').innerText()).includes('7 / 6'));assert.equal(await page.locator('[data-roll-files]').isDisabled(),true);
   await page.screenshot({path:resolve(output,'import-overflow.png')});

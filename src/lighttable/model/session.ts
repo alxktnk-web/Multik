@@ -10,11 +10,28 @@ export class Session {
   private saved: Composition;
   private before?: Composition;
   private history: Composition[] = [];
+  private edit?:{draft:Composition;history:Composition[]};
   dirty = false;
   onChange: () => void = () => {};
   constructor(composition: Composition) {
     this.draft = copyComposition(composition);
     this.saved = copyComposition(composition);
+  }
+  get editing(){return !!this.edit;}
+  get editChanged(){return !!this.edit && JSON.stringify({...this.draft,revision:0})!==JSON.stringify({...this.edit.draft,revision:0});}
+  beginEdit(){
+    if(this.edit||this.gesturing)return;
+    this.edit={draft:copyComposition(this.draft),history:this.history};this.history=[];
+    this.onChange();
+  }
+  acceptEdit(){
+    if(!this.edit||this.gesturing)return;
+    this.history=[...this.edit.history,...this.history].slice(-50);this.edit=undefined;this.onChange();
+  }
+  discardEdit(){
+    if(!this.edit)return;
+    this.cancel();this.draft=copyComposition(this.edit.draft);this.draft.revision=this.saved.revision;
+    this.history=this.edit.history;this.edit=undefined;this.refreshDirty();this.onChange();
   }
   get gesturing() { return !!this.before; }
   get canUndo() { return this.history.length > 0; }
@@ -69,7 +86,7 @@ export class Session {
     this.begin(); this.layer.transform={xMm:0,yMm:0,turns:0}; this.end();
   }
   replace(composition: Composition) {
-    this.before=undefined; this.history=[];
+    this.before=undefined; this.history=[]; this.edit=undefined;
     this.saved=copyComposition(composition); this.draft=copyComposition(composition);
     this.dirty=false; this.viewport.zoom=1; this.viewport.pan={x:0,y:0}; this.onChange();
   }

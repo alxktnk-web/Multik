@@ -1,9 +1,10 @@
 import { filmToScreen, inverse, vector, point, type Matrix } from '../model/transforms';
+import { getLevels, moveLevel, setLevels } from '../model/levels';
 import { dragParameter, xyTools } from '../model/parameters';
-import { clamp, type Point, type Tool } from '../model/types';
+import { clamp, type Point, type Tool, type Levels } from '../model/types';
 import type { Session } from '../model/session';
 
-type Single = { start:Point;last:Point;x:number;y:number;inverse:Matrix;tool:Tool;value:number;valueX:number;moved:boolean;browse:boolean };
+type Single = { start:Point;last:Point;x:number;y:number;inverse:Matrix;tool:Tool;value:number;valueX:number;moved:boolean;browse:boolean;levels:Readonly<Levels> };
 type Pinch = { distance:number;scale:number;x:number;y:number;anchor:Point;moved:boolean;explicitScale:boolean };
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
 const center=(a:Point,b:Point)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
@@ -24,7 +25,7 @@ export class Gestures {
     const s=this.session;
     if(this.points.size===1){
       s.begin();
-      this.single={start:p,last:p,x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
+      this.single={start:p,last:p,x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},levels:{...getLevels(s.layer)},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
     }else if(this.points.size===2){
       s.cancel();this.single=undefined;s.begin();
       const [a,b]=[...this.points.values()],t=s.layer.transform;
@@ -47,6 +48,7 @@ export class Gestures {
     if(!g.moved&&Math.hypot(delta.x,delta.y)<4)return;g.moved=true;
     if(g.browse)return;
     if(g.tool.kind==='layer'){const d=vector(g.inverse,delta);s.moveLayer(g.x+d.x,g.y+d.y);}
+    else if(g.tool.kind==='levels'){setLevels(s.layer,moveLevel(g.levels,g.tool.point,g.levels[g.tool.point]-delta.y/Math.max(1,s.viewport.height*.7)));s.onChange();}
     else if(g.tool.kind==='xy'){const pair=xyTools[g.tool.pair];s.draft.effects[pair.y]=dragParameter(pair.y,g.value,delta.y,s.viewport.height);s.draft.effects[pair.x]=dragParameter(pair.x,g.valueX,-delta.x,s.viewport.width);s.onChange();}
     else{s.draft.effects[g.tool.parameter]=dragParameter(g.tool.parameter,g.value,delta.y,s.viewport.height);s.onChange();}
   }
@@ -64,10 +66,10 @@ export class Gestures {
   cancelPointer(id:number){if(!this.points.has(id))return;this.cancel();this.up(id);}
   reset(){this.cancel();this.points.clear();this.waiting=false;}
 }
-export function bindGestures(canvas:HTMLCanvasElement,gestures:Gestures,changed:()=>void){
+export function bindGestures(canvas:HTMLCanvasElement,gestures:Gestures,changed:()=>void,enabled:()=>boolean=()=>true){
   const abort=new AbortController(),opts={signal:abort.signal};
   const local=(e:PointerEvent)=>{const r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
-  canvas.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);gestures.down(e.pointerId,local(e));changed();},opts);
+  canvas.addEventListener('pointerdown',e=>{if(e.button!==0||!enabled())return;e.preventDefault();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);gestures.down(e.pointerId,local(e));changed();},opts);
   canvas.addEventListener('pointermove',e=>gestures.move(e.pointerId,local(e)),opts);
   canvas.addEventListener('pointerup',e=>{gestures.up(e.pointerId);changed();},opts);
   canvas.addEventListener('pointercancel',e=>{gestures.cancelPointer(e.pointerId);changed();},opts);

@@ -1,3 +1,4 @@
+import { icon } from './icons';
 import type { Navigation } from '../model/navigation';
 import type { Repository } from '../data/repository';
 import type { LayerId } from '../model/types';
@@ -30,7 +31,7 @@ export class FilmRails {
     const hidden=this.hidden[this.media.matches?'landscape':'portrait'];
     this.root.classList.toggle('has-rails',!!this.navigation.rolls);this.root.classList.toggle('rails-collapsed',hidden);
     this.tray.hidden=!this.navigation.rolls;this.handle.hidden=!this.navigation.rolls;
-    this.handle.setAttribute('aria-label',hidden?'Show rolls':'Hide rolls');this.handle.setAttribute('aria-expanded',String(!hidden));this.handle.textContent=this.media.matches?(hidden?'›':'‹'):(hidden?'⌃':'⌄');
+    this.handle.setAttribute('aria-label',hidden?'Show rolls':'Hide rolls');this.handle.setAttribute('aria-expanded',String(!hidden));this.handle.innerHTML=icon(this.media.matches?(hidden?'right':'back'):(hidden?'up':'down'));
   }
   async update(){
     const rolls=this.navigation.rolls,p=this.navigation.project;if(!rolls||!p){this.layout();return;}
