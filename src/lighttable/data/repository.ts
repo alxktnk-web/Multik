@@ -51,7 +51,10 @@ export class Repository {
     };});this.counters.compositionCommits++;return next;
   }
   async fork(snapshot:Composition,project:Project):Promise<{composition:Composition;project:Project}>{
-    const p={...project,id:crypto.randomUUID(),updatedAt:new Date().toISOString()};
+    // Conflict copies are ordinary Mixes, including copies made from Library.
+    // Keeping kind=favorite without a new membership would hide the copy.
+    const {kind: _kind,favoriteSourceId: _source,...base}=project;
+    const p:Project={...base,id:crypto.randomUUID(),updatedAt:new Date().toISOString()};
     const c=copyComposition(snapshot);c.id=JSON.stringify(['pair',p.id,p.rollA,c.layers[0].placements[0].source.assetId,1,p.rollB,c.layers[1].placements[0].source.assetId,1]);c.revision=0;
     assertComposition(c);
     await this.write(['projects','compositions','prefs'],tx=>{tx.objectStore('projects').add(p);tx.objectStore('compositions').add(c);tx.objectStore('prefs').put({id:'last-project',value:p.id});});return {composition:c,project:p};

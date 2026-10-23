@@ -1,0 +1,129 @@
+/* Adaptive workspace: photograph geometry and controls share explicit grid tracks.
+   Imported last; no image-processing or persistence behaviour lives here. */
+.workspace button svg{width:23px;height:23px;stroke-width:1.7}
+.workspace .topbar{height:44px;padding:0 4px;z-index:2}
+.workspace .topbar button{width:44px;height:44px;flex:0 0 44px}
+.workspace .toolbar,.workspace .edit-modes{background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.workspace .toolbar button,.workspace .edit-modes button,.workspace .edit-actions button{width:44px;min-width:44px;height:44px;padding:0;border:0;border-radius:14px;display:grid;place-items:center;background:transparent}
+.workspace .edit-modes button[aria-pressed=true]{color:#d1dbce;background:#a3b2a025}
+.workspace [data-action=favorite][aria-pressed=true] svg{fill:var(--sage);stroke:var(--sage)}
+.workspace .toolbar [data-action=pro] span{display:none}
+.workspace .edit-actions [data-edit-done]{color:var(--sage);background:#a3b2a018}
+.workspace .edit-actions [data-action=export]{background:none;color:var(--ink)}
+.workspace .sources{gap:4px;flex-direction:row}
+.workspace .sources button{padding:3px;border-radius:12px}
+.workspace .sources img{border-radius:8px}
+.workspace:not(.editing),.workspace.has-rails:not(.editing),.workspace.has-rails.rails-collapsed:not(.editing){grid-template-columns:minmax(0,1fr);grid-template-rows:44px minmax(0,1fr) auto 52px}
+.workspace:not(.editing) .topbar{position:relative;inset:auto;grid-row:1;grid-column:1}
+.workspace:not(.editing) .stage{grid-row:2;grid-column:1}
+.workspace:not(.editing) .film-tray{grid-row:3;grid-column:1;padding:0 8px;gap:0}
+.workspace:not(.editing) .toolbar{grid-row:4;grid-column:1;flex-direction:row;justify-self:center;margin:0;padding:4px;gap:8px;max-width:none}
+.workspace:not(.editing) .rail-handle{left:auto;right:4px;bottom:4px;transform:none;width:44px;height:44px;z-index:2}
+.workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{grid-template-columns:144px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr) auto 52px;column-gap:0}
+.workspace.editing .topbar{display:flex;position:relative;inset:auto;grid-column:1;grid-row:1}
+.workspace.editing .stage{grid-column:1/-1;grid-row:2}
+.workspace.editing .toolbar{grid-column:1;grid-row:4;justify-self:start;align-self:center;flex-direction:row;padding:0 2px;margin:0;gap:2px}
+.workspace.editing .toolbar .sources{display:flex}
+.workspace.editing .toolbar>button:not([data-action=undo]){display:none}
+.workspace.editing .toolbar [data-action=undo]{display:grid}
+.workspace.editing .toolbar .divider,.workspace.editing .film-tray,.workspace.editing .rail-handle{display:none}
+.workspace.editing .edit-modes{grid-column:2;grid-row:4;display:flex;flex-direction:row;justify-self:end;align-self:center;gap:0;padding:0;margin:0 4px 0 0;min-width:176px;border-radius:16px}
+.workspace.editing .edit-actions{grid-column:2;grid-row:1;display:flex;justify-self:end;align-self:center;gap:4px;padding:0 4px;margin:0;z-index:2}
+.workspace.editing .edit-content{display:contents}
+.workspace.editing .edit-content>div{position:static;grid-column:1/-1;grid-row:3;width:auto;min-width:0;max-width:none;max-height:none;border:0;background:none;box-shadow:none;border-radius:0;overflow:visible;margin:0}
+.workspace.editing .edit-content>.levels-ruler{height:44px;padding:0 26px}
+.workspace .levels-track{height:44px;width:100%;margin:0}
+.workspace .levels-ticks{height:1px;left:0;right:0;top:21px;bottom:auto;width:auto;background:#aaa59b88}
+.workspace .level-handle{left:var(--position);top:0;bottom:auto;transform:translateX(-50%);width:44px;height:44px}
+.workspace .level-handle i{width:10px;height:10px}
+.workspace .layer-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 16px;padding:0 12px}
+.workspace .layer-utilities{display:flex;gap:0;grid-column:1;grid-row:1}
+.workspace .layer-utilities button,.workspace .pro-options button{width:44px;height:44px;min-width:44px;background:none;border-radius:12px}
+.workspace .layer-controls .transform-range{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;max-width:none;margin:0;height:44px;font-size:10px}
+.workspace .transform-range span{display:grid;place-items:center;flex:0 0 18px}
+.workspace .transform-range span svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.workspace .transform-range:has([data-position=x]){grid-column:1;grid-row:2}
+.workspace .transform-range:has([data-position=y]){grid-column:2;grid-row:2}
+.workspace .transform-range:has([data-scale]){grid-column:2;grid-row:1}
+.workspace .layer-controls input,.workspace .effect-range{min-width:0;width:100%;height:44px;min-height:44px;accent-color:var(--sage)}
+.workspace input[type=range]{appearance:none;-webkit-appearance:none;background:transparent;cursor:ew-resize}
+.workspace input[type=range]::-webkit-slider-runnable-track{height:2px;background:#aaa59b66;border-radius:2px}
+.workspace input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;height:12px;width:12px;border-radius:50%;background:var(--ink);margin-top:-5px}
+.workspace input[type=range]::-moz-range-track{height:2px;background:#aaa59b66;border-radius:2px}
+.workspace input[type=range]::-moz-range-thumb{height:12px;width:12px;border:0;border-radius:50%;background:var(--ink)}
+.workspace .look-options{gap:4px;padding:0 8px;min-width:0;flex-direction:row}
+.workspace .look-options button{height:44px;min-height:44px;padding:0 8px;border-radius:12px;font-size:12px}
+.workspace .pro-controls{padding:0 12px}
+.workspace .pro-options{gap:0;justify-content:center;flex-wrap:wrap}
+.workspace .pro-range-label{display:flex;flex-direction:row;align-items:center;gap:12px;margin:0 auto;min-height:44px;max-width:440px}
+.workspace .pro-range-label span{min-width:72px;font-size:10px;text-align:left}
+.workspace.editing .status{bottom:104px;left:12px;right:12px}
+.workspace.editing .conflict-copy{bottom:154px;left:12px;right:12px}
+/* A wide composition in a tall phone has unavoidable letterboxing, but the
+   controls remain attached to the canvas rather than floating at the bottom. */
+@media(orientation:portrait){
+ .workspace.editing[data-composition=landscape]{grid-template-rows:minmax(0,min(75vw,calc(100dvh - 224px))) auto 52px;align-content:center}
+ .workspace.editing[data-composition=landscape] .stage{grid-row:1}
+ .workspace.editing[data-composition=landscape] .edit-content>div{grid-row:2}
+ .workspace.editing[data-composition=landscape] .toolbar,.workspace.editing[data-composition=landscape] .edit-modes{grid-row:3}
+ .workspace.editing[data-composition=landscape] .topbar{grid-area:auto;position:absolute;top:env(safe-area-inset-top);left:env(safe-area-inset-left)}
+ .workspace.editing[data-composition=landscape] .edit-actions{grid-area:auto;position:absolute;top:env(safe-area-inset-top);right:env(safe-area-inset-right)}
+}
+@media(orientation:landscape){
+ .workspace:not(.editing),.workspace.has-rails.rails-collapsed:not(.editing){grid-template-columns:48px minmax(0,1fr) 52px;grid-template-rows:minmax(0,1fr)}
+ .workspace.has-rails:not(.rails-collapsed):not(.editing){grid-template-columns:64px minmax(0,1fr) 64px 52px;grid-template-rows:minmax(0,1fr)}
+ .workspace:not(.editing) .stage,.workspace.has-rails:not(.editing) .stage{grid-column:2;grid-row:1}
+ .workspace:not(.editing) .topbar,.workspace.has-rails:not(.editing) .topbar{position:absolute;left:env(safe-area-inset-left);right:auto;top:env(safe-area-inset-top);width:48px;height:44px}
+ .workspace:not(.editing) .toolbar{grid-column:-2/-1;grid-row:1;align-self:center;justify-self:center;flex-direction:column;gap:4px;margin:0;padding:0}
+ .workspace:not(.editing) .film-tray{display:contents}
+ .workspace.rails-collapsed:not(.editing) .film-tray{display:none}
+ .workspace:not(.editing) .film-rail{grid-row:1;min-height:0;padding:48px 2px 48px;gap:4px;flex-direction:column;touch-action:pan-y}
+ .workspace:not(.editing) .rail-a{grid-column:1}
+ .workspace:not(.editing) .rail-b{grid-column:3}
+ .workspace:not(.editing) .film-rail button{width:56px;flex-basis:44px;height:44px}
+ .workspace:not(.editing) .rail-handle{left:calc(4px + env(safe-area-inset-left));right:auto;bottom:env(safe-area-inset-bottom);transform:none;width:44px}
+ .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{grid-template-columns:52px minmax(0,1fr) 184px;grid-template-rows:48px minmax(0,1fr) 48px;column-gap:0}
+ .workspace.editing[data-composition=portrait]{grid-template-columns:52px minmax(0,1fr) clamp(184px,28vw,248px)}
+ .workspace.editing .stage,.workspace.has-rails.editing .stage{grid-column:2;grid-row:1/-1}
+ .workspace.editing .topbar{grid-column:1;grid-row:1;position:static;inset:auto;align-self:start;width:48px}
+ .workspace.editing .toolbar{grid-column:1;grid-row:2/-1;flex-direction:column;align-self:start;justify-self:center;margin:0;padding:0;gap:8px}
+ .workspace.editing .sources{flex-direction:column;gap:8px}
+ .workspace.editing .edit-modes{grid-column:3;grid-row:1;justify-self:center;align-self:center;margin:0;gap:0}
+ .workspace.editing .edit-actions{grid-column:3;grid-row:3;justify-self:center;align-self:center;padding:0;margin:0;gap:8px}
+ .workspace.editing .edit-content>div{grid-column:3;grid-row:2;position:static;inset:auto;align-self:center;max-height:100%;overflow:auto;padding:0 8px;background:none;border:0;box-shadow:none;width:auto;min-width:0;max-width:none}
+ .workspace.editing .layer-controls{display:flex;flex-direction:column;gap:0;align-items:stretch}
+ .workspace .layer-utilities{justify-content:center}
+ .workspace .layer-controls .transform-range{flex:none;min-height:44px;width:100%}
+ .workspace .look-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .workspace .look-options button{min-width:0}
+ .workspace .pro-options{gap:0}
+ .workspace .pro-range-label{gap:4px;min-width:0}
+ .workspace .pro-range-label span{min-width:60px;max-width:70px;font-size:10px}
+ .workspace.editing[data-edit-mode=levels]{grid-template-columns:52px minmax(0,1fr) 184px 44px}
+ .workspace.editing[data-composition=portrait][data-edit-mode=levels]{grid-template-columns:52px minmax(0,1fr) clamp(184px,28vw,248px) 44px}
+ .workspace.editing .edit-content>.levels-ruler{grid-column:4;grid-row:1/-1;align-self:stretch;height:100%;overflow:visible;padding:24px 0}
+ .workspace .levels-track{height:100%;width:44px}
+ .workspace .levels-ticks{left:21px;right:auto;top:0;bottom:0;height:auto;width:1px}
+ .workspace .level-handle{left:0;top:auto;bottom:var(--position);transform:translateY(50%);cursor:ns-resize}
+ .workspace.editing .status,.workspace:not(.editing) .status{left:60px;right:64px;bottom:8px}
+ .workspace.editing .conflict-copy{left:60px;right:64px;bottom:60px}
+}
+@media(orientation:landscape) and (max-height:350px){
+ .workspace.editing .edit-content>div:not(.levels-ruler){align-self:stretch}
+}
+/* Wide photographs on a short phone need narrow side tools. Two-column controls
+   retain 44px targets while leaving enough width for a full-height 4:3 image. */
+@media(orientation:landscape){
+ .workspace.editing[data-composition=landscape]{grid-template-columns:52px minmax(0,1fr) 112px;grid-template-rows:88px minmax(0,1fr) 88px}
+ .workspace.editing[data-composition=landscape] .edit-modes{display:grid;grid-template-columns:repeat(2,44px);min-width:88px}
+ .workspace.editing[data-composition=landscape] .edit-actions{display:grid;grid-template-columns:repeat(2,44px);gap:0}
+ .workspace.editing[data-composition=landscape] .layer-controls{padding:0 4px}
+ .workspace.editing[data-composition=landscape] .transform-range{gap:2px}
+ .workspace.editing[data-composition=landscape] .transform-range span{flex-basis:12px}
+ .workspace.editing[data-composition=landscape] .look-options{display:flex;flex-direction:column;gap:4px}
+ .workspace.editing[data-composition=landscape] .pro-range-label{flex-direction:column;gap:0}
+ .workspace.editing[data-composition=landscape] .pro-range-label span{font-size:9px;min-width:0;max-width:none}
+ .workspace.editing[data-composition=landscape][data-edit-mode=levels]{grid-template-columns:52px minmax(0,1fr) 44px 44px;grid-template-rows:176px minmax(0,1fr) 132px}
+ .workspace.editing[data-composition=landscape][data-edit-mode=levels] .edit-modes{grid-template-columns:44px;min-width:44px}
+ .workspace.editing[data-composition=landscape][data-edit-mode=levels] .edit-actions{grid-template-columns:44px;gap:0}
+}

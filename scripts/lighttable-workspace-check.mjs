@@ -22,7 +22,7 @@ try{
   await page.click('[data-close-library]');
   const png=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=400;c.height=300;const x=c.getContext('2d');x.fillStyle='#234';x.fillRect(0,0,400,300);x.fillStyle='#fff';x.fillRect(100,100,50,50);return c.toDataURL('image/png').split(',')[1];});
   const photo=i=>({name:`photo${i}.png`,mimeType:'image/png',buffer:Buffer.from(png,'base64')});
-  await page.click('[data-action="library"]');const [picker]=await Promise.all([page.waitForEvent('filechooser'),page.click('[data-new-roll]')]);assert.equal(picker.isMultiple(),true);await page.selectOption('[data-capacity]','6');
+  await page.click('[data-action="library"]');const [picker]=await Promise.all([page.waitForEvent('filechooser'),page.click('[data-new-roll]')]);assert.equal(picker.isMultiple(),true);await page.click('[data-capacity="6"]');
   await picker.setFiles(Array.from({length:7},(_,i)=>photo(i)));
   assert.equal(await page.locator('[data-save-roll]').isDisabled(),true);assert.ok((await page.locator('.import-count').innerText()).includes('7 / 6'));assert.equal(await page.locator('[data-roll-files]').isDisabled(),true);
   await page.screenshot({path:resolve(output,'import-overflow.png')});
@@ -38,7 +38,7 @@ try{
   assert.equal(await page.locator('.import-progress').getAttribute('value'),'1');assert.equal(await page.locator('.import-progress').getAttribute('max'),'6');assert.match(await page.locator('.import-message').innerText(),/Importing 1 of 6/);
   await page.screenshot({path:resolve(output,'import-progress.png')});
   await page.evaluate(()=>{window.__restoreImport();window.__releaseImport();});await page.waitForFunction(()=>!document.querySelector('.roll-import-dialog').open);
-  await page.click('[data-new-roll]');await page.selectOption('[data-capacity]','6');
+  await page.click('[data-new-roll]');await page.click('[data-capacity="6"]');
   await page.setInputFiles('[data-roll-files]',[...Array.from({length:5},(_,i)=>photo(i)),{name:'bad.png',mimeType:'image/png',buffer:Buffer.from('broken')}]);
   await page.fill('[data-roll-name]','Film B');await page.click('[data-save-roll]');await page.waitForFunction(()=>document.querySelector('.import-message').textContent.includes('Could not open'));
   await page.screenshot({path:resolve(output,'import-error.png')});
@@ -93,7 +93,7 @@ try{
   await page.screenshot({path:resolve(output,'rolls-landscape.png')});await page.click('.rail-handle');assert.equal(await page.locator('.rail-a').isVisible(),false);
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);assert.equal(await page.locator('.rail-a').isVisible(),true);
   console.log('PASS: independent scroll/selection, collapsible rails, A/center/B landscape and orientation-specific visibility');
-  const resumeProject=(await state()).project,resumeId=resumeProject.id;await page.click('[data-action="library"]');
+  const resumeProject=(await state()).project,resumeId=resumeProject.id;await page.click('[data-action="library"]');await page.locator('.home-rolls').evaluate(e=>e.open=true);
   for(const id of new Set([resumeProject.rollA,resumeProject.rollB])){const roll=page.locator(`[data-roll="${id}"]`);if(await roll.getAttribute('aria-pressed')!=='true')await roll.click();}
   const heldRoll=page.locator('[data-roll]').first();await heldRoll.focus();await page.keyboard.press('F2');await page.locator('.rename-dialog').waitFor({state:'visible'});
   await page.locator('.roll-mixes summary').click();assert.ok(await page.locator('.roll-mixes [data-project]').count()>=2,'Conflict copies remain reachable');

@@ -36,6 +36,8 @@ try{
     const staleIgnored=await (await repo.listFavorites())[0].thumb.text()==='preview-one';
     await repo.updateFavoriteThumbnail(fp.id,new Blob(['preview-two']),edited.revision);
     const thumbnailUpdated=await (await repo.listFavorites())[0].thumb.text()==='preview-two';
+    const fork=await repo.fork(edited,fp);
+    const copyReachable=fork.project.kind!=='favorite'&&(await repo.listProjects()).some(p=>p.id===fork.project.id)&&fork.composition.layers[1].transform.scale===1.7&&(await repo.listFavorites()).length===1;
     const repeated=await repo.favoriteCurrent(project,scene,thumb);
     const editRetained=repeated.projectId===fp.id&&(await repo.composition(favorite.compositionId)).layers[1].transform.scale===1.7;
     await repo.removeFavorite(favorite.id);
@@ -56,9 +58,9 @@ try{
     const retry=(await reopened.listFavorites()).length===1&&!!await reopened.composition(retried.compositionId);
     let mismatch=false;try{await reopened.favoriteCurrent({...project,a:99},scene,thumb);}catch{mismatch=true;}
     await reopened.close();
-    return {initial,isolated,conflict,staleIgnored,thumbnailUpdated,editRetained,removed,originalsKept,snapshotKept,sameProject,persisted,atomic,retry,mismatch};
+    return {initial,copyReachable,isolated,conflict,staleIgnored,thumbnailUpdated,editRetained,removed,originalsKept,snapshotKept,sameProject,persisted,atomic,retry,mismatch};
   });
-  assert.deepEqual(results,{initial:{deduplicated:true,independent:true,revision:1,kind:'favorite',exact:true,originalRefs:true},isolated:true,conflict:true,staleIgnored:true,thumbnailUpdated:true,editRetained:true,removed:true,originalsKept:true,snapshotKept:true,sameProject:true,persisted:true,atomic:true,retry:true,mismatch:true});
+  assert.deepEqual(results,{initial:{deduplicated:true,independent:true,revision:1,kind:'favorite',exact:true,originalRefs:true},copyReachable:true,isolated:true,conflict:true,staleIgnored:true,thumbnailUpdated:true,editRetained:true,removed:true,originalsKept:true,snapshotKept:true,sameProject:true,persisted:true,atomic:true,retry:true,mismatch:true});
   assert.deepEqual(errors,[]);
   console.log('PASS: concurrent likes deduplicate, independent editable snapshots preserve source references, source edits isolated');
   console.log('PASS: CAS edit conflict, stale thumbnail ignored, unlike/re-like keeps originals and current editor, reload persistence');

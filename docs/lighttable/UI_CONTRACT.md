@@ -1,3 +1,28 @@
+# 23.10.2026 — adaptive workspace (implementation branch)
+
+This section supersedes older layout rules below. Live Sites remains v12 until
+review/release; implementation is on feat/adaptive-workspace.
+
+- Mixes = sessions with rendered covers. Library = liked individual editable
+  snapshots, pinned to their two source assets. Removing a heart never deletes
+  originals. Conflict copies are ordinary visible Mixes.
+- + Mix collects two equal-length rolls, 12 default. Next opens picker II within
+  its click, Create mix performs imports. + Roll defaults to 12 on every open.
+  Capacity uses 06/12/24/36 buttons. Native iOS source menus remain system-owned.
+- Portrait tools sit below the photograph; landscape has side controls only.
+  Phone orientation and composition quarter-turn select layout independently.
+  Manrope is locally bundled under OFL; icons local SVG; targets at least 44px.
+- Edit starts Move. Source thumbnails choose I/II; drag and X/Y/scale controls
+  share the same RAM transforms. Levels acts on source Lightness, same math.
+  Ruler horizontal below photo in portrait, vertical far right in landscape.
+- Check/Escape exit through a guarded commit; Undo reverses recent changes.
+  Back saves and opens home. Normal editor has no whole-session Cancel.
+  Heart snapshots committed parameters; failed writes leave current draft intact.
+  Export is icon-only in workspace and shares existing JPEG/Photos workflow.
+- App settings/update/recovery move to home ellipsis. No logo/info in workspace.
+- No render formulas changed. Covers use a separate serialized renderer and
+  encode only at explicit UI boundaries, never in gesture/update hot paths.
+
 # Интерфейс Multik — договорённости для раздельной разработки
 
 Снимок: 20.10.2026, v8, база `cc5bf66`. Описание сверено с текущим workspace, parameter registry, import/export UI и CSS. Это контракт существующего поведения, а не утверждение о завершённой аппаратной приёмке.

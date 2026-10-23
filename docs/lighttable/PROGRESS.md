@@ -18,6 +18,22 @@ Git fetch: main совпадал с origin/main; workflow — только test/
 - Общий стиль: локальный variable Manrope (OFL), без запроса Google Fonts
   при работе приложения; единые SVG. Worker принимает font/ttf и кеширует шрифт.
   Production build и PWA offline/update/recovery suite с проверкой font cache — PASS.
+- Редактор: четыре компоновки по ориентации телефона/композиции, в landscape
+  без нижней панели; светлота Levels остаётся per-source. Move: X/Y/scale,
+  Undo; check сохраняет и выходит, Cancel убран из обычного потока. Экспорт и
+  сердце доступны в обоих режимах. Portrait-wide: линейка сразу под фото.
+- Mixes: реальные 640 px обложки через отдельный последовательный renderer
+  тех же шейдеров; его работа запускается на home/heart boundary, не на движениях.
+  Library открывает отдельную сохранённую пару в общем редакторе; смена кадров
+  избранного запрещена. Конфликтная копия доступна как обычный Mix.
+- Совместные проверки: 75 unit tests, TypeScript/production build, editor,
+  adaptive (8 компоновок Move/Levels, 44px, без overlap/overflow, zero hot-path
+  I/O, независимое избранное, failed commit/retry), gestures, workspace,
+  onehand, production smoke и PWA offline/update/recovery — PASS.
+  Manrope включён в offline cache; Classic 13 файлов byte-identical.
+- Контрольный визуальный просмотр: реальные Chromium screenshots в
+  `lab-out/lighttable/adaptive/`. Изображения тестовые, не фото пользователя.
+  Аппаратная проверка iPhone и просмотр владельцем ещё впереди.
 Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
 
 

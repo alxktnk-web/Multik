@@ -25,8 +25,8 @@ try{
  assert.deepEqual(await page.evaluate(()=>window.__io),{read:0,encode:0,write:0});assert.deepEqual(await page.evaluate(()=>{const r=window.__lighttable.renderer;return {uploads:r.metrics.uploads,compilations:r.metrics.compilations,bytes:r.metrics.liveBytes};}),await page.evaluate(()=>window.__metrics));await page.evaluate(()=>window.__restore());
  await page.click('[data-layer="b"]');assert.equal(await page.locator('[data-level="black"]').getAttribute('aria-valuenow'),'0.0');await page.click('[data-layer="a"]');assert.ok(Number(await page.locator('[data-level="black"]').getAttribute('aria-valuenow'))>10);
  await page.click('[data-action="undo"]');assert.deepEqual((await state()).draft,before.draft);assert.equal(await page.locator('[data-action="undo"]').isDisabled(),true);
- // Choose Clear in-place. Cancel restores complete entry snapshot, not just profile.
- await page.click('[data-mode="looks"]');await page.click('[data-profile-version="5"]');assert.equal((await state()).draft.profile.version,5);await page.click('[data-edit-cancel]');assert.equal(await page.locator('.discard-dialog').isVisible(),true);await page.click('[data-discard]');assert.equal((await state()).editing,false);assert.deepEqual((await state()).draft,before.draft);
+ // Choose Clear in-place. Undo restores the choice; finish is the save boundary.
+ await page.click('[data-mode="looks"]');await page.click('[data-profile-version="5"]');assert.equal((await state()).draft.profile.version,5);await page.click('[data-action="undo"]');assert.deepEqual((await state()).draft,before.draft);await page.click('[data-edit-done]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal((await state()).editing,false);
  await page.click('[data-action="pro"]');await page.click('[data-mode="looks"]');await page.click('[data-profile-version="5"]');await page.click('[data-mode="levels"]');
  await page.locator('[data-level="black"]').focus();await page.keyboard.press('ArrowRight');
  const changed=await state();await page.evaluate(()=>{const r=window.__lighttable.repo;window.__commit=r.commit.bind(r);r.commit=async()=>{throw new DOMException('Test quota. Try Done again.','QuotaExceededError')};});
@@ -43,7 +43,7 @@ try{
  }
  // Orientation preserves completed edits, cancels only in-progress input.
  const rotated=await state();await page.setViewportSize({width:402,height:874});await frame();assert.deepEqual((await state()).draft,rotated.draft);
- await page.click('[data-edit-cancel]');assert.equal((await state()).editing,false);
+ await page.click('[data-edit-done]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal((await state()).editing,false);
  // Export remains available in Edit and is a guarded save boundary.
  assert.equal(await page.locator('[data-action="browse"]').count(),0);
  assert.equal(await page.locator('.sources').isVisible(),false);
@@ -57,6 +57,6 @@ try{
  await page.evaluate(()=>window.__lighttable.repo.commit=window.__commit);
  await page.click('[data-action="export"]');await page.locator('.export-dialog').waitFor({state:'visible'});assert.equal(await page.locator('.export-dialog').isVisible(),true);assert.equal((await state()).editing,false);assert.equal((await state()).commits,exportDraft.commits+1);
  await page.click('[data-close-export]');assert.equal(await page.locator('[data-action="export"]').isVisible(),true);
- assert.deepEqual(errors,[]);await writeFile(`${out}/checks.json`,JSON.stringify({environment:'Chromium, not iPhone hardware',passed:['ruler hot path','source isolation','Undo','Cancel checkpoint','Clear selection','failed Done retry','Done one commit','reload','pair isolation','portrait/landscape layout','rotation','export visible in Edit','export commit failure and retry','explicit Move entry']},null,2));
- console.log('PASS: Levels editor real input, zero I/O hot path, Undo/Cancel, failed commit retry, persistence, pairs, layouts');
+ assert.deepEqual(errors,[]);await writeFile(`${out}/checks.json`,JSON.stringify({environment:'Chromium, not iPhone hardware',passed:['ruler hot path','source isolation','Undo','Undo look choice','Clear selection','failed Done retry','Done one commit','reload','pair isolation','portrait/landscape layout','rotation','export visible in Edit','export commit failure and retry','explicit Move entry']},null,2));
+ console.log('PASS: Levels editor real input, zero I/O hot path, Undo/finish, failed commit retry, persistence, pairs, layouts');
 }finally{await browser.close();await vite.close();}
