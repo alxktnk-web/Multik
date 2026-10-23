@@ -34,7 +34,18 @@ Git fetch: main совпадал с origin/main; workflow — только test/
 - Контрольный визуальный просмотр: реальные Chromium screenshots в
   `lab-out/lighttable/adaptive/`. Изображения тестовые, не фото пользователя.
   Аппаратная проверка iPhone и просмотр владельцем ещё впереди.
-Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
+- Финальная проверка Node 22: 75 tests/build — PASS. Полный renderer browser
+  suite и JPEG export suite — PASS (2000/4000, tiled/mono, 12MP fixtures,
+  20 exports без роста texture memory, Share retry, context loss/recovery).
+- Скриншоты для review сохранены в
+  [ui-previews/adaptive-2026-10-23](ui-previews/adaptive-2026-10-23/README.md).
+  Новые команды: `npm run test:lighttable:adaptive`, `:favorites`, `:import`.
+- Этапы сохранены: `d2fe1aa` план, `3ba83ef` данные Library, `94d0672` импорт,
+  `e05c1a6` шрифт/иконки/offline, `2ef8bbf` интеграция редактора и home.
+Sites v12 пока остаётся действующим. Ветка опубликована в GitHub для review;
+main не объединён и Sites не изменён до согласованного визуального checkpoint.
+Следующий шаг: комментарии владельца к реальным экранам, правки при необходимости,
+затем release на прежнем origin и проверка на iPhone.
 
 
 ## 21.10.2026 — упрощение интерфейса, этапы с сохранением прогресса

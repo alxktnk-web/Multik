@@ -37,3 +37,15 @@ Check git status and latest PROGRESS before editing. Agents may have left change
 without commits if their quota ended. Never treat a successful agent report as
 proof of integration: run combined TypeScript/build and UI checks after merging.
 Generated illustrations are references, not exact layouts or actual render output.
+
+## Checkpoint status
+
+- [x] Baseline checked, backup and working branch created.
+- [x] Bundled appearance, adaptive editor and controls implemented.
+- [x] Mixes, import wizard and editable Library integrated.
+- [x] Unit, build, IDB, browser, JPEG and PWA checks complete.
+- [x] Actual screenshot review set saved in ui-previews/adaptive-2026-10-23.
+- [ ] Owner visual review and any corrections.
+- [ ] Release on existing Sites origin and iPhone hardware acceptance.
+
+Live v12 is unchanged. Do not confuse the review branch with a deployed version.

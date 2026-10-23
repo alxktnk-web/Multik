@@ -1,5 +1,35 @@
 # Локальная проверка M0–M6
 
+## 23.10.2026 — адаптивный редактор / Mixes / Library
+
+- Node 22: 75 unit tests, TypeScript, production build — PASS; 13 Classic files
+  byte-identical. Manrope bundled and included in scoped worker precache.
+- New real IndexedDB favorites suite — PASS: concurrent likes deduplicate,
+  independent revisions/source references, original mix edits isolated, CAS,
+  abort/retry, unlike/rejoin, stale thumbnail guard, reload. Favorite conflict
+  copies become visible ordinary Mixes rather than orphaned Library projects.
+- New import wizard suite — PASS: 12 reset, capacity segments, Next native picker
+  activation, no DB before Create mix, first-roll retention on cancelled picker,
+  completed-roll retry reuse, callback failure/retry, original preservation.
+- New adaptive integration suite — PASS: real 640px mixed covers, heart, independent
+  editor/reopen, pinned favorite pair, zero storage/readback/JPEG/uploads during
+  Levels and X/Y/scale input; failed finish retains Undo/draft; four orientations
+  with Move/Levels: visible save, 44px targets, no stage overlap or overflow.
+- Existing editor, gestures, workspace, onehand, full browser renderer regression,
+  production smoke and PWA offline/update/recovery suites — PASS. Existing tests
+  now follow capacity buttons, home details and check/Undo semantics. Rotation
+  harness notifies Session before touch so adaptive resize settles first.
+- Full JPEG suite — PASS: tiled/monolithic parity, snapshot isolation,
+  4000px output, 12MP synthetic originals, cancellation, 20-export texture
+  plateau, Share retry, quota-resistant ready JPEG and context-loss recovery.
+- Home settings/update closes home before opening settings: update remains usable
+  while import/editor guards still prevent unsafe activation.
+
+Screenshots: [review set](ui-previews/adaptive-2026-10-23/README.md).
+Chromium is not iPhone validation. Native Photos sharing, safe-area ergonomics,
+thermal behavior, frame pacing and native picker menus remain device checks.
+
+
 ## 21.10.2026 — упрощение интерфейса по этапам
 
 - 75 unit tests: дополнены реальный выбор трети композиции при разных viewport
