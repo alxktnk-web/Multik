@@ -63,12 +63,15 @@
    controls remain attached to the canvas rather than floating at the bottom. */
 @media(orientation:portrait){
  /* Tall compositions keep utilities in the footer, freeing a 44px photo row. */
- .workspace.editing[data-composition=portrait][data-edit-mode=layers]{grid-template-columns:92px minmax(176px,1fr) 88px}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers]{grid-template-columns:minmax(88px,1fr) 176px minmax(88px,1fr)}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-actions{grid-column:2/-1}
- .workspace.editing[data-composition=portrait][data-edit-mode=layers] .toolbar{position:static}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .toolbar{position:static;justify-self:end;padding:0;gap:0}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources{gap:0}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources button{padding:6px}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes button svg,.workspace.editing[data-composition=portrait] .layer-utilities button svg{width:20px;height:20px}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .toolbar [data-action=undo]{position:absolute;top:env(safe-area-inset-top);left:calc(48px + env(safe-area-inset-left));z-index:3}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes{justify-self:center;margin:0}
- .workspace.editing[data-composition=portrait] .layer-utilities{position:absolute;right:env(safe-area-inset-right);bottom:calc(4px + env(safe-area-inset-bottom));height:44px}
+ .workspace.editing[data-composition=portrait] .layer-utilities{position:absolute;right:calc(env(safe-area-inset-right) + (100% - env(safe-area-inset-left) - env(safe-area-inset-right) - 352px)/2);bottom:calc(4px + env(safe-area-inset-bottom));height:44px}
  .workspace.editing[data-composition=portrait] .transform-range:has([data-position=x]){grid-row:1}
  .workspace.editing[data-composition=portrait] .transform-range:has([data-position=y]){grid-row:2}
  .workspace.editing[data-composition=portrait] .transform-range:has([data-scale]){grid-row:3}
@@ -148,6 +151,7 @@
 }
 
 @media(orientation:portrait) and (max-width:359px){
+ .workspace.editing[data-composition=portrait] .layer-utilities{right:calc((100% - 264px)/2)}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers]{grid-template-columns:minmax(176px,1fr) 88px}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes{grid-column:1}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources{position:absolute;top:env(safe-area-inset-top);left:calc(92px + env(safe-area-inset-left));gap:0}
