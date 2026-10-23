@@ -18,15 +18,15 @@ const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  const photo=i=>({name:`frame-${i}.png`,mimeType:'image/png',buffer:Buffer.from(photos[i%2],'base64')});
  await page.setInputFiles('[data-roll-files]',Array.from({length:13},(_,i)=>photo(i)));
  assert.equal(await page.getAttribute('.roll-import-dialog','data-selection'),'overflow');assert.equal(await page.locator('[data-save-roll]').isDisabled(),true);assert.equal(await page.locator('.candidate-extra').count(),1);
- await page.locator('.candidate button').last().click();assert.equal(await page.getAttribute('.roll-import-dialog','data-selection'),'full');assert.match(await page.locator('.import-count').innerText(),/12 \/ 12 ✓ · Roll full/);
+ await page.locator('.candidate button').last().click();assert.equal(await page.getAttribute('.roll-import-dialog','data-selection'),'full');assert.match(await page.locator('.import-count').innerText(),/12 \/ 12 ✓/);
  await page.waitForFunction(()=>[...document.querySelectorAll('.candidate img')].every(i=>i.complete&&i.naturalWidth>0));
  const geometry=[];
  for(const [width,height] of [[375,667],[402,874],[874,402]]){
   await page.setViewportSize({width,height});
   for(const scroll of [0,100000]){
    await page.locator('.roll-import-dialog .sheet-content').evaluate((e,s)=>e.scrollTop=s,scroll);
-   const r=await page.locator('[data-save-roll]').boundingBox();assert.ok(r.y>=height-100&&r.y+r.height<=height+1,JSON.stringify({width,height,r}));
-   const count=await page.locator('.import-count').boundingBox();assert.ok(count.y>height*.5);
+   const r=await page.locator('[data-save-roll]').boundingBox();assert.ok(r.y>=0&&r.y+r.height<=height+1,JSON.stringify({width,height,r}));if(width>height)assert.ok(r.x>width-150);else assert.ok(r.y>=height-100);
+   const count=await page.locator('.import-count').boundingBox();if(width>height)assert.ok(count.x>width-150);else assert.ok(count.y>height*.5);
    const hit=await page.locator('[data-save-roll]').evaluate(e=>{const r=e.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===e;});assert.equal(hit,true);
    geometry.push({width,height,scroll,button:r});
   }
@@ -52,5 +52,5 @@ const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  await page.click('[data-edit-done]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);await page.click('[data-rail=a] [data-index="1"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.layer.transform.turns),0);
  await page.click('[data-rail=a] [data-index="0"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.draft.layers[1].transform.turns),1);
  assert.deepEqual(errors,[]);await mkdir('lab-out/lighttable',{recursive:true});await writeFile('lab-out/lighttable/onehand-evidence.json',JSON.stringify({geometry,direction,environment:'Chromium SwiftShader. Native iOS picker and Photos not device-verified.'},null,2));
- console.log('PASS: 12/13 full/overflow, bottom dock in 3 sizes at both scroll ends, auto name, equal landscape/portrait placement and halo/JPEG, original bytes, per-pair manual rotation');
+ console.log('PASS: 12/13 full/overflow, bottom/side dock in 3 sizes at both scroll ends, auto name, equal landscape/portrait placement and halo/JPEG, original bytes, per-pair manual rotation');
 }finally{await browser.close();await vite.close();}

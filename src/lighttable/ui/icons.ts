@@ -1,5 +1,7 @@
 // Lucide 0.468.0, ISC (and Feather notices); see third_party/LUCIDE-LICENSE.txt.
 const icons={
+  "heart": '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
+  "check": '<path d="m5 12 4 4L19 6"/>',
   "browse": "<path d=\"M8 3 4 7l4 4\" />\n  <path d=\"M4 7h16\" />\n  <path d=\"m16 21 4-4-4-4\" />\n  <path d=\"M20 17H4\" />",
   "export": "<path d=\"M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8\" />\n  <polyline points=\"16 6 12 2 8 6\" />\n  <line x1=\"12\" x2=\"12\" y1=\"2\" y2=\"15\" />",
   "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"M12 18a6 6 0 0 0 0-12v12z\" />",

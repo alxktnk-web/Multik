@@ -190,6 +190,17 @@ export class Renderer {
     const rng=new Rng(c.seed);gl.uniform2f(p.uniform('uHaloVariation'),rng.range(.85,1.15),rng.range(.85,1.15));
     gl.drawArrays(gl.TRIANGLES,0,3);
   }
+  // Explicit library/heart boundary only, never called by gestures or animation.
+  // Copy immediately after drawing: the WebGL canvas does not preserve its buffer.
+  async capturePreview(){
+    if(!this.ready||this.destroyed||this.exporting||this.session.gesturing)throw Error('Wait for the photo to finish');
+    this.draw(performance.now());
+    const output=document.createElement('canvas');output.width=this.canvas.width;output.height=this.canvas.height;
+    const ctx=output.getContext('2d');if(!ctx)throw Error('Could not prepare preview');
+    ctx.drawImage(this.canvas,0,0);
+    try{return await new Promise<Blob>((resolve,reject)=>output.toBlob(blob=>blob?resolve(blob):reject(Error('Could not prepare preview')),'image/jpeg',.92));}
+    finally{output.width=output.height=1;}
+  }
   // Explicit export only. The visible canvas/draft/history never become the export target.
   async exportImage(snapshot:Composition,inputs:[SourceInput,SourceInput],edge:2000|4000,signal:AbortSignal,onProgress:(fraction:number)=>void=()=>{},tileEdge=1024){
     if(this.exporting)throw Error('Export is already running');

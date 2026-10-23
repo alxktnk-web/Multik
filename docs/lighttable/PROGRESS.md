@@ -1,5 +1,111 @@
 # Multik Lighttable — состояние реализации
 
+## 2026-10-23 — подготовка публикации
+
+Владелец одобрил публикацию adaptive UI. Перед выпуском ещё немного уменьшены
+две левые миниатюры и значок Move; touch targets сохранены.
+
+
+## 2026-10-23 — компактный нижний ряд
+
+По следующему замечанию владельца нижний ряд Move при вертикальной композиции
+собран по центру: убраны промежутки между группами, миниатюры уменьшены внутренними
+отступами, значки инструментов — с 23 до 20px. Области нажатия остаются 44px.
+На ширине 402px по краям остаётся по 25px; длина шкал не изменена.
+`lighttable-long-controls-check.mjs` — PASS (40 сочетаний, включая 320/375/402px).
+Обновлённый скриншот показан в чате. Sites не публиковался.
+
+
+## 2026-10-23 — кнопки Move в нижнем ряду
+
+По замечанию владельца в portrait с вертикальной композицией поворот слоя и
+центрирование перенесены в нижний ряд. Отдельная строка 44px удалена;
+Undo расположен сверху рядом с возвратом. Длина X/Y/Scale не сокращена.
+На экранах уже 360px миниатюры слоёв переходят наверх, сохраняя цели 44px.
+
+- `lighttable-long-controls-check.mjs` — PASS: 40 сочетаний размеров,
+  поворотов и инструментов; дополнительная проверка общего нижнего ряда,
+  отсутствия перекрытий и 132px для трёх шкал при ширине 320/375/402px.
+- Production build (Node 22), включая TypeScript — PASS.
+- Скриншот показан в чате; файлы превью не добавлены в GitHub.
+- Изменение только интерфейса. Sites не публиковался; iPhone ещё не проверен.
+
+
+## Уточнение после review — длинные шкалы
+
+Все прямые регулировки теперь используют доступную короткую сторону экрана:
+portrait — отдельные строки на ширину, landscape — вертикальные колонки на
+высоту. Move X/Y/scale, Levels, Pro и Halo XY; кнопки в отдельной области.
+Правило закреплено в DECISIONS.md и UI_CONTRACT.md. Владелец просит показывать
+скриншоты прямо в чате, не отправлять его в GitHub для просмотра.
+
+- TypeScript и `lighttable-long-controls-check.mjs` — PASS: 24 сочетания
+  размеров/поворотов/инструментов, длина шкал, >=44px targets, нет перекрытия
+  фото, native vertical drag + Undo, нет commits на lift.
+- Повторная совместная adaptive-проверка — PASS: home/Library, независимые
+  правки, hot path, failed finish/retry, четыре ориентации.
+- Реальные скриншоты: `lab-out/lighttable/long-controls/`, показаны владельцу
+  прямо в чате; тестовые изображения. iPhone ещё не проверен.
+- Финальная сборка первоначально не запускалась: automatic approval review
+  не смог завершиться из-за usage limit сервиса (не unsafe-action rejection).
+  После команды владельца «продолжай» повтор через тот же механизм разрешений
+  успешно выполнен: Node 22 production build — PASS; 13 файлов Classic byte-identical.
+- Sites пока остаётся на v12; данные и алгоритм обработки не менялись.
+
+
+## 23.10.2026 — адаптивный интерфейс, работа начата
+
+Владелец утвердил макеты и реализацию с агентами. План и границы владения:
+[ADAPTIVE_UI.md](ADAPTIVE_UI.md). База `4fa5601`, ветка
+`feat/adaptive-workspace`, backup `backup/main-before-adaptive-2026-10-23`.
+Git fetch: main совпадал с origin/main; workflow — только test/build, без Pages.
+- Данные Library: независимый snapshot в отдельном project kind=favorite,
+  ссылки на оригиналы, атомарное добавление/снятие membership без удаления фото.
+  Реальный IndexedDB suite `lighttable-favorites-check.mjs` — PASS: concurrent likes,
+  CAS, abort/retry, повторное добавление, stale thumbnail, reload.
+- Импорт: standalone каждый раз 12; сегменты 06/12/24/36; Next вызывает
+  второй picker в user activation, обе подборки до Create mix остаются RAM.
+  Завершённые плёнки переиспользуются при retry; исправлен bubbling native cancel.
+  `lighttable-import-v3-check.mjs` — PASS: native chooser, zero writes before
+  Create mix, abort/error/retry, отсутствие дубликатов, оба расположения, 44 px.
+- Общий стиль: локальный variable Manrope (OFL), без запроса Google Fonts
+  при работе приложения; единые SVG. Worker принимает font/ttf и кеширует шрифт.
+  Production build и PWA offline/update/recovery suite с проверкой font cache — PASS.
+- Редактор: четыре компоновки по ориентации телефона/композиции, в landscape
+  без нижней панели; светлота Levels остаётся per-source. Move: X/Y/scale,
+  Undo; check сохраняет и выходит, Cancel убран из обычного потока. Экспорт и
+  сердце доступны в обоих режимах. Portrait-wide: линейка сразу под фото.
+- Mixes: реальные 640 px обложки через отдельный последовательный renderer
+  тех же шейдеров; его работа запускается на home/heart boundary, не на движениях.
+  Library открывает отдельную сохранённую пару в общем редакторе; смена кадров
+  избранного запрещена. Конфликтная копия доступна как обычный Mix.
+- Совместные проверки: 75 unit tests, TypeScript/production build, editor,
+  adaptive (8 компоновок Move/Levels, 44px, без overlap/overflow, zero hot-path
+  I/O, независимое избранное, failed commit/retry), gestures, workspace,
+  onehand, production smoke и PWA offline/update/recovery — PASS.
+  Manrope включён в offline cache; Classic 13 файлов byte-identical.
+- Контрольный визуальный просмотр: реальные Chromium screenshots в
+  `lab-out/lighttable/adaptive/`. Изображения тестовые, не фото пользователя.
+  Аппаратная проверка iPhone и просмотр владельцем ещё впереди.
+- Финальная проверка Node 22: 75 tests/build — PASS. Полный renderer browser
+  suite и JPEG export suite — PASS (2000/4000, tiled/mono, 12MP fixtures,
+  20 exports без роста texture memory, Share retry, context loss/recovery).
+- Скриншоты для review сохранены в
+  [ui-previews/adaptive-2026-10-23](ui-previews/adaptive-2026-10-23/README.md).
+  Новые команды: `npm run test:lighttable:adaptive`, `:favorites`, `:import`.
+- Этапы сохранены: `d2fe1aa` план, `3ba83ef` данные Library, `94d0672` импорт,
+  `e05c1a6` шрифт/иконки/offline, `2ef8bbf` интеграция редактора и home.
+Sites v12 пока остаётся действующим. Ветка опубликована в GitHub для review;
+main не объединён и Sites не изменён до согласованного визуального checkpoint.
+Draft PR: [#2](https://github.com/alxktnk-web/Multik/pull/2). На `c5ff477`
+GitHub Actions — success, run `39961217101`. Финальный export landscape также
+переведён на боковую панель; full export suite с geometry assertion — PASS.
+Дополнительно устранён intrinsic-size overflow картинки в export grid; UI
+Share/retry/context-loss и границы preview после этой CSS-правки — PASS.
+Следующий шаг: комментарии владельца к реальным экранам, правки при необходимости,
+затем release на прежнем origin и проверка на iPhone.
+
+
 ## 21.10.2026 — упрощение интерфейса, этапы с сохранением прогресса
 
 План: [UI_SIMPLIFICATION.md](UI_SIMPLIFICATION.md), ветка

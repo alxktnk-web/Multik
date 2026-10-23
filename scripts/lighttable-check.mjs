@@ -45,7 +45,7 @@ try{
   assert.deepEqual((await state()).draft.layers[0],beforePinch.layers[0]);assert.ok((await state()).draft.layers[1].transform.scale>1.9);assert.equal((await state()).viewport.zoom,1);await page.evaluate(()=>window.__lighttable.session.undo());assert.deepEqual((await state()).draft,beforePinch);
   // Verify screen-displacement across all rotations at two viewport zoom levels.
   for(const turn of [0,1,2,3])for(const zoom of [1,2]){
-    await page.evaluate(({turn,zoom})=>{const l=window.__lighttable;l.session.draft.frame.turns=turn;l.session.viewport.zoom=zoom;l.session.viewport.pan={x:0,y:0};l.session.layer.transform={xMm:0,yMm:0,turns:0};l.renderer.invalidate();},{turn,zoom});await frame();
+    await page.evaluate(({turn,zoom})=>{const l=window.__lighttable;l.session.draft.frame.turns=turn;l.session.viewport.zoom=zoom;l.session.viewport.pan={x:0,y:0};l.session.layer.transform={xMm:0,yMm:0,turns:0};l.session.onChange();l.renderer.invalidate();},{turn,zoom});await frame();
     await drag(21,-17);
     const delta=await page.evaluate(async()=>{const {filmToScreen,vector}=await import('/src/lighttable/model/transforms.ts');const s=window.__lighttable.session;return vector(filmToScreen(s.draft.frame,s.viewport),{x:s.layer.transform.xMm,y:s.layer.transform.yMm});});
     assert.ok(Math.abs(delta.x-21)<.3&&Math.abs(delta.y+17)<.3,JSON.stringify({turn,zoom,delta}));

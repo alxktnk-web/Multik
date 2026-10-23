@@ -31,7 +31,7 @@ export class Navigation {
     });
   }
   async select(layer:LayerId,index:number){
-    if(!this.project||!this.rolls||this.busy)return false;
+    if(!this.project||!this.rolls||this.busy||this.project.kind==='favorite')return false;
     const key=layer==='a'?'a':'b';
     if(this.project[key]===index){this.session.activeLayer=layer;this.session.tool={kind:'layer'};this.onChange();return true;}
     if(!Number.isInteger(index)||index<0||index>=this.rolls[layer==='a'?0:1].assetIds.length)return false;
@@ -41,7 +41,7 @@ export class Navigation {
     });
   }
   async step(direction:-1|1){
-    if(!this.project||!this.rolls||this.busy)return false;
+    if(!this.project||!this.rolls||this.busy||this.project.kind==='favorite')return false;
     return this.boundary(async()=>{
       const p=this.project!,r=this.rolls!;
       const next={...p,a:(p.a+direction+r[0].capacity)%r[0].capacity,b:(p.b+direction+r[1].capacity)%r[1].capacity};

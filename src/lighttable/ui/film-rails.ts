@@ -29,8 +29,8 @@ export class FilmRails {
   setLocked(locked:boolean){this.locked=locked;this.handle.disabled=locked;for(const button of this.tray.querySelectorAll<HTMLButtonElement>('button'))button.disabled=locked||this.navigation.busy;}
   private layout(){
     const hidden=this.hidden[this.media.matches?'landscape':'portrait'];
-    this.root.classList.toggle('has-rails',!!this.navigation.rolls);this.root.classList.toggle('rails-collapsed',hidden);
-    this.tray.hidden=!this.navigation.rolls;this.handle.hidden=!this.navigation.rolls;
+    this.root.classList.toggle('has-rails',!!this.navigation.rolls&&this.navigation.project?.kind!=='favorite');this.root.classList.toggle('rails-collapsed',hidden);
+    this.tray.hidden=!this.navigation.rolls||this.navigation.project?.kind==='favorite';this.handle.hidden=this.tray.hidden;
     this.handle.setAttribute('aria-label',hidden?'Show rolls':'Hide rolls');this.handle.setAttribute('aria-expanded',String(!hidden));this.handle.innerHTML=icon(this.media.matches?(hidden?'right':'back'):(hidden?'up':'down'));
   }
   async update(){

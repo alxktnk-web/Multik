@@ -12,7 +12,7 @@ function valid(response, href) {
   if (response.url && canonical(response.url) !== canonical(href)) return false;
   const type = (response.headers.get('content-type') || '').split(';')[0].trim();
   const extension = new URL(href).pathname.split('.').pop();
-  const types = {html:['text/html'],js:['text/javascript','application/javascript'],css:['text/css'],png:['image/png'],webmanifest:['application/manifest+json','application/json']};
+  const types = {html:['text/html'],js:['text/javascript','application/javascript'],css:['text/css'],ttf:['font/ttf','application/x-font-ttf','application/font-sfnt','application/octet-stream'],png:['image/png'],webmanifest:['application/manifest+json','application/json']};
   return types[extension]?.includes(type) === true;
 }
 async function clean(response) {
