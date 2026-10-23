@@ -47,6 +47,8 @@ main не объединён и Sites не изменён до согласов�
 Draft PR: [#2](https://github.com/alxktnk-web/Multik/pull/2). На `c5ff477`
 GitHub Actions — success, run `39961217101`. Финальный export landscape также
 переведён на боковую панель; full export suite с geometry assertion — PASS.
+Дополнительно устранён intrinsic-size overflow картинки в export grid; UI
+Share/retry/context-loss и границы preview после этой CSS-правки — PASS.
 Следующий шаг: комментарии владельца к реальным экранам, правки при необходимости,
 затем release на прежнем origin и проверка на iPhone.
 
