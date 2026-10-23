@@ -10,6 +10,11 @@ Git fetch: main совпадал с origin/main; workflow — только test/
   ссылки на оригиналы, атомарное добавление/снятие membership без удаления фото.
   Реальный IndexedDB suite `lighttable-favorites-check.mjs` — PASS: concurrent likes,
   CAS, abort/retry, повторное добавление, stale thumbnail, reload.
+- Импорт: standalone каждый раз 12; сегменты 06/12/24/36; Next вызывает
+  второй picker в user activation, обе подборки до Create mix остаются RAM.
+  Завершённые плёнки переиспользуются при retry; исправлен bubbling native cancel.
+  `lighttable-import-v3-check.mjs` — PASS: native chooser, zero writes before
+  Create mix, abort/error/retry, отсутствие дубликатов, оба расположения, 44 px.
 Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
 
 
