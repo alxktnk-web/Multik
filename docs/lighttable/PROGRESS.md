@@ -6,6 +6,10 @@
 [ADAPTIVE_UI.md](ADAPTIVE_UI.md). База `4fa5601`, ветка
 `feat/adaptive-workspace`, backup `backup/main-before-adaptive-2026-10-23`.
 Git fetch: main совпадал с origin/main; workflow — только test/build, без Pages.
+- Данные Library: независимый snapshot в отдельном project kind=favorite,
+  ссылки на оригиналы, атомарное добавление/снятие membership без удаления фото.
+  Реальный IndexedDB suite `lighttable-favorites-check.mjs` — PASS: concurrent likes,
+  CAS, abort/retry, повторное добавление, stale thumbnail, reload.
 Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
 
 

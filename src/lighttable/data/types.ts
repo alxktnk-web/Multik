@@ -5,7 +5,9 @@ export type Capacity=typeof capacities[number];
 export type Asset={id:string;revision:1;blob:Blob;preview:Blob;thumb:Blob;width:number;height:number;owner:string;origin?:string};
 export type Roll={id:string;name:string;capacity:number;assetIds:string[];createdAt:string;origin?:string};
 export type ImportJob={id:string;rollId:string;name:string;capacity:number;assetIds:string[];origin?:string};
-export type Project={id:string;rollA:string;rollB:string;a:number;b:number;updatedAt:string};
+export type Project={id:string;rollA:string;rollB:string;a:number;b:number;updatedAt:string;kind?:'favorite';favoriteSourceId?:string};
+// Membership is stored in prefs; the independent project/composition remains editable.
+export type Favorite={id:string;projectId:string;compositionId:string;sourceCompositionId:string;createdAt:string;thumb:Blob};
 export class ConflictError extends Error {constructor(){super('This frame changed in another tab. Your edits are still here. Close the other tab or save a separate copy.');}}
 export function assertComposition(value:unknown):asserts value is Composition {
   if(!value||typeof value!=='object')throw Error('Composition data is damaged');

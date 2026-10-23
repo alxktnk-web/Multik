@@ -1,4 +1,4 @@
-import { assertComposition, ConflictError, validateRoll, type Asset, type ImportJob, type Project, type Roll } from './types';
+import { assertComposition, ConflictError, pairId, validateRoll, type Favorite, type Asset, type ImportJob, type Project, type Roll } from './types';
 import { copyComposition, type Composition } from '../model/types';
 const stores=['assets','rolls','jobs','projects','compositions','prefs'] as const;
 type Store=typeof stores[number];
@@ -83,6 +83,68 @@ export class Repository {
     await this.write(['jobs','assets','rolls'],tx=>{
       // Only our uncommitted job can own these temporary assets.
       const q=tx.objectStore('jobs').get(job.id);q.onsuccess=()=>{if(!q.result)return;const r=tx.objectStore('rolls').get(job.rollId);r.onsuccess=()=>{if(r.result)return;for(const id of job.assetIds){const asset=tx.objectStore('assets').get(id);asset.onsuccess=()=>{if(asset.result?.owner===job.id)tx.objectStore('assets').delete(id);};}tx.objectStore('jobs').delete(job.id);};};
+    });
+  }
+  async listFavorites():Promise<Favorite[]>{
+    const rows=await this.all<{id:string;value?:Favorite}>('prefs');
+    return rows.filter(row=>row.id.startsWith('favorite:')&&row.value?.id===row.id&&typeof row.value.projectId==='string'&&typeof row.value.compositionId==='string'&&typeof row.value.sourceCompositionId==='string'&&typeof row.value.createdAt==='string'&&row.value.thumb instanceof Blob).map(row=>row.value!).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  }
+  async favoriteCurrent(project:Project,snapshot:Composition,thumb:Blob):Promise<Favorite>{
+    assertComposition(snapshot);if(!(thumb instanceof Blob))throw Error('Preview unavailable');
+    const source=copyComposition(snapshot),current={...project};
+    const assets=source.layers.map(layer=>layer.placements[0].source.assetId);
+    const rolls=await Promise.all([this.roll(current.rollA),this.roll(current.rollB)]);
+    if(rolls[0].assetIds[current.a]!==assets[0]||rolls[1].assetIds[current.b]!==assets[1]||source.id!==pairId(current,assets[0],assets[1]))throw Error('The selected mix changed. Try again.');
+    const sourceId=current.kind==='favorite'?current.favoriteSourceId:source.id;
+    if(!sourceId)throw Error('Favorite source unavailable');
+    const now=new Date().toISOString();
+    const p:Project=current.kind==='favorite'?current:{...current,id:crypto.randomUUID(),kind:'favorite',favoriteSourceId:sourceId,updatedAt:now};
+    const c=copyComposition(source);c.id=pairId(p,assets[0],assets[1]);
+    // A favorite is a deliberate saved snapshot, never an untouched pair subject to defaults.
+    if(current.kind!=='favorite')c.revision=1;
+    assertComposition(c);
+    let favorite:Favorite={id:`favorite:${sourceId}`,projectId:p.id,compositionId:c.id,sourceCompositionId:sourceId,createdAt:now,thumb};
+    await this.write(['prefs','projects','compositions'],(tx,fail)=>{
+      const prefs=tx.objectStore('prefs'),projects=tx.objectStore('projects'),compositions=tx.objectStore('compositions');
+      const check=prefs.get(favorite.id);
+      check.onsuccess=()=>{
+        const existing=check.result?.value as Favorite|undefined;
+        if(existing){
+          // Concurrent likes serialize on this transaction; never replace an edited favorite.
+          const q=projects.get(existing.projectId),r=compositions.get(existing.compositionId);let checked=0;
+          const ready=()=>{if(++checked!==2)return;if(!q.result||!r.result){fail(Error('Saved favorite is unavailable'));return;}favorite=existing;};
+          q.onsuccess=ready;r.onsuccess=ready;return;
+        }
+        if(current.kind==='favorite'){
+          // Removing a heart does not destroy the editor's saved project. Rejoin atomically.
+          const q=compositions.get(c.id),r=projects.get(p.id);let checked=0;
+          const ready=()=>{if(++checked!==2)return;if(!q.result||!r.result){fail(Error('Saved favorite is unavailable'));return;}prefs.add({id:favorite.id,value:favorite});};
+          q.onsuccess=ready;r.onsuccess=ready;
+        }else{
+          projects.add(p);compositions.add(c);prefs.add({id:favorite.id,value:favorite});
+        }
+      };
+    });
+    return favorite;
+  }
+  async removeFavorite(id:string){
+    if(!id.startsWith('favorite:'))throw Error('Invalid favorite');
+    // Membership only: current edits and all original photographs remain intact.
+    await this.write(['prefs'],tx=>{tx.objectStore('prefs').delete(id);});
+  }
+  async updateFavoriteThumbnail(projectId:string,thumb:Blob,expectedRevision?:number){
+    if(!(thumb instanceof Blob))throw Error('Preview unavailable');
+    await this.write(['prefs','projects','compositions'],tx=>{
+      const p=tx.objectStore('projects').get(projectId);
+      p.onsuccess=()=>{
+        const project=p.result as Project|undefined;if(project?.kind!=='favorite'||!project.favoriteSourceId)return;
+        const prefs=tx.objectStore('prefs'),q=prefs.get(`favorite:${project.favoriteSourceId}`);
+        q.onsuccess=()=>{
+          const favorite=q.result?.value as Favorite|undefined;if(!favorite||favorite.projectId!==projectId)return;
+          const c=tx.objectStore('compositions').get(favorite.compositionId);
+          c.onsuccess=()=>{if(!c.result||(expectedRevision!==undefined&&c.result.revision!==expectedRevision))return;prefs.put({id:favorite.id,value:{...favorite,thumb}});};
+        };
+      };
     });
   }
   async listProjects(){return (await this.all<Project>('projects')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}
