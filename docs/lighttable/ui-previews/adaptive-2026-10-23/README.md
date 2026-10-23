@@ -8,6 +8,7 @@ iPhone safe areas, finger comfort and hardware performance need device review.
 |---|---|
 | Mixes | [Portrait](mixes-portrait.png) |
 | Library | [Portrait](library-portrait.png) |
+| Save photo | [Landscape](export-landscape.png) |
 | Portrait phone, wide composition, Levels | [Open](portrait-wide-levels.png) |
 | Portrait phone, tall composition, Move | [Open](portrait-tall-layers.png) |
 | Landscape phone, wide composition, Levels | [Open](landscape-wide-levels.png) |

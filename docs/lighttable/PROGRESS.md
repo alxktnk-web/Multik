@@ -44,6 +44,9 @@ Git fetch: main совпадал с origin/main; workflow — только test/
   `e05c1a6` шрифт/иконки/offline, `2ef8bbf` интеграция редактора и home.
 Sites v12 пока остаётся действующим. Ветка опубликована в GitHub для review;
 main не объединён и Sites не изменён до согласованного визуального checkpoint.
+Draft PR: [#2](https://github.com/alxktnk-web/Multik/pull/2). На `c5ff477`
+GitHub Actions — success, run `39961217101`. Финальный export landscape также
+переведён на боковую панель; full export suite с geometry assertion — PASS.
 Следующий шаг: комментарии владельца к реальным экранам, правки при необходимости,
 затем release на прежнем origin и проверка на iPhone.
 
