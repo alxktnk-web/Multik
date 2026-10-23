@@ -1,5 +1,9 @@
 # Adaptive UI — running application screenshots
 
+Historical review set: the owner subsequently requested full-length X/Y/scale
+and Pro tracks. Current screenshots of those changes are presented in chat,
+as requested; these older images do not show the latest control lengths.
+
 23 October 2026. Chromium 402×874 / 874×402, synthetic test photographs.
 These are actual application screens, not generated design mockups.
 iPhone safe areas, finger comfort and hardware performance need device review.

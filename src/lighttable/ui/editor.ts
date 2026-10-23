@@ -100,7 +100,9 @@ export class Editor {
     for(const h of this.element.querySelectorAll<HTMLElement>('[data-level]'))h.setAttribute('aria-disabled',String(locked&&!this.pointer));
     for(const input of this.element.querySelectorAll<HTMLInputElement>('input'))input.disabled=locked&&input!==this.range;
     const scale=this.element.querySelector<HTMLInputElement>('[data-scale]')!;if(this.range!==scale)scale.value=String(this.session.layer.transform.scale??1);
+    for(const input of this.element.querySelectorAll<HTMLInputElement>('input[type=range]'))input.setAttribute('aria-orientation',this.landscape.matches?'vertical':'horizontal');
     const keys=this.session.tool.kind==='parameter'?[this.session.tool.parameter]:this.session.tool.kind==='xy'?['halo','haloRadius'] as const:[];
+    this.element.parentElement!.dataset.proRanges=String(this.session.draft.profile.version===5?0:keys.length);
     this.element.querySelectorAll<HTMLInputElement>('.effect-range').forEach((r,i)=>{
       const key=keys[i],label=r.parentElement!;label.hidden=!key||this.session.draft.profile.version===5;
       if(key){const p=parameters[key];r.dataset.parameter=key;r.min=String(p.min);r.max=String(p.max);r.step=String(p.step);if(r!==this.range)r.value=String(this.session.draft.effects[key]);r.setAttribute('aria-label',p.label);label.querySelector('span')!.textContent=p.label;}
