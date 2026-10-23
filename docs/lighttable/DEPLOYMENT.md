@@ -1,4 +1,19 @@
-# Current release — Sites version 12, 21 October 2026
+# Current release — Sites version 13, 23 October 2026
+
+- Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Deployment `appgdep_6adba1b273dc81918904192fdbfe8071` succeeded at 2026-10-23 18:04:51 UTC; owner-private access and origin preserved.
+- Saved version `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_30dbc082cae08191a02edbcff3b4d938`, version 13.
+- GitHub main merge `ebec8fade8b2b9dde4f137532eb37a377a6d78f2`; prior main retained at `backup/main-before-adaptive-2026-10-23`. Normal merge, no history rewriting. Pages remains verification-only.
+- Sites source `ab18bbb89ed431e785316081371a8a4bfb6aa301`, identical source tree; private Sites history stays separate. Independent Node 22 build matched tested dist byte-for-byte; 13 Classic files unchanged.
+- Archive `/workspace/multik-adaptive-deploy.tar.gz`, backend hash `sha256:0291de821ebc2a04ac5c1c20593720a3e6487074be1da0797bafd8a66159928b`, 24 files.
+- Features: Mixes home, editable independent Library favorites, 12-frame default import, Manrope font, adaptive side controls, long Levels/X/Y/Scale/Pro tracks, compact centered portrait footer. Final owner adjustment reduces source thumbnails and Move icon while retaining 44px touch targets.
+- Release checks: 75 unit tests and production build passed. Previous adaptive/gesture/export/PWA checks and 40-case long-control review recorded in PROGRESS/VALIDATION. Real iPhone acceptance remains open.
+- Source helper unavailable: documented hidden-stdin/RAM credential fallback, non-force push and remote SHA verification, exact-source archive, native private deployment. No browser storage cleared.
+- Installed old PWA: info → Update. Subsequent documentation-only commits do not require republishing.
+
+---
+
+# Previous release — Sites version 12, 21 October 2026
 
 - Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Native owner-private deployment `appgdep_6ad8e04844ec8191b7a34a45ec05352a`, **succeeded** at 2026-10-21 15:55:03 UTC. Same origin, audience and root Classic.
