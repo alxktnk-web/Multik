@@ -67,7 +67,8 @@
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-actions{grid-column:2/-1}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .toolbar{position:static;justify-self:end;padding:0;gap:0}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources{gap:0}
- .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources button{padding:6px}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources button{padding:8px}
+ .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes [data-mode=layers] svg{width:18px;height:18px}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes button svg,.workspace.editing[data-composition=portrait] .layer-utilities button svg{width:20px;height:20px}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .toolbar [data-action=undo]{position:absolute;top:env(safe-area-inset-top);left:calc(48px + env(safe-area-inset-left));z-index:3}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes{justify-self:center;margin:0}
