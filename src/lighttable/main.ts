@@ -1,4 +1,5 @@
 import './style.css';
+import './fonts.css';
 import { mountWorkspace } from './ui/workspace';
 const root=document.querySelector<HTMLDivElement>('#lighttable')!;
 void mountWorkspace(root).then(workspace=>{

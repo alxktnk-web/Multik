@@ -15,6 +15,9 @@ Git fetch: main совпадал с origin/main; workflow — только test/
   Завершённые плёнки переиспользуются при retry; исправлен bubbling native cancel.
   `lighttable-import-v3-check.mjs` — PASS: native chooser, zero writes before
   Create mix, abort/error/retry, отсутствие дубликатов, оба расположения, 44 px.
+- Общий стиль: локальный variable Manrope (OFL), без запроса Google Fonts
+  при работе приложения; единые SVG. Worker принимает font/ttf и кеширует шрифт.
+  Production build и PWA offline/update/recovery suite с проверкой font cache — PASS.
 Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
 
 
