@@ -1,5 +1,14 @@
 # Multik Lighttable — состояние реализации
 
+## 23.10.2026 — адаптивный интерфейс, работа начата
+
+Владелец утвердил макеты и реализацию с агентами. План и границы владения:
+[ADAPTIVE_UI.md](ADAPTIVE_UI.md). База `4fa5601`, ветка
+`feat/adaptive-workspace`, backup `backup/main-before-adaptive-2026-10-23`.
+Git fetch: main совпадал с origin/main; workflow — только test/build, без Pages.
+Sites v12 пока остаётся действующим. Новый UI ещё не опубликован.
+
+
 ## 21.10.2026 — упрощение интерфейса, этапы с сохранением прогресса
 
 План: [UI_SIMPLIFICATION.md](UI_SIMPLIFICATION.md), ветка
