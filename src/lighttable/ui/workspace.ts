@@ -78,6 +78,7 @@ export async function mountWorkspace(root:HTMLElement){
   editor.onDone=()=>{void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();}).catch(reportError);};
   editor.onCancel=()=>{session.discardEdit();finish();};
   exportDialog.onBusy=value=>{exportBusy=value;sync();};
+  exportDialog.onStatus=report;
   session.onChange=()=>{workspace.dataset.composition=session.draft.frame.turns%2?'portrait':'landscape';renderer.invalidate();editor.refresh();};
   renderer.onStatus=message=>{busy=true;editor.cancelGesture();gestures.reset();sync();report(message);};
   renderer.onReady=()=>{busy=false;sync();report('');};
@@ -126,7 +127,7 @@ export async function mountWorkspace(root:HTMLElement){
       else {const snapshot=copyComposition(session.draft);await repo.favoriteCurrent(navigation.project,snapshot,await covers.render(snapshot));}
       await refreshFavorites();
     }).catch(reportError);return;}
-    if(id==='export'){void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){await updateFavoriteCover();session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
+    if(id==='export'){if(!session.dirty&&exportDialog.shareReady(session.draft))return;void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){await updateFavoriteCover();session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
     if(id==='library'){void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();await library.open(navigation.project?.kind==='favorite'?'favorites':'mixes');}).catch(reportError);return;}
     sync();renderer.invalidate();
   },opts);
@@ -155,6 +156,6 @@ export async function mountWorkspace(root:HTMLElement){
     sourceUrls=blobs.map(blob=>URL.createObjectURL(blob));root.querySelectorAll<HTMLImageElement>('.sources img').forEach((img,i)=>img.src=sourceUrls[i]);
     try{const project=await repo.lastProject();if(project)await navigation.open(project);else await library.open();}catch(error){reportError(error);}
   }catch(error){dispose();throw error;}
-  pwa=setupPwa({root,canUpdate:()=>!session.editing&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.interacting&&!root.querySelector<HTMLDialogElement>('.export-dialog')!.open&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
+  pwa=setupPwa({root,canUpdate:()=>!session.editing&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.interacting&&!exportDialog.busy&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
   return {session,renderer,gestures,repo,navigation,editor,dispose};
 }

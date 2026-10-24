@@ -20,6 +20,7 @@ const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['-
 try{
  const context=await browser.newContext({viewport:{width:402,height:874},isMobile:true,hasTouch:true}),page=await context.newPage();page.setDefaultTimeout(20000);page.on('filechooser',()=>{}); // Keep the native chooser pending for setInputFiles in headless tests.
 const errors=[];page.on('pageerror',e=>errors.push(e.stack));
+ await page.addInitScript(()=>{Object.defineProperty(navigator,'canShare',{value:()=>true});Object.defineProperty(navigator,'share',{value:()=>new Promise(resolve=>{window.__sharePending=true;window.__releaseShare=()=>{window.__sharePending=false;resolve();};})});});
  await page.goto(base+'/');await page.waitForFunction(()=>navigator.serviceWorker.controller?.scriptURL===location.origin+'/sw.js');
  const rootCaches=await page.evaluate(async()=>Object.fromEntries(await Promise.all((await caches.keys()).map(async name=>[name,(await(await caches.open(name)).keys()).map(r=>r.url)]))));
  await page.goto(base+'/lighttable/index.html');await page.waitForFunction(()=>navigator.serviceWorker.controller?.scriptURL===location.origin+'/lighttable/sw.js');assert.equal(await page.locator('[data-home-info],.info-dialog').count(),0);assert.equal(await page.locator('[data-pwa-update]').isVisible(),false);await page.click('[data-close-library]');
@@ -43,7 +44,7 @@ const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  const gestureRect=await page.locator('canvas').boundingBox(),gx=gestureRect.x+gestureRect.width/2,gy=gestureRect.y+gestureRect.height/2;
  await send('touchStart',[[gx,gy]]);await send('touchMove',[[gx+10,gy+10]]);assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);await send('touchEnd',[]);
  assert.equal((await page.evaluate(async()=>!!(await navigator.serviceWorker.getRegistration('/lighttable/')).waiting)),true);
- await page.click('[data-action="export"]');assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);await page.click('[data-close-export]');
+ await page.click('[data-action="export"]');await page.waitForFunction(()=>window.__sharePending);assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);assert.equal(await page.locator('.export-dialog').count(),0);await page.evaluate(()=>window.__releaseShare());await page.waitForFunction(()=>!document.querySelector('[data-action=export]').disabled);
  // The editor checkpoint blocks update even without dirty metadata.
  await page.click('[data-action="pro"]');assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);await page.click('[data-edit-done]');
  // Home exposes Update directly, but importing still blocks applying it.

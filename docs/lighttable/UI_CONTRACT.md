@@ -1,3 +1,12 @@
+# 24.10.2026 — direct Save to Photos
+
+The existing save icon prepares a 4000px JPEG and opens native Share directly.
+No export dialog, extra preview, Prepare photo, Download or second save button.
+If asynchronous work expires Safari user activation, retain the JPEG in RAM
+and request another tap on the same icon. The retry must call navigator.share
+before any await. Native cancellation is quiet; failed metadata save retains
+the draft and must not start sharing. The native sheet still owns Save Image.
+
 # 24.10.2026 — phone review corrections
 
 Home has no information menu. Update is visible only for a waiting worker and

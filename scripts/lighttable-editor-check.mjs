@@ -9,6 +9,7 @@ try{
  const page=await browser.newPage({viewport:{width:402,height:874},hasTouch:true});page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  const frame=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  const state=()=>page.evaluate(()=>{const l=window.__lighttable;return {draft:structuredClone(l.session.draft),dirty:l.session.dirty,editing:l.session.editing,undo:l.session.canUndo,commits:l.repo.counters.compositionCommits};});
+ await page.addInitScript(()=>{Object.defineProperty(navigator,'canShare',{value:()=>true});Object.defineProperty(navigator,'share',{value:async()=>{window.__shares=(window.__shares??0)+1;}});});
  await page.goto('http://127.0.0.1:5195/lighttable/');await page.waitForFunction(()=>window.__lighttable?.renderer.ready);await page.click('[data-close-library]');
  await page.evaluate(async()=>{
    const l=window.__lighttable,{demoSources}=await import('/src/lighttable/ui/fixtures.ts'),{Selection,importFiles}=await import('/src/lighttable/data/import.ts');
@@ -53,10 +54,10 @@ try{
  const exportDraft=await state();
  await page.evaluate(()=>{const r=window.__lighttable.repo;window.__commit=r.commit.bind(r);r.commit=async()=>{throw Error('Test save failure');};});
  await page.click('[data-action="export"]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);
- assert.equal((await state()).editing,true);assert.deepEqual((await state()).draft,exportDraft.draft);assert.equal(await page.locator('.export-dialog').isVisible(),false);
+ assert.equal((await state()).editing,true);assert.deepEqual((await state()).draft,exportDraft.draft);assert.equal(await page.locator('.export-dialog').count(),0);assert.equal(await page.evaluate(()=>window.__shares??0),0);
  await page.evaluate(()=>window.__lighttable.repo.commit=window.__commit);
- await page.click('[data-action="export"]');await page.locator('.export-dialog').waitFor({state:'visible'});assert.equal(await page.locator('.export-dialog').isVisible(),true);assert.equal((await state()).editing,false);assert.equal((await state()).commits,exportDraft.commits+1);
- await page.click('[data-close-export]');assert.equal(await page.locator('[data-action="export"]').isVisible(),true);
+ await page.click('[data-action="export"]');await page.waitForFunction(()=>window.__shares===1&&!document.querySelector('[data-action=export]').disabled);assert.equal(await page.locator('.export-dialog').count(),0);assert.equal((await state()).editing,false);assert.equal((await state()).commits,exportDraft.commits+1);
+ assert.equal(await page.locator('[data-action="export"]').isVisible(),true);
  assert.deepEqual(errors,[]);await writeFile(`${out}/checks.json`,JSON.stringify({environment:'Chromium, not iPhone hardware',passed:['ruler hot path','source isolation','Undo','Undo look choice','Clear selection','failed Done retry','Done one commit','reload','pair isolation','portrait/landscape layout','rotation','export visible in Edit','export commit failure and retry','explicit Move entry']},null,2));
  console.log('PASS: Levels editor real input, zero I/O hot path, Undo/finish, failed commit retry, persistence, pairs, layouts');
 }finally{await browser.close();await vite.close();}
