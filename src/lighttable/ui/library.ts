@@ -6,7 +6,7 @@ import type { Project, Roll } from '../data/types';
 import './home.css';
 
 type HomeTab='mixes'|'favorites';
-type HomeHooks={cover?:(project:Project)=>Promise<Blob|undefined>;onOpen?:(project:Project)=>void;onInfo?:()=>void};
+type HomeHooks={cover?:(project:Project)=>Promise<Blob|undefined>;onOpen?:(project:Project)=>void;onStateChange?:()=>void};
 const heart='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>';
 const gridIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
 
@@ -27,7 +27,7 @@ export class Library {
   private coverQueue=Promise.resolve();
   constructor(readonly root:HTMLElement,readonly repo:Repository,readonly navigation:Navigation,readonly hooks:HomeHooks={}){
     this.dialog.className='library-dialog home-dialog';
-    this.dialog.innerHTML=`<div class="sheet-content library-content"><header class="library-heading"><h1>Mixes</h1><button type="button" data-home-info aria-label="App settings">${icon('more')}</button></header><div class="mix-grid" aria-label="Mixes"></div><p class="home-empty" hidden></p><details class="home-rolls"><summary>Use existing rolls</summary><div class="roll-grid" aria-label="Rolls"></div><button type="button" class="mix-button" data-start-mix disabled hidden>Mix</button></details><div class="pending-imports"></div></div><footer class="sheet-dock home-dock"><p class="library-message" role="status" aria-live="polite"></p><div class="home-create"><button type="button" class="mix-button" data-new-mix>${icon('plus')}<span>Mix</span></button><button type="button" class="text-button" data-new-roll>${icon('plus')}<span>Roll</span></button></div><nav class="home-navigation" aria-label="Library navigation"><button type="button" data-close-library aria-label="Back to lighttable">${icon('back')}</button><button type="button" data-home-tab="mixes" aria-pressed="true">${gridIcon}<span>Mixes</span></button><button type="button" data-home-tab="favorites" aria-pressed="false">${heart}<span>Library</span></button></nav></footer>`;
+    this.dialog.innerHTML=`<div class="sheet-content library-content"><header class="library-heading"><h1>Mixes</h1><button type="button" data-pwa-update hidden>Update</button></header><p class="home-update-status" data-pwa-state role="status" hidden></p><div class="mix-grid" aria-label="Mixes"></div><p class="home-empty" hidden></p><details class="home-rolls"><summary>Use existing rolls</summary><div class="roll-grid" aria-label="Rolls"></div><button type="button" class="mix-button" data-start-mix disabled hidden>Mix</button></details><div class="pending-imports"></div></div><footer class="sheet-dock home-dock"><p class="library-message" role="status" aria-live="polite"></p><div class="home-create"><button type="button" class="mix-button" data-new-mix>${icon('plus')}<span>Mix</span></button><button type="button" class="text-button" data-new-roll>${icon('plus')}<span>Roll</span></button></div><nav class="home-navigation" aria-label="Library navigation"><button type="button" data-close-library aria-label="Back to lighttable">${icon('back')}</button><button type="button" data-home-tab="mixes" aria-pressed="true">${gridIcon}<span>Mixes</span></button><button type="button" data-home-tab="favorites" aria-pressed="false">${heart}<span>Library</span></button></nav></footer>`;
     this.rename.className='rename-dialog';
     this.rename.innerHTML='<form><div class="sheet-content"><h1>Rename roll</h1><input data-rename-name aria-label="Roll name" maxlength="80" required autocomplete="off"/><p class="rename-message" role="status"></p><details class="roll-mixes"><summary>Saved mixes</summary><div></div></details></div><footer class="sheet-dock sheet-actions"><button type="button" class="text-button" data-cancel-rename>Cancel</button><button class="mix-button" data-save-name>Save</button></footer></form>';
     this.status=this.dialog.querySelector('.library-message')!;
@@ -37,8 +37,8 @@ export class Library {
     this.dialog.addEventListener('cancel',e=>{if(this.busy)e.preventDefault();});
     this.dialog.addEventListener('close',()=>{this.cancelPress();this.generation++;});
     this.dialog.addEventListener('scroll',()=>this.cancelPress(),true);
-    this.dialog.querySelector<HTMLButtonElement>('[data-home-info]')!.onclick=()=>this.hooks.onInfo?.();
-    this.dialog.querySelector<HTMLButtonElement>('[data-new-roll]')!.onclick=()=>{if(!this.busy)this.importer.open();};
+    for(const dialog of [this.dialog,this.importer.dialog,this.rename])dialog.addEventListener('close',()=>this.hooks.onStateChange?.());
+    this.dialog.querySelector<HTMLButtonElement>('[data-new-roll]')!.onclick=()=>{if(!this.busy){this.importer.open();this.hooks.onStateChange?.();}};
     this.dialog.querySelector<HTMLButtonElement>('[data-new-mix]')!.onclick=()=>{
       if(this.busy)return;
       // Callback may be retried after storage/navigation failure. Reuse its project.
@@ -47,6 +47,7 @@ export class Library {
         created??=await this.repo.createProject(rolls[0].id,rolls[1].id);
         await this.openProject(created);
       },onCancel:()=>{void this.refresh().catch(e=>this.showError(e));}});
+      this.hooks.onStateChange?.();
     };
     for(const b of this.dialog.querySelectorAll<HTMLButtonElement>('[data-home-tab]'))b.onclick=()=>{if(this.busy)return;this.tab=b.dataset.homeTab as HomeTab;void this.refresh().catch(e=>this.showError(e));};
     this.dialog.querySelector<HTMLButtonElement>('[data-start-mix]')!.onclick=()=>void this.run(async()=>{
@@ -63,6 +64,7 @@ export class Library {
       });
     };
   }
+  get interacting(){return this.busy||this.importer.dialog.open||this.rename.open;}
   get active(){return this.dialog.open||this.importer.dialog.open||this.rename.open;}
   async open(tab:HomeTab='mixes'){this.tab=tab;this.status.textContent='';if(!this.dialog.open)this.dialog.showModal();try{await this.refresh();}catch(e){this.showError(e);}}
   private async openProject(project:Project){
@@ -79,16 +81,16 @@ export class Library {
     const details=this.rename.querySelector<HTMLDetailsElement>('.roll-mixes')!,list=details.querySelector('div')!;details.open=false;list.replaceChildren();
     const mixes=this.projects.filter(p=>p.rollA===roll.id||p.rollB===roll.id);details.hidden=!mixes.length;
     for(const p of mixes){const b=document.createElement('button');b.type='button';b.className='project-card';b.dataset.project=p.id;b.textContent=this.date(p.updatedAt);b.onclick=()=>void this.run(()=>this.openProject(p));list.append(b);}
-    this.rename.showModal();input.focus();input.select();
+    this.rename.showModal();this.hooks.onStateChange?.();input.focus();input.select();
   }
   private date(value:string){return new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value));}
   private controls(){
-    for(const dialog of [this.dialog,this.rename])dialog.querySelectorAll<HTMLButtonElement>('button').forEach(b=>{b.disabled=this.busy;});
+    for(const dialog of [this.dialog,this.rename])dialog.querySelectorAll<HTMLButtonElement>('button:not([data-pwa-update])').forEach(b=>{b.disabled=this.busy;});
     this.rename.querySelector<HTMLInputElement>('[data-rename-name]')!.disabled=this.busy;
     const mix=this.dialog.querySelector<HTMLButtonElement>('[data-start-mix]')!;mix.hidden=this.selected.length===0;mix.disabled=this.busy||!this.selected.length;mix.setAttribute('aria-label',this.selected.length===1?'Mix this roll with itself':'Mix selected rolls');
     this.dialog.querySelectorAll<HTMLButtonElement>('[data-roll]').forEach(b=>{const index=this.selected.indexOf(b.dataset.roll!);b.setAttribute('aria-pressed',String(index>=0));b.dataset.side=index===0?'I':index===1?'II':'';});
     for(const b of this.dialog.querySelectorAll<HTMLButtonElement>('[data-home-tab]'))b.setAttribute('aria-pressed',String(b.dataset.homeTab===this.tab));
-    this.dialog.querySelector<HTMLButtonElement>('[data-home-info]')!.hidden=!this.hooks.onInfo;
+    this.hooks.onStateChange?.();
   }
   private image(img:HTMLImageElement,blob:Blob,generation:number){if(generation!==this.generation)return;const url=URL.createObjectURL(blob);this.urls.push(url);img.src=url;img.closest('.mix-card')?.setAttribute('aria-busy','false');}
   private queueCover(project:Project,img:HTMLImageElement,generation:number){

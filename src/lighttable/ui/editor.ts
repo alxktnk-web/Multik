@@ -19,7 +19,7 @@ export class Editor {
   constructor(root:HTMLElement,readonly session:Session){
     this.element.className='editor';this.element.hidden=true;
     this.element.innerHTML=`<nav class="edit-modes glass" aria-label="Edit tools">
-      ${(['layers','levels','looks','pro'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Move','Levels','Looks','Pro'][i]}" aria-pressed="false">${icon((['hand','pro','profile','more'] as const)[i])}</button>`).join('')}
+      ${(['layers','levels','looks','pro'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Move','Levels','Looks','Pro'][i]}" aria-pressed="false">${icon((['hand','pro','profile','advanced'] as const)[i])}</button>`).join('')}
       </nav><div class="edit-content">
       <div class="levels-ruler" role="group" aria-label="Levels of selected photo"><div class="levels-track"><div class="levels-ticks" aria-hidden="true"></div>
       ${levelPoints.map((p,i)=>`<div class="level-handle" role="slider" tabindex="0" data-level="${p}" aria-label="${['Black point','Midtones','White point'][i]}" aria-valuemin="0" aria-valuemax="100" style="--dot:${['#171715','#85847e','#eeeae2'][i]}"><i aria-hidden="true"></i></div>`).join('')}</div></div>

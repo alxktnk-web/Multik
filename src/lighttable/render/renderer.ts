@@ -230,14 +230,14 @@ export class Renderer {
         this.target(target);gl.viewport(0,0,w,h);gl.disable(gl.BLEND);
         this.present(c,pair as [PreparedSource,PreparedSource],matrix,w,h,x,y);
         gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,raw);check();
-        if(gl.getError()!==gl.NO_ERROR)throw Error('This size is unavailable. Try 2000 px.');
+        if(gl.getError()!==gl.NO_ERROR)throw Error('Could not prepare full-size photo. Close other apps and try again.');
         const image=ctx.createImageData(w,h);
         for(let row=0;row<h;row++)image.data.set(raw.subarray((h-1-row)*w*4,(h-row)*w*4),row*w*4);
         ctx.putImageData(image,x,y);onProgress(++completed/total);
         await new Promise<void>(resolve=>setTimeout(resolve,0));
       }
       check();
-      const encode=(canvas:HTMLCanvasElement,quality:number)=>new Promise<Blob>((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Could not create JPEG. Try 2000 px.')),'image/jpeg',quality));
+      const encode=(canvas:HTMLCanvasElement,quality:number)=>new Promise<Blob>((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Could not create JPEG. Close other apps and try again.')),'image/jpeg',quality));
       const blob=await encode(output,.95);check();
       const thumbCanvas=document.createElement('canvas');thumbCanvas.width=Math.round(width/edge*320);thumbCanvas.height=Math.round(height/edge*320);
       let thumb:Blob;

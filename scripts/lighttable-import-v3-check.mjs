@@ -48,9 +48,11 @@ try{
   console.log('PASS: native picker, no capture, segmented capacity, overflow review, default reset to 12');
 
   await clickPicker('#mix');await page.setInputFiles('[data-roll-files]',photos(12,'a'));
+  assert.equal(await page.locator('[data-save-roll]').innerText(),'Next Roll');
   const beforeNext=choosers;
   await Promise.all([page.waitForEvent('filechooser'),page.click('[data-save-roll]')]);assert.equal(choosers,beforeNext+1,'Next opens native picker in the same user click');
   assert.equal(await page.locator('.import-step').innerText(),'2 / 2');
+  assert.equal(await page.locator('[data-save-roll]').innerText(),'Expose');
   assert.deepEqual(await count(),{rolls:1,jobs:0},'Next only holds first selection in RAM');
   await page.locator('[data-roll-files]').dispatchEvent('cancel');
   assert.equal(await page.locator('.roll-import-dialog').isVisible(),true,'Cancel second picker retains first draft');

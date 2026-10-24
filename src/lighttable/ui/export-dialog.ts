@@ -18,14 +18,13 @@ export class ExportDialog {
   onBusy:(busy:boolean)=>void=()=>{};
   constructor(root:HTMLElement,readonly renderer:Renderer,readonly repo:Repository){
     this.dialog.className='export-dialog';
-    this.dialog.innerHTML=`<div class="sheet-content"><header class="sheet-heading"><h1>Save photo</h1><select data-export-size aria-label="Photo size"><option value="2000">2000 px</option><option value="4000">4000 px</option></select></header><div class="export-preview" hidden><img alt="Your photo"/></div></div><footer class="sheet-dock"><progress max="1" value="0" hidden aria-label="Preparing photo"></progress><p class="export-message" role="status" aria-live="polite"></p><p class="share-hint" hidden>Choose Save Image in the share sheet.</p><div class="sheet-actions"><button class="close-dialog" data-close-export aria-label="Close">×</button><button class="mix-button" data-render-export>Prepare photo</button><button class="text-button" data-cancel-export hidden>Cancel</button><div class="export-ready" hidden><button class="mix-button" data-share-export>Save to Photos</button><a class="text-button" data-download-export download>Download</a></div></div></footer>`;
+    this.dialog.innerHTML=`<div class="sheet-content"><header class="sheet-heading"><h1>Save photo</h1></header><div class="export-preview" hidden><img alt="Your photo"/></div></div><footer class="sheet-dock"><progress max="1" value="0" hidden aria-label="Preparing photo"></progress><p class="export-message" role="status" aria-live="polite"></p><p class="share-hint" hidden>Choose Save Image in the share sheet.</p><div class="sheet-actions"><button class="close-dialog" data-close-export aria-label="Close">×</button><button class="mix-button" data-render-export>Prepare photo</button><button class="text-button" data-cancel-export hidden>Cancel</button><div class="export-ready" hidden><button class="mix-button" data-share-export>Save to Photos</button><a class="text-button" data-download-export download>Download</a></div></div></footer>`;
     this.message=this.dialog.querySelector('.export-message')!;root.append(this.dialog);
     this.dialog.querySelector<HTMLButtonElement>('[data-close-export]')!.onclick=()=>this.close();
     this.dialog.querySelector<HTMLButtonElement>('[data-cancel-export]')!.onclick=()=>this.controller?.abort();
     this.dialog.addEventListener('cancel',event=>{event.preventDefault();this.close();});
     this.dialog.querySelector<HTMLButtonElement>('[data-render-export]')!.onclick=()=>void this.generate();
     this.dialog.querySelector<HTMLButtonElement>('[data-share-export]')!.onclick=()=>void this.share();
-    this.dialog.querySelector<HTMLSelectElement>('[data-export-size]')!.onchange=()=>{this.clearResult();this.message.textContent='';this.sync();void this.generate();};
   }
   open(snapshot:Composition,sources:[Asset,Asset],projectId:string){
     if(this.controller)return;
@@ -36,7 +35,6 @@ export class ExportDialog {
   private close(){this.controller?.abort();this.dialog.close();}
   private sync(){
     const busy=!!this.controller;
-    this.dialog.querySelector<HTMLSelectElement>('[data-export-size]')!.disabled=busy;
     this.dialog.querySelector<HTMLButtonElement>('[data-render-export]')!.hidden=busy||!!this.file;
     this.dialog.querySelector<HTMLElement>('progress')!.hidden=!busy;
     this.dialog.querySelector<HTMLElement>('[data-cancel-export]')!.hidden=!busy;
@@ -50,7 +48,8 @@ export class ExportDialog {
     if(this.controller||!this.snapshot||!this.sources)return;
     const generation=++this.generation,snapshot=copyComposition(this.snapshot),projectId=this.projectId;
     const controller=new AbortController();this.controller=controller;this.clearResult();this.message.textContent='';
-    const edge=Number(this.dialog.querySelector<HTMLSelectElement>('[data-export-size]')!.value) as 2000|4000;
+    // Always use the renderer’s maximum supported size; never silently downsize.
+    const edge=4000;
     const progress=this.dialog.querySelector<HTMLProgressElement>('progress')!;progress.value=0;this.sync();this.onBusy(true);
     try{
       const result=await this.renderer.exportImage(snapshot,this.sources.map(a=>({id:a.id,blob:a.blob})) as Parameters<Renderer['exportImage']>[1],edge,controller.signal,n=>{progress.value=n;});

@@ -1,3 +1,13 @@
+# 24.10.2026 — phone review corrections
+
+Home has no information menu. Update is visible only for a waiting worker and
+uses the existing save boundary. Film icon opens rolls/mixes. Import actions:
+Next Roll, then Expose. Pro uses a sliders icon; landscape options sit under
+source thumbnails on the left, full-height adjustment tracks stay on the right.
+Portrait Move controls have definite 44px rows to protect the photo viewport.
+Save to Photos always exports the supported maximum 4000px long edge, JPEG .95;
+there is no size selector or silent 2000px fallback.
+
 # Общее правило точных регулировок — последнее уточнение владельца
 
 Все линейные регулировки максимально длинные: portrait — полная доступная
@@ -8,8 +18,7 @@
 
 # 23.10.2026 — adaptive workspace (implementation branch)
 
-This section supersedes older layout rules below. Live Sites remains v12 until
-review/release; implementation is on feat/adaptive-workspace.
+This section supersedes older layout rules below. The adaptive workspace shipped in Sites v13; subsequent rules above take precedence.
 
 - Mixes = sessions with rendered covers. Library = liked individual editable
   snapshots, pinned to their two source assets. Removing a heart never deletes

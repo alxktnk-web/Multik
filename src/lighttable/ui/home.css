@@ -48,3 +48,7 @@
  .home-dialog .library-message{font-size:11px}
 }
 @media(min-width:1100px){.home-dialog .mix-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+.home-dialog [data-pwa-update]{color:var(--sage);font-size:13px;padding:0 14px;background:#a3b2a018}
+.home-dialog [data-pwa-update][hidden],.home-dialog [data-pwa-state][hidden]{display:none}
+.home-dialog .home-update-status{max-width:900px;margin:0 auto 12px;color:#e0b9a8;font-size:12px}

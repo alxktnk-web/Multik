@@ -23,6 +23,11 @@ try{
     const controls=[...document.querySelectorAll('.workspace button,.workspace input[type=range],.level-handle')].filter(visible).map(e=>({label:e.getAttribute('aria-label')??e.dataset.action,...rect(e)}));
     return {tracks,stage,controls};
    });
+   assert.ok(geometry.stage.w>=180&&geometry.stage.h>=180,`collapsed photo ${name}/${turn}/${mode}: ${JSON.stringify(geometry.stage)}`);
+   if(w>h&&(mode==='pro'||mode==='haloXY')){
+    const options=await page.locator('.pro-options').boundingBox();assert.ok(options.x+options.width<=geometry.stage.x+1,'Pro options stay left of photo');
+    assert.ok(geometry.tracks.every(r=>r.x>=geometry.stage.right),'Pro scales stay right of photo');
+   }
    for(const r of geometry.tracks){assert.ok((w>h?r.h:r.w)>=(w>h?h:w)-80,`${name}/${turn}/${mode} short track ${JSON.stringify(r)}`);assert.ok((w>h?r.w:r.h)>=43.9,`narrow touch area ${r.label}`);}
    assert.equal(geometry.tracks.length,mode==='layers'?3:mode==='haloXY'?2:1);
    for(const r of geometry.controls){assert.ok(r.w>=43.9&&r.h>=43.9,`small control ${name} ${JSON.stringify(r)}`);assert.ok(r.x>=-.5&&r.y>=-.5&&r.right<=w+.5&&r.bottom<=h+.5,`offscreen ${name} ${JSON.stringify(r)}`);const s=geometry.stage;assert.ok(Math.min(r.right,s.right)-Math.max(r.x,s.x)<=1||Math.min(r.bottom,s.bottom)-Math.max(r.y,s.y)<=1,`over photo ${name} ${r.label}`);}

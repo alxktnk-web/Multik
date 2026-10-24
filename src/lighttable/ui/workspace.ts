@@ -19,14 +19,13 @@ import { demoSources } from './fixtures';
 
 export async function mountWorkspace(root:HTMLElement){
   root.innerHTML=`<main class="workspace">
-    <header class="topbar">${button('library','Open Mixes','back')}</header>
+    <header class="topbar">${button('library','Open rolls and mixes','film')}</header>
     <section class="stage" aria-label="Lighttable"><canvas tabindex="0" aria-label="Photo. Swipe to browse. Edit to move a selected photo."></canvas></section>
     <p class="status" role="status" aria-live="polite"></p>
     <footer class="toolbar glass"><div class="sources">
       <button type="button" data-layer="a" aria-label="Select photo I" aria-pressed="false"><img alt=""/><span class="layer-depth" aria-hidden="true">I</span></button>
       <button type="button" data-layer="b" aria-label="Select photo II" aria-pressed="true"><img alt=""/><span class="layer-depth" aria-hidden="true">II</span></button>
     </div><span class="divider"></span>${button('favorite','Add to Library','heart')}${button('rotate','Rotate photo 90 degrees','rotate')}${button('export','Save to Photos','export')}${button('pro','Edit photo','pro')}${button('undo','Undo','undo')}</footer>
-    <dialog class="info-dialog"><div class="sheet-content"><h1>Lighttable</h1><p>Swipe to change pairs. Edit opens Move. Select I or II, then drag to move that photo or pinch to resize it. The check returns to browsing.</p><p>Edit → Levels adjusts the selected photo. Slide vertically on the left, middle or right third of the photo to adjust black, midtones or white. The ruler follows your gesture and can also be dragged directly.</p><p>Looks changes the rendering profile. Clear adds linear light without automatic tone, color or halo effects; bright overlaps can clip to white. Your manual Levels still apply.</p><p>The check saves edits. Undo reverses the last adjustment. Lifting your finger does not save. Save to Photos prepares a JPEG; on iPhone choose Save Image in the share sheet.</p><p class="prototype-note">Install: Safari → Share → Add to Home Screen.</p><p class="prototype-note" data-pwa-state></p><a class="text-button recovery-link" href="/lighttable/recover.html">Recover app</a></div><form method="dialog" class="sheet-dock sheet-actions"><button class="close-dialog" aria-label="Close">×</button><button type="button" class="mix-button" data-pwa-update hidden>Update</button></form></dialog>
   </main>`;
   const workspace=root.querySelector<HTMLElement>('.workspace')!,canvas=root.querySelector('canvas')!,stage=root.querySelector<HTMLElement>('.stage')!;
   const session=new Session(createComposition('empty',[{assetId:'a',assetRevision:1},{assetId:'b',assetRevision:1}],[{x:4,y:3},{x:4,y:3}]));
@@ -34,7 +33,7 @@ export async function mountWorkspace(root:HTMLElement){
   let pwa:ReturnType<typeof setupPwa>|undefined;
   let busy=true,exportBusy=false,sourceUrls:string[]=[],thumbKey='';
   const repo=new Repository(),navigation=new Navigation(repo,session,renderer);
-  const status=root.querySelector<HTMLElement>('.status')!,info=root.querySelector<HTMLDialogElement>('.info-dialog')!;
+  const status=root.querySelector<HTMLElement>('.status')!;
   const action=(id:string)=>root.querySelector<HTMLButtonElement>(`[data-action="${id}"]`)!;
   const covers=new Covers(repo);
   let favorites:Favorite[]=[],favoriteGeneration=0;
@@ -44,7 +43,7 @@ export async function mountWorkspace(root:HTMLElement){
   let noticeTimer=0;
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
-  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onInfo:()=>{library.dialog.close();pwa?.refresh();info.showModal();}}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
+  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>pwa?.refresh()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
   gestures.onSwipe=direction=>{if(!session.editing)void navigation.step(direction).catch(reportError);};
   const rails=new FilmRails(workspace,navigation,repo,reportError);
   const baseLocked=()=>busy||exportBusy||navigation.busy;
@@ -156,6 +155,6 @@ export async function mountWorkspace(root:HTMLElement){
     sourceUrls=blobs.map(blob=>URL.createObjectURL(blob));root.querySelectorAll<HTMLImageElement>('.sources img').forEach((img,i)=>img.src=sourceUrls[i]);
     try{const project=await repo.lastProject();if(project)await navigation.open(project);else await library.open();}catch(error){reportError(error);}
   }catch(error){dispose();throw error;}
-  pwa=setupPwa({root,canUpdate:()=>!session.editing&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.active&&!root.querySelector<HTMLDialogElement>('.export-dialog')!.open&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
+  pwa=setupPwa({root,canUpdate:()=>!session.editing&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.interacting&&!root.querySelector<HTMLDialogElement>('.export-dialog')!.open&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
   return {session,renderer,gestures,repo,navigation,editor,dispose};
 }

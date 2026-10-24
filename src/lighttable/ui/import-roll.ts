@@ -62,7 +62,7 @@ export class ImportRoll {
     this.selection.setCapacity(options.capacity??12);this.name.value=suggestedRollName();this.status.textContent='';
     this.render();this.dialog.showModal();this.resetScroll();if(options.pick!==false)this.input.click();
   }
-  /** Both selections stay in RAM until Create mix. Next opens the second picker in the same tap. */
+  /** Both selections stay in RAM until Expose. Next Roll opens the second picker in the same tap. */
   openMix(options:MixOptions){
     if(this.busy||this.dialog.open)return;
     this.clearSelection();this.completed=undefined;this.options={};this.mix={options,step:1,rolls:[]};
@@ -116,7 +116,7 @@ export class ImportRoll {
     const back=this.dialog.querySelector<HTMLButtonElement>('[data-import-back]')!;back.hidden=this.mix?.step!==2;back.disabled=this.busy||!!this.mix?.rolls.length;
     this.count.textContent=`${s.files.length} / ${s.capacity}${s.ready?' ✓':s.overflow?` · Remove ${s.files.length-s.capacity}`:` · ${s.capacity-s.files.length} left`}`;this.count.classList.toggle('overflow',s.overflow);
     this.dialog.dataset.selection=s.overflow?'overflow':s.ready?'full':'open';this.dialog.style.setProperty('--filled',String(Math.min(1,s.files.length/s.capacity)));this.count.hidden=this.busy;this.dialog.setAttribute('aria-busy',String(this.busy));
-    const action=this.mix?(step===1?'Next':'Create mix'):'Add roll';this.save.textContent=action;this.save.setAttribute('aria-label',s.ready?action:`Select ${s.capacity} photos to confirm`);
+    const action=this.mix?(step===1?'Next Roll':'Expose'):'Add roll';this.save.textContent=action;this.save.setAttribute('aria-label',s.ready?action:`Select ${s.capacity} photos to confirm`);
     this.input.closest('label')!.hidden=this.busy||saved;this.save.hidden=this.busy;this.dialog.querySelector<HTMLButtonElement>('[data-close-import]')!.hidden=this.busy;
     this.input.disabled=this.busy||s.full||saved;this.input.closest('label')!.classList.toggle('disabled',this.input.disabled);this.save.disabled=this.busy||!s.ready;
     for(const b of this.dialog.querySelectorAll<HTMLButtonElement>('[data-capacity]')){b.setAttribute('aria-pressed',String(Number(b.dataset.capacity)===s.capacity));b.disabled=this.busy||saved||this.mix?.step===2;}
