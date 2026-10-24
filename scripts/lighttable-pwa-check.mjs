@@ -47,7 +47,7 @@ const errors=[];page.on('pageerror',e=>errors.push(e.stack));
  assert.equal((await page.evaluate(async()=>!!(await navigator.serviceWorker.getRegistration('/lighttable/')).waiting)),true);
  await page.click('[data-action="export"]');await page.waitForFunction(()=>window.__sharePending);assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);assert.equal(await page.locator('.export-dialog').count(),0);await page.evaluate(()=>window.__releaseShare());await page.waitForFunction(()=>!document.querySelector('[data-action=export]').disabled);
  // The editor checkpoint blocks update even without dirty metadata.
- assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);await page.click('[data-edit-done]');
+ assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);
  // Home exposes Update directly, but importing still blocks applying it.
  await page.click('[data-action="library"]');await page.waitForFunction(()=>!document.querySelector('[data-pwa-update]').disabled);assert.equal(await page.locator('[data-pwa-update]').isVisible(),true);
  await page.click('[data-new-roll]');assert.equal(await page.locator('[data-pwa-update]').isDisabled(),true);await page.evaluate(()=>document.querySelector('[data-pwa-update]').click());assert.equal(await page.evaluate(()=>window.__noReload),42);await page.click('[data-close-import]');await page.click('[data-close-library]');

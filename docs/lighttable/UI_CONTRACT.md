@@ -1,3 +1,14 @@
+# 24.10.2026 — approved single-column mockup
+
+Landscape has exactly one left-hand tool column: Home, Undo, Levels, Halo,
+Favorite, Save, Looks at the bottom. The right edge holds only the active
+Levels/Halo track. Frame selection returns to direct drag/pinch movement;
+pressing the active Levels/Halo control again also returns to movement.
+No separate Move button, duplicate source thumbnails or check button. Looks
+is the sole expandable menu; choosing a profile closes it. Both film strips
+remain visible; a Library favorite exposes one fixed source frame per strip
+so either layer can be selected without replacing its source.
+
 # 24.10.2026 — orientation owns the editing mode
 
 Portrait is preview-only: browse pairs, rotate composition, favorite and save.

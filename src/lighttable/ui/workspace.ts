@@ -47,7 +47,7 @@ export async function mountWorkspace(root:HTMLElement){
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
   const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
   gestures.onSwipe=direction=>{if(!session.editing)void navigation.step(direction).catch(reportError);};
-  const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode();sync();});
+  const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode('layers');sync();});
   gestures.allowScale=()=>orientation.matches;
   const baseLocked=()=>busy||exportBusy||navigation.busy;
   const locked=()=>baseLocked()||gestures.active||session.gesturing;
@@ -59,7 +59,7 @@ export async function mountWorkspace(root:HTMLElement){
       session.interaction='browse';session.tool={kind:'layer'};
     }
     const save=action('export'),dock=session.editing?editor.element.querySelector('.edit-actions')!:workspace.querySelector('.toolbar')!;
-    if(save.parentElement!==dock)dock.insertBefore(save,session.editing?editor.element.querySelector('[data-edit-done]'):action('pro'));
+    if(save.parentElement!==dock)dock.insertBefore(save,session.editing?null:action('pro'));
     const heart=action('favorite');
     if(heart.parentElement!==dock)dock.insertBefore(heart,save);
     heart.setAttribute('aria-pressed',String(!!currentFavorite()));heart.setAttribute('aria-label',currentFavorite()?'Remove from Library':'Add to Library');
@@ -95,7 +95,7 @@ export async function mountWorkspace(root:HTMLElement){
   session.onChange=()=>{workspace.dataset.composition=session.draft.frame.turns%2?'portrait':'landscape';renderer.invalidate();editor.refresh();};
   renderer.onStatus=message=>{busy=true;editor.cancelGesture();gestures.reset();sync();report(message);};
   renderer.onReady=()=>{busy=false;sync();report('');};
-  navigation.onBusy=()=>{editor.element.querySelector<HTMLButtonElement>('[data-edit-done]')!.setAttribute('aria-busy',String(navigation.busy));sync();};
+  navigation.onBusy=()=>sync();
   navigation.onChange=()=>{
     if(orientation.matches){session.beginEdit();editor.selectMode();}
     void refreshFavorites().catch(reportError);

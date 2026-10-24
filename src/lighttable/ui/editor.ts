@@ -19,14 +19,14 @@ export class Editor {
   constructor(root:HTMLElement,readonly session:Session){
     this.element.className='editor';this.element.hidden=true;
     this.element.innerHTML=`<nav class="edit-modes glass" aria-label="Edit tools">
-      ${(['layers','levels','halo','looks'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Move','Levels','Halo','Looks'][i]}" aria-pressed="false">${icon((['hand','pro','halo','profile'] as const)[i])}</button>`).join('')}
+      ${(['levels','halo','looks'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Levels','Halo','Looks'][i]}" aria-pressed="false">${icon((['pro','halo','profile'] as const)[i])}<span>${['Levels','Halo','Looks'][i]}</span></button>`).join('')}
       </nav><div class="edit-content">
       <div class="levels-ruler" role="group" aria-label="Levels of selected photo"><div class="levels-track"><div class="levels-ticks" aria-hidden="true"></div>
       ${levelPoints.map((p,i)=>`<div class="level-handle" role="slider" tabindex="0" data-level="${p}" aria-label="${['Black point','Midtones','White point'][i]}" aria-valuemin="0" aria-valuemax="100" style="--dot:${['#171715','#85847e','#eeeae2'][i]}"><i aria-hidden="true"></i></div>`).join('')}</div></div>
       <div class="look-options" role="group" aria-label="Image profile" hidden>${(['Original','Film','Dense','Clear'] as const).map((p,i)=>`<button type="button" data-profile-version="${i+2}" aria-pressed="false">${p}</button>`).join('')}</div>
       <div class="layer-controls" hidden><div class="layer-utilities">${button('rotate-layer','Rotate selected layer 90 degrees','rotate')}${button('reset','Center selected layer','reset')}</div><label class="transform-range"><span aria-hidden="true">X</span><input type="range" data-position="x" min="-36" max="36" step="0.05" aria-label="Selected layer horizontal position"/></label><label class="transform-range"><span aria-hidden="true">Y</span><input type="range" data-position="y" min="-27" max="27" step="0.05" aria-label="Selected layer vertical position"/></label><label class="transform-range"><span aria-hidden="true">${icon('scale')}</span><input type="range" data-scale min="0.5" max="4" step="0.01" aria-label="Selected layer scale"/></label></div>
       <div class="pro-controls" hidden><label class="pro-range-label"><span></span><input type="range" class="effect-range"/></label></div>
-      </div><footer class="edit-actions"><button type="button" data-edit-done aria-label="Save edits" title="Save edits"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button></footer>`;
+      </div><footer class="edit-actions"></footer>`;
     this.discard.className='discard-dialog';this.discard.innerHTML='<div class="sheet-content"><h1>Discard changes?</h1></div><div class="sheet-dock sheet-actions"><button type="button" class="text-button" data-keep>Keep editing</button><button type="button" class="mix-button" data-discard>Discard changes</button></div>';
     root.append(this.element,this.discard);
     const opts={signal:this.abort.signal},track=this.element.querySelector<HTMLElement>('.levels-track')!;
@@ -55,8 +55,8 @@ export class Editor {
     },opts);
     this.element.addEventListener('click',e=>{
       const b=(e.target as Element).closest<HTMLButtonElement>('button');if(!b||this.locked||session.gesturing)return;
-      if(b.dataset.mode){this.selectMode(b.dataset.mode as typeof this.mode);this.onChange();}
-      if(b.dataset.profileVersion){session.begin();session.draft.profile.version=Number(b.dataset.profileVersion) as Composition['profile']['version'];session.end();this.onChange();}
+      if(b.dataset.mode){this.selectMode(this.mode===b.dataset.mode?'layers':b.dataset.mode as typeof this.mode);this.onChange();}
+      if(b.dataset.profileVersion){session.begin();session.draft.profile.version=Number(b.dataset.profileVersion) as Composition['profile']['version'];session.end();this.selectMode('layers');this.onChange();}
       if(b.hasAttribute('data-edit-done'))this.onDone();
       if(b.hasAttribute('data-edit-cancel'))this.requestCancel();
     },opts);
