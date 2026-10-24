@@ -1,3 +1,14 @@
+# 24.10.2026 — orientation owns the editing mode
+
+Portrait is preview-only: browse pairs, rotate composition, favorite and save.
+Landscape automatically opens Move / Levels / Halo, with Looks kept separate.
+There is no nested Pro or Halo XY/radius/threshold selector. Halo adjusts strength;
+Clear intentionally has no halo. Two film strips flank the photo in landscape
+and can be collapsed. Frame/layer selection retains the selected tool.
+Returning to portrait commits via the existing navigation boundary; failed writes
+retain the RAM draft and Undo without exposing edit controls in portrait.
+All adjustment tracks retain full available height; no bottom toolbar in landscape.
+
 # 24.10.2026 — direct Save to Photos
 
 The existing save icon prepares a 4000px JPEG and opens native Share directly.

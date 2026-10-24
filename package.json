@@ -31,7 +31,8 @@
     "test:lighttable:adaptive": "node scripts/lighttable-adaptive-check.mjs",
     "test:lighttable:favorites": "node scripts/lighttable-favorites-check.mjs",
     "test:lighttable:import": "node scripts/lighttable-import-v3-check.mjs",
-    "test:lighttable:controls": "node scripts/lighttable-long-controls-check.mjs"
+    "test:lighttable:controls": "node scripts/lighttable-long-controls-check.mjs",
+    "test:lighttable:orientation": "node scripts/lighttable-orientation-check.mjs"
   },
   "devDependencies": {
     "playwright": "1.56.1",

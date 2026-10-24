@@ -16,6 +16,7 @@ export class Gestures {
   private pinch?:Pinch;
   private waiting=false;
   onSwipe:(direction:-1|1)=>void=()=>{};
+  allowScale:()=>boolean=()=>true;
   constructor(readonly session:Session){}
   get active(){return this.points.size>0||this.waiting;}
   get state(){return this.waiting?'waiting':this.pinch?'scale':this.single?(this.single.moved?(this.single.browse?'browse':this.single.tool.kind):'pending'):'idle';}
@@ -32,6 +33,7 @@ export class Gestures {
       s.begin();
       this.single={start:p,last:p,x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},levels:{...getLevels(s.layer)},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
     }else if(this.points.size===2){
+      if(!this.allowScale()){this.cancel();return;}
       s.cancel();this.single=undefined;s.begin();
       const [a,b]=[...this.points.values()],t=s.layer.transform;
       this.pinch={distance:Math.max(12,distance(a,b)),scale:t.scale??1,moved:false,explicitScale:t.scale!==undefined,x:t.xMm,y:t.yMm,anchor:point(inverse(filmToScreen(s.draft.frame,s.viewport)),center(a,b))};

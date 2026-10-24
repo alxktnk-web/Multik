@@ -95,22 +95,23 @@
  .workspace:not(.editing) .rail-b{grid-column:3}
  .workspace:not(.editing) .film-rail button{width:56px;flex-basis:44px;height:44px}
  .workspace:not(.editing) .rail-handle{left:calc(4px + env(safe-area-inset-left));right:auto;bottom:env(safe-area-inset-bottom);transform:none;width:44px}
- /* Buttons occupy their own columns: linear scales always receive full height. */
- .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{grid-template-columns:52px minmax(0,1fr) 44px 132px;grid-template-rows:minmax(0,1fr);column-gap:0}
- .workspace.editing[data-edit-mode=levels]{grid-template-columns:52px minmax(0,1fr) 44px 44px}
- .workspace.editing[data-edit-mode=looks]{grid-template-columns:52px minmax(0,1fr) 44px 96px}
- .workspace.editing[data-edit-mode=pro]{grid-template-columns:96px minmax(0,1fr) 44px 44px}
- .workspace.editing[data-edit-mode=pro][data-pro-ranges="2"]{grid-template-columns:96px minmax(0,1fr) 44px 44px 44px}
- .workspace.editing[data-edit-mode=pro][data-pro-ranges="0"]{grid-template-columns:96px minmax(0,1fr) 44px}
- .workspace.editing .stage,.workspace.has-rails.editing .stage{grid-column:2;grid-row:1}
- .workspace.editing .topbar{grid-column:1;grid-row:1;position:static;inset:auto;align-self:start;width:48px}
- .workspace.editing .toolbar{grid-column:1;grid-row:1;flex-direction:column;align-self:start;justify-self:center;margin:48px 0 0;padding:0;gap:8px}
- .workspace.editing .sources{flex-direction:column;gap:8px}
- .workspace.editing .edit-modes{grid-column:3;grid-row:1;display:flex;flex-direction:column;justify-self:center;align-self:start;margin:0;gap:0;padding:0;min-width:44px}
- .workspace.editing .edit-actions{grid-column:3;grid-row:1;display:flex;flex-direction:column;justify-self:center;align-self:end;padding:0;margin:0;gap:0}
- .workspace.editing .edit-content>div{grid-column:4;grid-row:1;position:static;inset:auto;align-self:stretch;max-height:none;overflow:visible;padding:0;background:none;border:0;box-shadow:none;width:auto;min-width:0;max-width:none}
+ /* One compact left-hand tool gutter; film strips flank the photograph.
+    The right-hand adjustment track always keeps the full viewport height. */
+ .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{--rail-width:0px;--scale-width:132px;grid-template-columns:88px var(--rail-width) minmax(0,1fr) var(--rail-width) var(--scale-width);grid-template-rows:minmax(0,1fr);column-gap:0}
+ .workspace.has-rails.editing:not(.rails-collapsed){--rail-width:56px}
+ .workspace.editing[data-edit-mode=levels],.workspace.editing[data-edit-mode=halo]{--scale-width:44px}
+ .workspace.editing[data-edit-mode=looks]{--scale-width:96px}
+ .workspace.editing .stage,.workspace.has-rails.editing .stage{grid-column:3;grid-row:1}
+ .workspace.editing .topbar{position:absolute;inset:auto;left:env(safe-area-inset-left);top:env(safe-area-inset-top);width:44px;padding:0;display:flex}
+ .workspace.editing .toolbar{position:static;display:contents;margin:0;padding:0}
+ .workspace.editing .sources{position:absolute;left:env(safe-area-inset-left);top:calc(44px + env(safe-area-inset-top));width:88px;height:44px;display:flex;flex-direction:row;gap:0}
+ .workspace.editing .sources button{padding:6px}
+ .workspace.editing .toolbar [data-action=undo]{position:absolute;left:env(safe-area-inset-left);bottom:env(safe-area-inset-bottom);width:44px;height:44px}
+ .workspace.editing .edit-modes{position:absolute;grid-area:auto;left:env(safe-area-inset-left);top:calc(88px + env(safe-area-inset-top));display:grid;grid-template-columns:repeat(2,44px);grid-auto-rows:44px;min-width:88px;width:88px;margin:0;padding:0;gap:0}
+ .workspace.editing .edit-actions{position:absolute;grid-area:auto;left:env(safe-area-inset-left);top:calc(176px + env(safe-area-inset-top));display:grid;grid-template-columns:repeat(2,44px);grid-auto-rows:44px;width:88px;margin:0;padding:0;gap:0}
+ .workspace.editing .edit-content>div{grid-column:5;grid-row:1;position:static;inset:auto;align-self:stretch;max-height:none;overflow:visible;padding:0;background:none;border:0;box-shadow:none;width:auto;min-width:0;max-width:none}
  .workspace.editing .layer-controls{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:minmax(0,1fr);gap:0;height:100%;padding:0}
- .workspace.editing .layer-utilities{position:absolute;left:env(safe-area-inset-left);bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;gap:0;width:52px;align-items:center}
+ .workspace.editing .layer-utilities{position:absolute;left:env(safe-area-inset-left);bottom:calc(44px + env(safe-area-inset-bottom));display:flex;flex-direction:row;gap:0;width:88px;align-items:center}
  .workspace.editing .layer-controls .transform-range{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;width:44px;height:100%;padding:0 0 12px;margin:0;min-height:0}
  .workspace.editing .transform-range:has([data-position=x]){grid-column:1;grid-row:1}
  .workspace.editing .transform-range:has([data-position=y]){grid-column:2;grid-row:1}
@@ -123,16 +124,22 @@
  .workspace.editing .look-options{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:0 4px}
  .workspace.editing .look-options button{min-width:0;flex:none}
  .workspace.editing .pro-controls{display:contents}
- .workspace.editing .pro-options{position:absolute;left:env(safe-area-inset-left);bottom:env(safe-area-inset-bottom);width:96px;display:grid;grid-template-columns:repeat(2,44px);justify-content:center;gap:0;padding:0}
- .workspace.editing .pro-range-label{grid-column:4;grid-row:1;display:flex;flex-direction:column;align-items:center;align-self:stretch;height:100%;gap:0;min-width:0;width:44px;max-width:none;margin:0;padding:0 0 12px}
- .workspace.editing .pro-range-label:last-child{grid-column:5}
+ .workspace.editing .pro-range-label{grid-column:5;grid-row:1;display:flex;flex-direction:column;align-items:center;align-self:stretch;height:100%;gap:0;min-width:0;width:44px;max-width:none;margin:0;padding:0 0 12px}
  .workspace.editing .pro-range-label span{height:22px;flex:0 0 22px;min-width:0;width:44px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:8px;line-height:22px;text-align:center}
- .workspace.editing .edit-content>.levels-ruler{grid-column:4;grid-row:1;align-self:stretch;height:100%;overflow:visible;padding:22px 0}
+ .workspace.editing .edit-content>.levels-ruler{grid-column:5;grid-row:1;align-self:stretch;height:100%;overflow:visible;padding:22px 0}
  .workspace .levels-track{height:100%;width:44px}
  .workspace .levels-ticks{left:21px;right:auto;top:0;bottom:0;height:auto;width:1px}
  .workspace .level-handle{left:0;top:auto;bottom:var(--position);transform:translateY(50%);cursor:ns-resize}
- .workspace.editing .status,.workspace:not(.editing) .status{left:60px;right:64px;bottom:8px}
- .workspace.editing .conflict-copy{left:60px;right:64px;bottom:60px}
+ .workspace.editing .film-tray{display:contents}
+ .workspace.editing.rails-collapsed .film-tray{display:none}
+ .workspace.editing .film-rail{grid-row:1;min-height:0;display:flex;flex-direction:column;gap:4px;padding:2px;touch-action:pan-y}
+ .workspace.editing .rail-a{grid-column:2}
+ .workspace.editing .rail-b{grid-column:4}
+ .workspace.editing .film-rail button{width:52px;height:44px;flex:0 0 44px}
+ .workspace.editing .rail-handle{position:absolute;display:grid;place-items:center;left:calc(44px + env(safe-area-inset-left));right:auto;top:env(safe-area-inset-top);bottom:auto;transform:none;width:44px;height:44px;z-index:2}
+ .workspace.editing .status,.workspace:not(.editing) .status{left:calc(92px + env(safe-area-inset-left));right:calc(48px + env(safe-area-inset-right));bottom:8px}
+ .workspace.editing .conflict-copy{left:calc(92px + env(safe-area-inset-left));right:calc(48px + env(safe-area-inset-right));bottom:60px}
+
 }
 /* Export keeps its preview at full height too; controls occupy the side. */
 @media(orientation:landscape){
@@ -156,4 +163,15 @@
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-modes{grid-column:1}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .sources{position:absolute;top:env(safe-area-inset-top);left:calc(92px + env(safe-area-inset-left));gap:0}
  .workspace.editing[data-composition=portrait][data-edit-mode=layers] .edit-actions{gap:0;padding:0}
+}
+
+/* Portrait is always the viewing surface, including while a failed save keeps
+   its edit checkpoint in memory. Workspace controls remain in the bottom row. */
+@media(orientation:portrait){
+ .workspace,.workspace.editing,.workspace.has-rails,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed,.workspace.has-rails.rails-collapsed.editing{grid-template-columns:minmax(0,1fr);grid-template-rows:44px minmax(0,1fr) 60px}
+ .workspace .topbar,.workspace.editing .topbar{position:relative;inset:auto;grid-column:1;grid-row:1}
+ .workspace .stage,.workspace.editing .stage{grid-column:1;grid-row:2;min-height:0}
+ .workspace .toolbar,.workspace.editing .toolbar{position:relative;grid-column:1;grid-row:3;display:flex;flex-direction:row;justify-self:center;align-self:center;padding:4px;margin:0;gap:8px}
+ .workspace .editor,.workspace .film-tray,.workspace .rail-handle,.workspace .toolbar .sources,.workspace .toolbar .divider,.workspace .toolbar [data-action=undo],.workspace [data-action=pro]{display:none!important}
+ .workspace .toolbar>button[data-action=rotate],.workspace .toolbar>button[data-action=favorite],.workspace .toolbar>button[data-action=export]{display:grid}
 }

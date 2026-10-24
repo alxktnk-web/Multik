@@ -7,7 +7,7 @@ import { icon, button } from './icons';
 export class Editor {
   readonly element=document.createElement('section');
   readonly discard=document.createElement('dialog');
-  mode:'levels'|'looks'|'layers'|'pro'='layers';
+  mode:'levels'|'looks'|'layers'|'halo'='layers';
   private pointer?:{id:number;start:number;levels:Readonly<Levels>;point:LevelPoint;moved:boolean};
   private range?:HTMLInputElement;
   private locked=false;
@@ -19,15 +19,14 @@ export class Editor {
   constructor(root:HTMLElement,readonly session:Session){
     this.element.className='editor';this.element.hidden=true;
     this.element.innerHTML=`<nav class="edit-modes glass" aria-label="Edit tools">
-      ${(['layers','levels','looks','pro'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Move','Levels','Looks','Pro'][i]}" aria-pressed="false">${icon((['hand','pro','profile','advanced'] as const)[i])}</button>`).join('')}
+      ${(['layers','levels','halo','looks'] as const).map((mode,i)=>`<button type="button" data-mode="${mode}" aria-label="${['Move','Levels','Halo','Looks'][i]}" aria-pressed="false">${icon((['hand','pro','halo','profile'] as const)[i])}</button>`).join('')}
       </nav><div class="edit-content">
       <div class="levels-ruler" role="group" aria-label="Levels of selected photo"><div class="levels-track"><div class="levels-ticks" aria-hidden="true"></div>
       ${levelPoints.map((p,i)=>`<div class="level-handle" role="slider" tabindex="0" data-level="${p}" aria-label="${['Black point','Midtones','White point'][i]}" aria-valuemin="0" aria-valuemax="100" style="--dot:${['#171715','#85847e','#eeeae2'][i]}"><i aria-hidden="true"></i></div>`).join('')}</div></div>
       <div class="look-options" role="group" aria-label="Image profile" hidden>${(['Original','Film','Dense','Clear'] as const).map((p,i)=>`<button type="button" data-profile-version="${i+2}" aria-pressed="false">${p}</button>`).join('')}</div>
       <div class="layer-controls" hidden><div class="layer-utilities">${button('rotate-layer','Rotate selected layer 90 degrees','rotate')}${button('reset','Center selected layer','reset')}</div><label class="transform-range"><span aria-hidden="true">X</span><input type="range" data-position="x" min="-36" max="36" step="0.05" aria-label="Selected layer horizontal position"/></label><label class="transform-range"><span aria-hidden="true">Y</span><input type="range" data-position="y" min="-27" max="27" step="0.05" aria-label="Selected layer vertical position"/></label><label class="transform-range"><span aria-hidden="true">${icon('scale')}</span><input type="range" data-scale min="0.5" max="4" step="0.01" aria-label="Selected layer scale"/></label></div>
-      <div class="pro-controls" hidden><div class="pro-options">${button('halo','Red halo','halo')}${button('haloRadius','Halo radius','radius')}${button('haloThreshold','Highlight threshold','threshold')}${button('haloXY','Halo: horizontal radius, vertical strength','xy')}${button('reset-levels','Reset selected photo levels','undo')}</div>
-      <label class="pro-range-label"><span></span><input type="range" class="effect-range"/></label><label class="pro-range-label"><span></span><input type="range" class="effect-range"/></label></div>
-      </div><footer class="edit-actions"><button type="button" data-edit-done aria-label="Finish editing" title="Finish editing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button></footer>`;
+      <div class="pro-controls" hidden><label class="pro-range-label"><span></span><input type="range" class="effect-range"/></label></div>
+      </div><footer class="edit-actions"><button type="button" data-edit-done aria-label="Save edits" title="Save edits"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button></footer>`;
     this.discard.className='discard-dialog';this.discard.innerHTML='<div class="sheet-content"><h1>Discard changes?</h1></div><div class="sheet-dock sheet-actions"><button type="button" class="text-button" data-keep>Keep editing</button><button type="button" class="mix-button" data-discard>Discard changes</button></div>';
     root.append(this.element,this.discard);
     const opts={signal:this.abort.signal},track=this.element.querySelector<HTMLElement>('.levels-track')!;
@@ -56,7 +55,7 @@ export class Editor {
     },opts);
     this.element.addEventListener('click',e=>{
       const b=(e.target as Element).closest<HTMLButtonElement>('button');if(!b||this.locked||session.gesturing)return;
-      if(b.dataset.mode){this.mode=b.dataset.mode as typeof this.mode;session.interaction='move';session.tool=this.mode==='levels'?{kind:'levels',point:'black'}:this.mode==='pro'?{kind:'parameter',parameter:'halo'}:{kind:'layer'};this.onChange();}
+      if(b.dataset.mode){this.selectMode(b.dataset.mode as typeof this.mode);this.onChange();}
       if(b.dataset.profileVersion){session.begin();session.draft.profile.version=Number(b.dataset.profileVersion) as Composition['profile']['version'];session.end();this.onChange();}
       if(b.hasAttribute('data-edit-done'))this.onDone();
       if(b.hasAttribute('data-edit-cancel'))this.requestCancel();
@@ -78,6 +77,17 @@ export class Editor {
     }
   }
   get activeGesture(){return !!this.pointer||!!this.range;}
+  // Rebind after selecting a frame/layer: navigation resets session.tool.
+  selectMode(mode:typeof this.mode=this.mode){
+    this.mode=mode==='halo'&&this.session.draft.profile.version===5?'layers':mode;
+    this.session.interaction='move';
+    this.session.tool=this.mode==='levels'?{kind:'levels',point:'black'}:this.mode==='halo'?{kind:'parameter',parameter:'halo'}:{kind:'layer'};
+  }
+  // Orientation changes complete the current RAM edit before the save boundary.
+  finishGesture(){
+    if(!this.pointer&&!this.range)return;
+    this.pointer=undefined;this.range=undefined;this.session.end();
+  }
   // Escape follows the same explicit save boundary as the check; Undo reverses edits.
   requestCancel(){this.onDone();}
   cancelGesture(){if(!this.pointer&&!this.range)return;this.pointer=undefined;this.range=undefined;this.session.cancel();this.onChange();}
@@ -96,18 +106,20 @@ export class Editor {
     this.locked=locked;this.element.hidden=!this.session.editing;this.element.parentElement!.dataset.editMode=this.mode;
     for(const b of this.element.querySelectorAll<HTMLButtonElement>('button'))b.disabled=locked;
     for(const b of this.element.querySelectorAll<HTMLButtonElement>('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===this.mode));
-    for(const [selector,mode] of [['.levels-ruler','levels'],['.look-options','looks'],['.layer-controls','layers'],['.pro-controls','pro']])this.element.querySelector<HTMLElement>(selector)!.hidden=this.mode!==mode;
+    for(const [selector,mode] of [['.levels-ruler','levels'],['.look-options','looks'],['.layer-controls','layers'],['.pro-controls','halo']])this.element.querySelector<HTMLElement>(selector)!.hidden=this.mode!==mode;
     for(const h of this.element.querySelectorAll<HTMLElement>('[data-level]'))h.setAttribute('aria-disabled',String(locked&&!this.pointer));
     for(const input of this.element.querySelectorAll<HTMLInputElement>('input'))input.disabled=locked&&input!==this.range;
     const scale=this.element.querySelector<HTMLInputElement>('[data-scale]')!;if(this.range!==scale)scale.value=String(this.session.layer.transform.scale??1);
     for(const input of this.element.querySelectorAll<HTMLInputElement>('input[type=range]'))input.setAttribute('aria-orientation',this.landscape.matches?'vertical':'horizontal');
-    const keys=this.session.tool.kind==='parameter'?[this.session.tool.parameter]:this.session.tool.kind==='xy'?['halo','haloRadius'] as const:[];
-    this.element.parentElement!.dataset.proRanges=String(this.session.draft.profile.version===5?0:keys.length);
-    this.element.querySelectorAll<HTMLInputElement>('.effect-range').forEach((r,i)=>{
-      const key=keys[i],label=r.parentElement!;label.hidden=!key||this.session.draft.profile.version===5;
-      if(key){const p=parameters[key];r.dataset.parameter=key;r.min=String(p.min);r.max=String(p.max);r.step=String(p.step);if(r!==this.range)r.value=String(this.session.draft.effects[key]);r.setAttribute('aria-label',p.label);label.querySelector('span')!.textContent=p.label;}
-    });
-    for(const b of this.element.querySelectorAll<HTMLButtonElement>('.pro-options [data-action]'))if(b.dataset.action!=='reset-levels')b.disabled=locked||this.session.draft.profile.version===5;
+    const clear=this.session.draft.profile.version===5,halo=this.element.querySelector<HTMLButtonElement>('[data-mode="halo"]')!;
+    halo.disabled=locked||clear;halo.title=clear?'Halo is unavailable in Clear':'Halo';
+    halo.setAttribute('aria-label',clear?'Halo is unavailable in Clear':'Halo');
+    this.element.parentElement!.dataset.proRanges=String(this.mode==='halo'&&!clear?1:0);
+    const range=this.element.querySelector<HTMLInputElement>('.effect-range')!,label=range.parentElement!,p=parameters.halo;
+    label.hidden=clear;range.disabled=clear||(locked&&range!==this.range);
+    range.dataset.parameter='halo';range.min=String(p.min);range.max=String(p.max);range.step=String(p.step);
+    if(range!==this.range)range.value=String(this.session.draft.effects.halo);
+    range.setAttribute('aria-label',p.label);label.querySelector('span')!.textContent=p.label;
     this.refresh();
   }
   dispose(){this.abort.abort();this.cancelGesture();this.element.remove();this.discard.remove();}

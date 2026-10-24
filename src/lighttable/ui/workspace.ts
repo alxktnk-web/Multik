@@ -32,6 +32,8 @@ export async function mountWorkspace(root:HTMLElement){
   const renderer=new Renderer(canvas,session),gestures=new Gestures(session);
   let pwa:ReturnType<typeof setupPwa>|undefined;
   let busy=true,exportBusy=false,sourceUrls:string[]=[],thumbKey='';
+  const orientation=matchMedia('(orientation: landscape)');
+  let orientationSavePending=false;
   const repo=new Repository(),navigation=new Navigation(repo,session,renderer);
   const status=root.querySelector<HTMLElement>('.status')!;
   const action=(id:string)=>root.querySelector<HTMLButtonElement>(`[data-action="${id}"]`)!;
@@ -43,12 +45,19 @@ export async function mountWorkspace(root:HTMLElement){
   let noticeTimer=0;
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
-  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>pwa?.refresh()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
+  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
   gestures.onSwipe=direction=>{if(!session.editing)void navigation.step(direction).catch(reportError);};
-  const rails=new FilmRails(workspace,navigation,repo,reportError);
+  const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode();sync();});
+  gestures.allowScale=()=>orientation.matches;
   const baseLocked=()=>busy||exportBusy||navigation.busy;
   const locked=()=>baseLocked()||gestures.active||session.gesturing;
   const sync=()=>{
+    if(orientation.matches&&navigation.project){
+      if(!session.editing){session.beginEdit();editor.selectMode();}
+    }else{
+      if(session.editing){editor.finishGesture();session.end();session.acceptEdit();orientationSavePending=true;}
+      session.interaction='browse';session.tool={kind:'layer'};
+    }
     const save=action('export'),dock=session.editing?editor.element.querySelector('.edit-actions')!:workspace.querySelector('.toolbar')!;
     if(save.parentElement!==dock)dock.insertBefore(save,session.editing?editor.element.querySelector('[data-edit-done]'):action('pro'));
     const heart=action('favorite');
@@ -70,7 +79,11 @@ export async function mountWorkspace(root:HTMLElement){
     for(const b of root.querySelectorAll<HTMLButtonElement>('.pro-options [data-action]'))b.setAttribute('aria-pressed',String(b.dataset.action===selected));
     canvas.setAttribute('aria-label',session.tool.kind==='levels'?`Levels of photo ${session.activeLayer==='a'?'I':'II'}. Left, middle and right thirds adjust black, midtones and white. Slide vertically. Pinch resizes the selected layer.`:session.tool.kind==='xy'?xyTools[session.tool.pair].label:session.tool.kind==='parameter'?`${parameters[session.tool.parameter].label}. Slide up to increase.`:'Photo. Swipe to browse. Edit to move a selected photo.');
     canvas.style.pointerEvents=baseLocked()||editor.activeGesture?'none':'';
-    rails.setLocked(lock||session.editing);pwa?.refresh();
+    rails.setLocked(lock);pwa?.refresh();
+    if(orientationSavePending&&!baseLocked()&&!session.gesturing&&!gestures.active){
+      orientationSavePending=false;
+      queueMicrotask(()=>{void navigation.boundary(async()=>{await updateFavoriteCover();}).catch(reportError);});
+    }
   };
   const finish=()=>{session.interaction='browse';session.tool={kind:'layer'};report('');sync();};
   editor.onChange=sync;
@@ -84,7 +97,7 @@ export async function mountWorkspace(root:HTMLElement){
   renderer.onReady=()=>{busy=false;sync();report('');};
   navigation.onBusy=()=>{editor.element.querySelector<HTMLButtonElement>('[data-edit-done]')!.setAttribute('aria-busy',String(navigation.busy));sync();};
   navigation.onChange=()=>{
-    if(navigation.project?.kind==='favorite'&&!session.editing){session.beginEdit();editor.mode='layers';session.interaction='move';session.tool={kind:'layer'};}
+    if(orientation.matches){session.beginEdit();editor.selectMode();}
     void refreshFavorites().catch(reportError);
     if(navigation.sources){
       const key=navigation.sources.map(a=>a.id).join('|');
@@ -100,6 +113,7 @@ export async function mountWorkspace(root:HTMLElement){
     session.viewport.pan={x:0,y:0};renderer.invalidate();sync();
   });resize.observe(stage);
   const abort=new AbortController(),opts={signal:abort.signal};
+  orientation.addEventListener('change',()=>{editor.finishGesture();session.end();gestures.reset();sync();renderer.invalidate();},opts);
   document.addEventListener('visibilitychange',()=>{if(document.hidden){editor.cancelGesture();gestures.reset();sync();}},opts);
   window.addEventListener('blur',()=>{editor.cancelGesture();gestures.reset();sync();},opts);
   root.addEventListener('click',event=>{
@@ -108,7 +122,7 @@ export async function mountWorkspace(root:HTMLElement){
     if(target.dataset.layer){
       const layer=target.dataset.layer as LayerId;
       if(!session.editing)return;
-      session.activeLayer=layer;session.interaction='move';
+      session.activeLayer=layer;editor.selectMode();
       void rails.update().catch(reportError);
     }
     if(id==='rotate'&&!session.editing){session.rotate();session.viewport.pan={x:0,y:0};session.tool={kind:'layer'};}
@@ -116,7 +130,7 @@ export async function mountWorkspace(root:HTMLElement){
     if(id==='rotate-layer')session.rotateLayer();
     if(id==='reset')session.resetLayer();
     if(id==='reset-levels'){session.begin();delete session.layer.levels;session.end();}
-    if(id==='pro'&&!session.editing){
+    if(id==='pro'&&orientation.matches&&!session.editing){
       void navigation.boundary(async()=>{session.beginEdit();editor.mode='layers';session.interaction='move';session.tool={kind:'layer'};report('');sync();}).catch(reportError);return;
     }
     if(id&&['halo','haloRadius','haloThreshold'].includes(id)&&session.draft.profile.version!==5)session.tool={kind:'parameter',parameter:id as ParameterId};
@@ -135,6 +149,7 @@ export async function mountWorkspace(root:HTMLElement){
     if(locked())return;
     const directions:Record<string,[number,number]>={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
     if(event.key==='Escape'&&session.editing){event.preventDefault();editor.requestCancel();return;}
+    if(!orientation.matches){const d=directions[event.key];if(d?.[0]){event.preventDefault();void navigation.step(d[0]===1?1:-1).catch(reportError);}return;}
     if(event.key==='0'){event.preventDefault();session.scaleLayer(1);sync();return;}
     if(event.key==='+'||event.key==='='){event.preventDefault();session.scaleLayer((session.layer.transform.scale??1)*1.25);sync();return;}
     if(event.key==='-'){event.preventDefault();session.scaleLayer((session.layer.transform.scale??1)/1.25);sync();return;}
@@ -156,6 +171,6 @@ export async function mountWorkspace(root:HTMLElement){
     sourceUrls=blobs.map(blob=>URL.createObjectURL(blob));root.querySelectorAll<HTMLImageElement>('.sources img').forEach((img,i)=>img.src=sourceUrls[i]);
     try{const project=await repo.lastProject();if(project)await navigation.open(project);else await library.open();}catch(error){reportError(error);}
   }catch(error){dispose();throw error;}
-  pwa=setupPwa({root,canUpdate:()=>!session.editing&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.interacting&&!exportDialog.busy&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
+  pwa=setupPwa({root,canUpdate:()=>(!session.editing||library.dialog.open)&&!busy&&!exportBusy&&!navigation.busy&&!gestures.active&&!session.gesturing&&!library.interacting&&!exportDialog.busy&&(!session.dirty||!!navigation.project),applyUpdate:async action=>{if(!await navigation.boundary(action))throw Error('Finish this action and try updating again');}});
   return {session,renderer,gestures,repo,navigation,editor,dispose};
 }

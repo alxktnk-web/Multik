@@ -13,7 +13,7 @@ export class FilmRails {
   private hidden={portrait:false,landscape:false};
   private media=matchMedia('(orientation: landscape)');
   private abort=new AbortController();
-  constructor(readonly root:HTMLElement,readonly navigation:Navigation,readonly repo:Repository,readonly error:(e:unknown)=>void){
+  constructor(readonly root:HTMLElement,readonly navigation:Navigation,readonly repo:Repository,readonly error:(e:unknown)=>void,readonly onSelect:()=>void=()=>{}){
     this.tray.className='film-tray';this.tray.hidden=true;this.tray.innerHTML='<div class="film-rail rail-a" data-rail="a" aria-label="Lower roll"></div><div class="film-rail rail-b" data-rail="b" aria-label="Upper roll"></div>';
     this.handle.className='rail-handle';this.handle.type='button';this.handle.hidden=true;
     root.append(this.tray,this.handle);
@@ -42,7 +42,7 @@ export class FilmRails {
         const layer:LayerId=side?'b':'a',rail=this.tray.querySelector<HTMLElement>(`[data-rail="${layer}"]`)!;rail.replaceChildren();
         for(let i=0;i<roll.assetIds.length;i++){
           const button=document.createElement('button');button.type='button';button.dataset.index=String(i);button.setAttribute('aria-label',`${side?'Upper':'Lower'} roll, frame ${i+1}`);const image=document.createElement('img');image.alt='';image.loading='lazy';button.append(image);
-          button.onclick=()=>{void this.navigation.select(layer,i).catch(this.error);};rail.append(button);
+          button.onclick=()=>{void this.navigation.select(layer,i).then(selected=>{if(selected)this.onSelect();}).catch(this.error);};rail.append(button);
           void this.repo.asset(roll.assetIds[i]).then(a=>{if(generation!==this.generation)return;const url=URL.createObjectURL(a.thumb);this.urls.push(url);image.src=url;image.classList.toggle('portrait-source',a.height>a.width);}).catch(this.error);
         }
       }
