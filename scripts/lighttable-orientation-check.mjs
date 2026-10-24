@@ -17,6 +17,7 @@ try{
  for(const [w,h] of [[874,402],[667,375]]){
   await page.setViewportSize({width:w,height:h});await page.waitForFunction(()=>window.__lighttable.session.editing);await frame();
   assert.equal(await page.locator('.film-rail').first().isVisible(),true);
+  assert.equal(await page.locator('.topbar').evaluate(e=>getComputedStyle(e).gridArea),'auto', 'Home offset must use workspace, not an inset grid cell');
   for(const mode of ['layers','levels','halo','looks']){
    if(mode!=='layers')await page.click(`[data-mode=${mode}]`);await frame();
    if(mode!=='layers')assert.equal(await page.locator(`[data-mode=${mode}]`).getAttribute('aria-pressed'),'true');

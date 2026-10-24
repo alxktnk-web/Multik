@@ -180,7 +180,7 @@
 @media(orientation:landscape){
  .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{--rail-width:56px;--scale-width:0px;--tool-step:calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))/7);grid-template-columns:52px var(--rail-width) minmax(0,1fr) var(--rail-width) var(--scale-width)}
  .workspace.editing[data-edit-mode=levels],.workspace.editing[data-edit-mode=halo]{--scale-width:44px}
- .workspace.editing .topbar{left:calc(4px + env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + (var(--tool-step) - 44px)/2)}
+ .workspace.editing .topbar{grid-area:auto;left:calc(4px + env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + (var(--tool-step) - 44px)/2)}
  .workspace.editing .sources,.workspace.editing .layer-controls,.workspace.editing .rail-handle{display:none!important}
  .workspace.editing .film-tray,.workspace.editing.rails-collapsed .film-tray{display:contents}
  .workspace.editing .toolbar [data-action=undo]{left:calc(4px + env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + var(--tool-step)*1.5 - 22px);bottom:auto}
