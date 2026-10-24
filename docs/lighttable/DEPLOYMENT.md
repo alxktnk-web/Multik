@@ -1,4 +1,17 @@
-# Current release — 24 October 2026 direct Save to Photos
+# Current release — 24 October 2026 single-column editor
+
+- URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Native owner-private deployment `appgdep_6adcc2095004819186a8a8d24c9d58e5` succeeded at 2026-10-24 14:35:07 UTC.
+- Saved version `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_ef5af92172408191b8ba0e9b62a0affc`.
+- GitHub runtime `014b23e` includes orientation stage `80f734b`. Sites source `f4ba9383e9de066c4f431c97b9554d8e647fc912`, same source tree. Archive `/workspace/multik-orientation-deploy.tar.gz`.
+- Portrait preview, automatic landscape editor, single left column, full-height Levels/Halo at right, Looks menu at bottom. Thumbnail or active-tool tap returns to movement; no duplicate Move/check/source controls. Favorite source selection works through fixed frame rails.
+- PASS: 75 tests, production build, targeted orientation/column/browser regression at 874×402 and 667×375; PWA regression passed during orientation stage. Independent publish build matches tested dist byte-for-byte. Classic unchanged (13 files). Real iPhone review remains open.
+- User explicitly authorized publication after the earlier automatic approval block. GitHub main and Sites pushed normally; no history rewrite, no audience/origin/data change. Source helper unavailable; documented RAM-only hidden-stdin Git fallback, remote SHA verification and archive-backed native deployment used.
+- Update on home installs this release. Documentation-only commits do not require another deploy.
+
+---
+
+# Previous release — 24 October 2026 direct Save to Photos
 
 - URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Native private deployment `appgdep_6adc749dcb008191869335c38d375c6d` succeeded at 2026-10-24 09:04:41 UTC.
