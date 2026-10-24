@@ -1,4 +1,17 @@
-# Current release — Sites version 13, 23 October 2026
+# Current release — 24 October 2026 phone fixes
+
+- URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Native owner-private deployment `appgdep_6adc2e1197e881918500293a5a7c3d8b` succeeded at 2026-10-24 04:03:45 UTC.
+- Saved version `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_cc65f6feb5f48191a35a055aea482492`.
+- GitHub runtime `5d1f1a9`; Sites source `28d2fe806bb9652749557b2112df3b2408242891`, identical source tree. Archive `/workspace/multik-phone-fixes-deploy.tar.gz`.
+- Fixed portrait photo/control grid, landscape Pro options left, film/advanced icons, Next Roll / Expose, home Update-only UI, default maximum supported 4000px JPEG without size selector.
+- PASS: 75 tests, build, import-v3, 40 layout combinations, full export and PWA regression. Independent build matched tested dist byte-for-byte; Classic 13 files unchanged. Real iPhone layout acceptance remains to be repeated.
+- Existing v13 users apply this update via the old home ellipsis → Update. After installing, the info menu is gone; future updates appear directly on home.
+- Same audience/origin, browser data retained, Pages disabled. Source helper unavailable; reused documented hidden-stdin/RAM-only non-force Git fallback and verified remote source SHA before archive-backed native deployment.
+
+---
+
+# Previous release — Sites version 13, 23 October 2026
 
 - Live URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Deployment `appgdep_6adba1b273dc81918904192fdbfe8071` succeeded at 2026-10-23 18:04:51 UTC; owner-private access and origin preserved.
