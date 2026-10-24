@@ -16,6 +16,10 @@ export class Navigation {
   async commit(){
     if(!this.project||!this.session.dirty)return;
     if(this.session.gesturing)throw Error('Finish moving before changing frames');
+    if(this.project.kind==='favorite'){
+      const copy=await this.repo.workingCopy(copyComposition(this.session.draft),this.project);
+      this.project=copy.project;this.session.markSaved(copy.composition);return;
+    }
     const next=await this.repo.commit(copyComposition(this.session.draft),this.session.savedRevision);
     this.session.markSaved(next);
   }
@@ -51,12 +55,12 @@ export class Navigation {
   }
   private async browsingProject(){
     const project=this.project!;
-    if(project.kind!=='favorite')return project;
+    if(!project.kind)return project;
     // Favorites own a fixed pair. Browse other sources in their originating Mix.
     const source=project.favoriteSourceId?JSON.parse(project.favoriteSourceId):undefined;
     if(!Array.isArray(source)||source[0]!=='pair'||typeof source[1]!=='string')throw Error('Favorite source unavailable');
     const origin=await this.repo.project(source[1]),rolls=this.rolls!;
-    if(origin.kind==='favorite'||origin.rollA!==project.rollA||origin.rollB!==project.rollB||pairId(origin,rolls[0].assetIds[project.a],rolls[1].assetIds[project.b])!==project.favoriteSourceId)throw Error('Favorite source unavailable');
+    if(origin.kind||origin.rollA!==project.rollA||origin.rollB!==project.rollB||pairId(origin,rolls[0].assetIds[project.a],rolls[1].assetIds[project.b])!==project.favoriteSourceId)throw Error('Favorite source unavailable');
     return {...origin,a:project.a,b:project.b};
   }
   private async present(project:Project,rolls:[Roll,Roll]){

@@ -6,9 +6,10 @@ import { parameters, xyTools, toolParameters } from '../model/parameters';
 import { Gestures, bindGestures } from '../input/gestures';
 import { Renderer } from '../render/renderer';
 import { Repository } from '../data/repository';
-import { ConflictError, type Favorite } from '../data/types';
+import { compositionStateKey, ConflictError, type Favorite } from '../data/types';
 import { Navigation } from '../model/navigation';
 import { Library } from './library';
+import { FavoriteNotice } from './favorite-notice';
 import { Covers } from './covers';
 import { ExportDialog } from './export-dialog';
 import { Editor } from './editor';
@@ -39,16 +40,18 @@ export async function mountWorkspace(root:HTMLElement){
   const action=(id:string)=>root.querySelector<HTMLButtonElement>(`[data-action="${id}"]`)!;
   const covers=new Covers(repo);
   let favorites:Favorite[]=[],favoriteGeneration=0;
-  const currentFavorite=()=>favorites.find(f=>f.projectId===navigation.project?.id||f.sourceCompositionId===session.draft.id);
+  const currentFavorite=()=>{const key=compositionStateKey(session.draft);return favorites.find(f=>f.stateKey===key);};
+  const syncHeart=()=>{if(session.gesturing)return;const liked=!!currentFavorite(),heart=action('favorite');heart.setAttribute('aria-pressed',String(liked));heart.setAttribute('aria-label',liked?'Remove from Library':'Add to Library');};
   const refreshFavorites=async()=>{const generation=++favoriteGeneration;const next=await repo.listFavorites();if(generation===favoriteGeneration){favorites=next;sync();}};
   const copy=document.createElement('button');copy.className='conflict-copy';copy.textContent='Save a separate copy';copy.hidden=true;workspace.append(copy);
   let noticeTimer=0;
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
-  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
+  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync(),onFavoritesChange:refreshFavorites}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
+  const favoriteNotice=new FavoriteNotice(repo,refreshFavorites,reportError);workspace.append(favoriteNotice.element);
   gestures.onSwipe=direction=>{if(session.interaction==='browse')void navigation.step(direction).catch(reportError);};
   const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode();sync();});
-  gestures.allowScale=()=>orientation.matches&&session.interaction==='move';
+  gestures.allowScale=()=>orientation.matches&&editor.mode==='layers';
   const baseLocked=()=>busy||exportBusy||navigation.busy;
   const locked=()=>baseLocked()||gestures.active||session.gesturing;
   const sync=()=>{
@@ -60,11 +63,13 @@ export async function mountWorkspace(root:HTMLElement){
     }
     const save=action('export'),dock=session.editing?editor.element.querySelector('.edit-actions')!:workspace.querySelector('.toolbar')!;
     if(save.parentElement!==dock)dock.insertBefore(save,session.editing?null:action('pro'));
+    const rotate=action('rotate');
+    if(rotate.parentElement!==dock)dock.insertBefore(rotate,save);
     const heart=action('favorite');
     if(heart.parentElement!==dock)dock.insertBefore(heart,save);
-    heart.setAttribute('aria-pressed',String(!!currentFavorite()));heart.setAttribute('aria-label',currentFavorite()?'Remove from Library':'Add to Library');
+    syncHeart();
     workspace.dataset.composition=session.draft.frame.turns%2?'portrait':'landscape';
-    workspace.dataset.favorite=String(navigation.project?.kind==='favorite');
+    workspace.dataset.favorite=String(!!navigation.project?.kind);
     const lock=locked();workspace.classList.toggle('editing',session.editing);workspace.classList.toggle('moving-layer',session.interaction==='move');
     for(const b of root.querySelectorAll<HTMLButtonElement>('.toolbar button'))b.disabled=lock;
     action('export').disabled=lock||!navigation.sources;
@@ -82,17 +87,16 @@ export async function mountWorkspace(root:HTMLElement){
     rails.setLocked(lock);pwa?.refresh();
     if(orientationSavePending&&!baseLocked()&&!session.gesturing&&!gestures.active){
       orientationSavePending=false;
-      queueMicrotask(()=>{void navigation.boundary(async()=>{await updateFavoriteCover();}).catch(reportError);});
+      queueMicrotask(()=>{void navigation.boundary(async()=>{}).catch(reportError);});
     }
   };
   const finish=()=>{session.interaction='browse';session.tool={kind:'layer'};report('');sync();};
   editor.onChange=sync;
-  const updateFavoriteCover=async()=>{if(navigation.project?.kind!=='favorite')return;const snapshot=copyComposition(session.draft);try{await repo.updateFavoriteThumbnail(navigation.project.id,await covers.render(snapshot),snapshot.revision);}catch{report('Edits saved. Preview will refresh when reopened.');}};
-  editor.onDone=()=>{editor.finishGesture();session.end();editor.selectMode('browse');sync();void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();}).catch(reportError);};
+  editor.onDone=()=>{editor.finishGesture();session.end();editor.selectMode('browse');sync();void navigation.boundary(async()=>{session.acceptEdit();finish();}).catch(reportError);};
   editor.onCancel=()=>{session.discardEdit();finish();};
   exportDialog.onBusy=value=>{exportBusy=value;sync();};
   exportDialog.onStatus=report;
-  session.onChange=()=>{workspace.dataset.composition=session.draft.frame.turns%2?'portrait':'landscape';renderer.invalidate();editor.refresh();};
+  session.onChange=()=>{syncHeart();workspace.dataset.composition=session.draft.frame.turns%2?'portrait':'landscape';renderer.invalidate();editor.refresh();};
   renderer.onStatus=message=>{busy=true;editor.cancelGesture();gestures.reset();sync();report(message);};
   renderer.onReady=()=>{busy=false;sync();report('');};
   navigation.onBusy=()=>sync();
@@ -125,7 +129,7 @@ export async function mountWorkspace(root:HTMLElement){
       session.activeLayer=layer;editor.selectMode();
       void rails.update().catch(reportError);
     }
-    if(id==='rotate'&&!session.editing){session.rotate();session.viewport.pan={x:0,y:0};session.tool={kind:'layer'};}
+    if(id==='rotate'){session.rotate();session.viewport.pan={x:0,y:0};if(orientation.matches)editor.selectMode();}
     if(id==='undo')session.undo();
     if(id==='rotate-layer')session.rotateLayer();
     if(id==='reset')session.resetLayer();
@@ -137,12 +141,12 @@ export async function mountWorkspace(root:HTMLElement){
     if(id==='haloXY'&&session.draft.profile.version!==5)session.tool={kind:'xy',pair:'haloXY'};
     if(id==='favorite'){void navigation.boundary(async()=>{
       if(!navigation.project)return;const existing=currentFavorite();
-      if(existing)await repo.removeFavorite(existing.id);
+      if(existing){const removed=await repo.removeFavorite(existing.id);if(removed)favoriteNotice.show(removed);}
       else {const snapshot=copyComposition(session.draft);await repo.favoriteCurrent(navigation.project,snapshot,await covers.render(snapshot));}
       await refreshFavorites();
     }).catch(reportError);return;}
-    if(id==='export'){if(!session.dirty&&exportDialog.shareReady(session.draft))return;void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){await updateFavoriteCover();session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
-    if(id==='library'){void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();await library.open(navigation.project?.kind==='favorite'?'favorites':'mixes');}).catch(reportError);return;}
+    if(id==='export'){if(!session.dirty&&exportDialog.shareReady(session.draft))return;void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
+    if(id==='library'){void navigation.boundary(async()=>{session.acceptEdit();finish();await library.open(navigation.project?.kind?'favorites':'mixes');}).catch(reportError);return;}
     sync();renderer.invalidate();
   },opts);
   canvas.addEventListener('keydown',event=>{
@@ -163,7 +167,7 @@ export async function mountWorkspace(root:HTMLElement){
     }else{const keys=toolParameters(session.tool),key=direction[0]?keys[1]:keys[0];if(key){const p=parameters[key];session.draft.effects[key]=clamp(session.draft.effects[key]+(direction[0]||-direction[1])*p.step,p.min,p.max);}}
     session.end();sync();
   },opts);
-  const dispose=()=>{clearTimeout(noticeTimer);pwa?.dispose();covers.dispose();abort.abort();editor.dispose();unbind();resize.disconnect();exportDialog.dispose();library.dispose();rails.dispose();renderer.dispose();void repo.close();for(const url of sourceUrls)URL.revokeObjectURL(url);};
+  const dispose=()=>{clearTimeout(noticeTimer);favoriteNotice.dispose();pwa?.dispose();covers.dispose();abort.abort();editor.dispose();unbind();resize.disconnect();exportDialog.dispose();library.dispose();rails.dispose();renderer.dispose();void repo.close();for(const url of sourceUrls)URL.revokeObjectURL(url);};
   try{
     report('Preparing Lighttable…');sync();
     const blobs=await demoSources();await renderer.loadPair(blobs.map((blob,i)=>({id:`demo-${i}`,blob})) as Parameters<Renderer['loadPair']>[0]);

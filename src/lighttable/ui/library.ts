@@ -1,12 +1,13 @@
 import { ImportRoll } from './import-roll';
 import { icon } from './icons';
+import { FavoriteNotice } from './favorite-notice';
 import type { Repository } from '../data/repository';
 import type { Navigation } from '../model/navigation';
 import type { Project, Roll } from '../data/types';
 import './home.css';
 
 type HomeTab='mixes'|'favorites';
-type HomeHooks={cover?:(project:Project)=>Promise<Blob|undefined>;onOpen?:(project:Project)=>void;onStateChange?:()=>void};
+type HomeHooks={cover?:(project:Project)=>Promise<Blob|undefined>;onOpen?:(project:Project)=>void;onStateChange?:()=>void;onFavoritesChange?:()=>Promise<void>};
 const heart='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></svg>';
 const gridIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
 
@@ -25,12 +26,15 @@ export class Library {
   private projects:Project[]=[];
   private tab:HomeTab='mixes';
   private coverQueue=Promise.resolve();
+  private favoriteNotice:FavoriteNotice;
   constructor(readonly root:HTMLElement,readonly repo:Repository,readonly navigation:Navigation,readonly hooks:HomeHooks={}){
     this.dialog.className='library-dialog home-dialog';
     this.dialog.innerHTML=`<div class="sheet-content library-content"><header class="library-heading"><h1>Mixes</h1><button type="button" data-pwa-update hidden>Update</button></header><p class="home-update-status" data-pwa-state role="status" hidden></p><div class="mix-grid" aria-label="Mixes"></div><p class="home-empty" hidden></p><details class="home-rolls"><summary>Use existing rolls</summary><div class="roll-grid" aria-label="Rolls"></div><button type="button" class="mix-button" data-start-mix disabled hidden>Mix</button></details><div class="pending-imports"></div></div><footer class="sheet-dock home-dock"><p class="library-message" role="status" aria-live="polite"></p><div class="home-create"><button type="button" class="mix-button" data-new-mix>${icon('plus')}<span>Mix</span></button><button type="button" class="text-button" data-new-roll>${icon('plus')}<span>Roll</span></button></div><nav class="home-navigation" aria-label="Library navigation"><button type="button" data-close-library aria-label="Back to lighttable">${icon('back')}</button><button type="button" data-home-tab="mixes" aria-pressed="true">${gridIcon}<span>Mixes</span></button><button type="button" data-home-tab="favorites" aria-pressed="false">${heart}<span>Library</span></button></nav></footer>`;
     this.rename.className='rename-dialog';
     this.rename.innerHTML='<form><div class="sheet-content"><h1>Rename roll</h1><input data-rename-name aria-label="Roll name" maxlength="80" required autocomplete="off"/><p class="rename-message" role="status"></p><details class="roll-mixes"><summary>Saved mixes</summary><div></div></details></div><footer class="sheet-dock sheet-actions"><button type="button" class="text-button" data-cancel-rename>Cancel</button><button class="mix-button" data-save-name>Save</button></footer></form>';
     this.status=this.dialog.querySelector('.library-message')!;
+    this.favoriteNotice=new FavoriteNotice(repo,async()=>{await this.refresh();await this.hooks.onFavoritesChange?.();},e=>this.showError(e));
+    this.dialog.querySelector('.home-dock')!.prepend(this.favoriteNotice.element);
     this.importer=new ImportRoll(repo,async roll=>{this.selected=[...this.selected.slice(-1),roll.id];this.tab='mixes';await this.refresh();this.dialog.querySelector<HTMLDetailsElement>('.home-rolls')!.open=true;});
     root.append(this.dialog,this.importer.dialog,this.rename);
     this.dialog.querySelector<HTMLButtonElement>('[data-close-library]')!.onclick=()=>{if(!this.busy)this.dialog.close();};
@@ -112,7 +116,7 @@ export class Library {
   async refresh(){
     this.cancelPress();const generation=++this.generation;
     const [rolls,projects,jobs,favorites]=await Promise.all([this.repo.listRolls(),this.repo.listProjects(),this.repo.pendingImports(),this.repo.listFavorites()]);if(generation!==this.generation)return;
-    this.projects=projects.filter(p=>p.kind!=='favorite');this.selected=this.selected.filter(id=>rolls.some(r=>r.id===id));
+    this.projects=projects.filter(p=>!p.kind);this.selected=this.selected.filter(id=>rolls.some(r=>r.id===id));
     for(const url of this.urls)URL.revokeObjectURL(url);this.urls=[];
     const favoritesTab=this.tab==='favorites';this.dialog.dataset.homeTab=this.tab;
     this.dialog.querySelector('h1')!.textContent=favoritesTab?'Library':'Mixes';
@@ -121,7 +125,10 @@ export class Library {
       for(const favorite of favorites){
         const project=projects.find(p=>p.id===favorite.projectId);if(!project)continue;
         const {card,img}=this.card(project,this.date(favorite.createdAt));card.dataset.favorite=favorite.id;
-        const mark=document.createElement('i');mark.className='favorite-mark';mark.setAttribute('aria-hidden','true');mark.innerHTML=heart;card.append(mark);mixes.append(card);this.image(img,favorite.thumb,generation);
+        const wrapper=document.createElement('div');wrapper.className='favorite-card';
+        const mark=document.createElement('button');mark.type='button';mark.className='favorite-mark';mark.setAttribute('aria-label','Remove from Library');mark.setAttribute('aria-pressed','true');mark.innerHTML=heart;
+        mark.onclick=()=>void this.run(async()=>{const removed=await this.repo.removeFavorite(favorite.id);await this.refresh();await this.hooks.onFavoritesChange?.();if(removed)this.favoriteNotice.show(removed);});
+        wrapper.append(card,mark);mixes.append(wrapper);this.image(img,favorite.thumb,generation);
       }
     }else for(const p of this.projects){const {card,img}=this.card(p,this.date(p.updatedAt));mixes.append(card);this.queueCover(p,img,generation);}
     const empty=this.dialog.querySelector<HTMLElement>('.home-empty')!;empty.hidden=!!mixes.childElementCount;empty.textContent=favoritesTab?'Photos you like will appear here.':'Create your first mix.';
@@ -144,5 +151,5 @@ export class Library {
     this.dialog.querySelector<HTMLElement>('.home-create')!.hidden=favoritesTab;
     this.controls();
   }
-  dispose(){this.cancelPress();this.generation++;this.importer.dispose();for(const url of this.urls)URL.revokeObjectURL(url);this.dialog.remove();this.rename.remove();}
+  dispose(){this.cancelPress();this.generation++;this.favoriteNotice.dispose();this.importer.dispose();for(const url of this.urls)URL.revokeObjectURL(url);this.dialog.remove();this.rename.remove();}
 }

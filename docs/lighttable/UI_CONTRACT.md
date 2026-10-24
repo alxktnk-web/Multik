@@ -1,3 +1,17 @@
+# 24.10.2026 — stable editor and saved variants (latest)
+
+Landscape always reserves the same 44px right adjustment column. Switching tools
+never changes stage bounds; the photograph has a permanent 12px outer margin.
+Only Move permits pinch/drag transforms. Levels operates on each layer's CIELAB L*,
+retains its tool when selecting a layer, and commits at navigation/explicit boundaries.
+Composition Rotate is available in landscape too. Nine controls stay in one left
+column; compact heights fit short screens without clipping. Looks remains last.
+
+Hearts identify full editable states, not just source pairs. A changed state can be
+saved as a new immutable Library variant; editing a saved variant uses a working
+copy and does not overwrite it. Unlike removes membership only and offers an 8s
+Removed · Undo notice in Library and workspace. Original photos remain shared.
+
 # 24.10.2026 — explicit View / Move (supersedes earlier controls)
 
 One left column: Home, View (eye), Move, Levels, Halo, Favorite, Save, Looks.

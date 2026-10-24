@@ -1,4 +1,4 @@
-import { assertComposition, ConflictError, pairId, validateRoll, type Favorite, type Asset, type ImportJob, type Project, type Roll } from './types';
+import { assertComposition, compositionStateKey, ConflictError, pairId, validateRoll, type Favorite, type Asset, type ImportJob, type Project, type Roll } from './types';
 import { copyComposition, type Composition } from '../model/types';
 const stores=['assets','rolls','jobs','projects','compositions','prefs'] as const;
 type Store=typeof stores[number];
@@ -44,18 +44,23 @@ export class Repository {
   async commit(snapshot:Composition,expectedRevision:number):Promise<Composition>{
     if(!Number.isInteger(expectedRevision)||expectedRevision<0)throw Error('Invalid revision');
     assertComposition(snapshot);const next=copyComposition(snapshot);next.revision=expectedRevision+1;
-    await this.write(['compositions'],(tx,fail)=>{const store=tx.objectStore('compositions'),req=store.get(snapshot.id);req.onsuccess=()=>{
+    await this.write(['compositions','projects'],(tx,fail)=>{const store=tx.objectStore('compositions'),req=store.get(snapshot.id);req.onsuccess=()=>{
       const current=req.result as Composition|undefined;
       if(!current||current.revision!==expectedRevision){fail(new ConflictError());return;}
-      store.put(next);
+      let identity:unknown;try{identity=JSON.parse(snapshot.id);}catch{/* Older non-pair composition IDs remain valid. */}
+      if(Array.isArray(identity)&&identity[0]==='pair'&&typeof identity[1]==='string'){
+        const p=tx.objectStore('projects').get(identity[1]);p.onsuccess=()=>{if(p.result?.kind==='favorite'){fail(Error('Saved Library variants are immutable. Create a working copy first.'));return;}store.put(next);};
+      }else store.put(next);
     };});this.counters.compositionCommits++;return next;
   }
-  async fork(snapshot:Composition,project:Project):Promise<{composition:Composition;project:Project}>{
+  async fork(snapshot:Composition,project:Project){return this.copyProject(snapshot,project,false);}
+  async workingCopy(snapshot:Composition,project:Project){return this.copyProject(snapshot,project,true);}
+  private async copyProject(snapshot:Composition,project:Project,working:boolean):Promise<{composition:Composition;project:Project}>{
     // Conflict copies are ordinary Mixes, including copies made from Library.
     // Keeping kind=favorite without a new membership would hide the copy.
     const {kind: _kind,favoriteSourceId: _source,...base}=project;
-    const p:Project={...base,id:crypto.randomUUID(),updatedAt:new Date().toISOString()};
-    const c=copyComposition(snapshot);c.id=JSON.stringify(['pair',p.id,p.rollA,c.layers[0].placements[0].source.assetId,1,p.rollB,c.layers[1].placements[0].source.assetId,1]);c.revision=0;
+    const p:Project={...base,id:crypto.randomUUID(),updatedAt:new Date().toISOString(),...(working?{kind:'draft',favoriteSourceId:project.favoriteSourceId}:{})};
+    const c=copyComposition(snapshot);c.id=JSON.stringify(['pair',p.id,p.rollA,c.layers[0].placements[0].source.assetId,1,p.rollB,c.layers[1].placements[0].source.assetId,1]);c.revision=working?1:0;
     assertComposition(c);
     await this.write(['projects','compositions','prefs'],tx=>{tx.objectStore('projects').add(p);tx.objectStore('compositions').add(c);tx.objectStore('prefs').put({id:'last-project',value:p.id});});return {composition:c,project:p};
   }
@@ -90,7 +95,13 @@ export class Repository {
   }
   async listFavorites():Promise<Favorite[]>{
     const rows=await this.all<{id:string;value?:Favorite}>('prefs');
-    return rows.filter(row=>row.id.startsWith('favorite:')&&row.value?.id===row.id&&typeof row.value.projectId==='string'&&typeof row.value.compositionId==='string'&&typeof row.value.sourceCompositionId==='string'&&typeof row.value.createdAt==='string'&&row.value.thumb instanceof Blob).map(row=>row.value!).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+    const favorites=rows.filter(row=>row.id.startsWith('favorite:')&&row.value?.id===row.id&&typeof row.value.projectId==='string'&&typeof row.value.compositionId==='string'&&typeof row.value.sourceCompositionId==='string'&&typeof row.value.createdAt==='string'&&row.value.thumb instanceof Blob).map(row=>row.value!);
+    // Older memberships predate state keys. Read their existing snapshot without a migration.
+    return (await Promise.all(favorites.map(async favorite=>{
+      if(favorite.stateKey)return favorite;
+      const saved=await this.composition(favorite.compositionId);
+      return {...favorite,stateKey:saved?compositionStateKey(saved):undefined};
+    }))).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   }
   async favoriteCurrent(project:Project,snapshot:Composition,thumb:Blob):Promise<Favorite>{
     assertComposition(snapshot);if(!(thumb instanceof Blob))throw Error('Preview unavailable');
@@ -98,56 +109,47 @@ export class Repository {
     const assets=source.layers.map(layer=>layer.placements[0].source.assetId);
     const rolls=await Promise.all([this.roll(current.rollA),this.roll(current.rollB)]);
     if(rolls[0].assetIds[current.a]!==assets[0]||rolls[1].assetIds[current.b]!==assets[1]||source.id!==pairId(current,assets[0],assets[1]))throw Error('The selected mix changed. Try again.');
-    const sourceId=current.kind==='favorite'?current.favoriteSourceId:source.id;
+    const sourceId=current.kind?current.favoriteSourceId:source.id;
     if(!sourceId)throw Error('Favorite source unavailable');
-    const now=new Date().toISOString();
-    const p:Project=current.kind==='favorite'?current:{...current,id:crypto.randomUUID(),kind:'favorite',favoriteSourceId:sourceId,updatedAt:now};
-    const c=copyComposition(source);c.id=pairId(p,assets[0],assets[1]);
-    // A favorite is a deliberate saved snapshot, never an untouched pair subject to defaults.
-    if(current.kind!=='favorite')c.revision=1;
-    assertComposition(c);
-    let favorite:Favorite={id:`favorite:${sourceId}`,projectId:p.id,compositionId:c.id,sourceCompositionId:sourceId,createdAt:now,thumb};
-    await this.write(['prefs','projects','compositions'],(tx,fail)=>{
-      const prefs=tx.objectStore('prefs'),projects=tx.objectStore('projects'),compositions=tx.objectStore('compositions');
-      const check=prefs.get(favorite.id);
-      check.onsuccess=()=>{
-        const existing=check.result?.value as Favorite|undefined;
-        if(existing){
-          // Concurrent likes serialize on this transaction; never replace an edited favorite.
-          const q=projects.get(existing.projectId),r=compositions.get(existing.compositionId);let checked=0;
-          const ready=()=>{if(++checked!==2)return;if(!q.result||!r.result){fail(Error('Saved favorite is unavailable'));return;}favorite=existing;};
-          q.onsuccess=ready;r.onsuccess=ready;return;
-        }
-        if(current.kind==='favorite'){
-          // Removing a heart does not destroy the editor's saved project. Rejoin atomically.
-          const q=compositions.get(c.id),r=projects.get(p.id);let checked=0;
-          const ready=()=>{if(++checked!==2)return;if(!q.result||!r.result){fail(Error('Saved favorite is unavailable'));return;}prefs.add({id:favorite.id,value:favorite});};
-          q.onsuccess=ready;r.onsuccess=ready;
-        }else{
-          projects.add(p);compositions.add(c);prefs.add({id:favorite.id,value:favorite});
-        }
-      };
-    });
-    return favorite;
-  }
-  async removeFavorite(id:string){
-    if(!id.startsWith('favorite:'))throw Error('Invalid favorite');
-    // Membership only: current edits and all original photographs remain intact.
-    await this.write(['prefs'],tx=>{tx.objectStore('prefs').delete(id);});
-  }
-  async updateFavoriteThumbnail(projectId:string,thumb:Blob,expectedRevision?:number){
-    if(!(thumb instanceof Blob))throw Error('Preview unavailable');
+    const now=new Date().toISOString(),stateKey=compositionStateKey(source);
+    const p:Project={...current,id:crypto.randomUUID(),kind:'favorite',favoriteSourceId:sourceId,updatedAt:now};
+    const c=copyComposition(source);c.id=pairId(p,assets[0],assets[1]);c.revision=1;assertComposition(c);
+    let favorite:Favorite={id:`favorite:${crypto.randomUUID()}`,projectId:p.id,compositionId:c.id,sourceCompositionId:sourceId,createdAt:now,thumb,stateKey};
     await this.write(['prefs','projects','compositions'],tx=>{
-      const p=tx.objectStore('projects').get(projectId);
-      p.onsuccess=()=>{
-        const project=p.result as Project|undefined;if(project?.kind!=='favorite'||!project.favoriteSourceId)return;
-        const prefs=tx.objectStore('prefs'),q=prefs.get(`favorite:${project.favoriteSourceId}`);
-        q.onsuccess=()=>{
-          const favorite=q.result?.value as Favorite|undefined;if(!favorite||favorite.projectId!==projectId)return;
-          const c=tx.objectStore('compositions').get(favorite.compositionId);
-          c.onsuccess=()=>{if(!c.result||(expectedRevision!==undefined&&c.result.revision!==expectedRevision))return;prefs.put({id:favorite.id,value:{...favorite,thumb}});};
+      const prefs=tx.objectStore('prefs'),compositions=tx.objectStore('compositions'),check=prefs.getAll();
+      check.onsuccess=()=>{
+        const candidates=(check.result as {id:string;value?:Favorite}[]).filter(row=>row.id.startsWith('favorite:')&&row.value?.compositionId).map(row=>row.value!);
+        let pending=candidates.filter(f=>!f.stateKey).length;
+        const finish=()=>{
+          const existing=candidates.find(f=>f.stateKey===stateKey);
+          if(existing){favorite=existing;return;}
+          tx.objectStore('projects').add(p);compositions.add(c);prefs.add({id:favorite.id,value:favorite});
         };
+        if(!pending){finish();return;}
+        for(const candidate of candidates.filter(f=>!f.stateKey)){
+          const q=compositions.get(candidate.compositionId);q.onsuccess=()=>{if(q.result)candidate.stateKey=compositionStateKey(q.result);if(!--pending)finish();};
+        }
       };
+    });return favorite;
+  }
+  async removeFavorite(id:string):Promise<Favorite|undefined>{
+    if(!id.startsWith('favorite:'))throw Error('Invalid favorite');
+    let removed:Favorite|undefined;
+    await this.write(['prefs'],tx=>{const prefs=tx.objectStore('prefs'),q=prefs.get(id);q.onsuccess=()=>{removed=q.result?.value;prefs.delete(id);};});
+    return removed;
+  }
+  async restoreFavorite(favorite:Favorite){
+    if(!favorite.id.startsWith('favorite:'))throw Error('Invalid favorite');
+    await this.write(['prefs','projects','compositions'],(tx,fail)=>{
+      const prefs=tx.objectStore('prefs'),p=tx.objectStore('projects').get(favorite.projectId),c=tx.objectStore('compositions').get(favorite.compositionId),members=prefs.getAll();let checked=0;
+      const ready=()=>{
+        if(++checked!==3)return;if(!p.result||!c.result){fail(Error('Saved variant is unavailable'));return;}
+        const key=compositionStateKey(c.result);
+        // A user can re-like the same state before Undo, including in another tab.
+        // Restore the original row and retain just one membership for that state.
+        for(const row of members.result as {id:string;value?:Favorite}[])if(row.id.startsWith('favorite:')&&row.value?.stateKey===key&&row.id!==favorite.id)prefs.delete(row.id);
+        prefs.put({id:favorite.id,value:{...favorite,stateKey:key}});
+      };p.onsuccess=ready;c.onsuccess=ready;members.onsuccess=ready;
     });
   }
   async listProjects(){return (await this.all<Project>('projects')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}

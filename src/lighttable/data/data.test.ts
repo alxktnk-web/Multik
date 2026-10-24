@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
 import { Selection } from './import';
-import { assertComposition,pairId,stableSeed } from './types';
+import { assertComposition,compositionStateKey,pairId,stableSeed } from './types';
 import { createComposition } from '../model/types';
 import { Session } from '../model/session';
 const scene=()=>createComposition('c',[{assetId:'a',assetRevision:1},{assetId:'b',assetRevision:1}],[{x:400,y:300},{x:400,y:300}]);
@@ -29,4 +29,23 @@ describe('strict roll capacity',()=>{
     s.remove(0);s.remove(0);expect(s.ready).toBe(true);expect(s.full).toBe(true);s.remove(0);expect(s.full).toBe(false);s.add(files(1));expect(s.ready).toBe(true);
   });
   it('capacity changes never silently discard originals',()=>{const s=new Selection();s.add(files(12));s.setCapacity(6);expect(s.files.length).toBe(12);expect(s.overflow).toBe(true);s.setCapacity(24);expect(s.full).toBe(false);});
+});
+
+describe('saved variant identity',()=>{
+  it('ignores persistence identity and normalizes neutral optional fields',()=>{
+    const original=scene(),copy=structuredClone(original);copy.id='other';copy.revision=12;
+    copy.layers[0].transform.scale=1;copy.layers[0].levels={black:0,mid:.5,white:1};
+    expect(compositionStateKey(copy)).toBe(compositionStateKey(original));
+  });
+  it.each(['frame','placement','transform','levels','effect','profile','seed'] as const)('captures %s edits as a distinct variant',part=>{
+    const original=scene(),copy=structuredClone(original);
+    if(part==='frame')copy.frame.turns=1;
+    if(part==='placement')copy.layers[0].placements[0].turns=1;
+    if(part==='transform')copy.layers[1].transform.scale=1.2;
+    if(part==='levels')copy.layers[0].levels={black:.1,mid:.5,white:1};
+    if(part==='effect')copy.effects.exposure=.2;
+    if(part==='profile')copy.profile.version=5;
+    if(part==='seed')copy.seed++;
+    expect(compositionStateKey(copy)).not.toBe(compositionStateKey(original));
+  });
 });

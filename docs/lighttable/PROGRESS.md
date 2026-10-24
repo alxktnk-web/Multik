@@ -1,3 +1,10 @@
+## 2026-10-24 — stable canvas, rotation and immutable Library variants
+
+- Fixed mode-dependent right column widths (0 / 44 / 96px), which resized the canvas on tool switches. All landscape tools now reserve 44px; stage gets a fixed 12px margin. Rotation added to the single left column with compact controls on short screens.
+- Pinch transforms only in Move; Levels stays fixed. GPU checks confirm CIELAB L* rather than RGB Levels (40 colored probes). Landscape regression covers all three handles, independent sources, zero IDB/readPixels/encoding through finger lift, tool changes, pair navigation and reload.
+- Hearts save distinct full editable states with shared originals. Saved Library variants are immutable; editing creates a working copy at the next persistence boundary. Unlike removes membership only and offers Removed · Undo for 8 seconds in both Library and workspace.
+- 92 unit tests, production build, orientation geometry checks and landscape Levels regression passed. Classic remains byte-identical. Real IndexedDB and full workspace variant workflow checks also passed, including immutable originals, Levels-only working draft reload, new variant, unlike and Undo. Publication pending; real iPhone confirmation remains with owner.
+
 ## 2026-10-24 — Explicit View / Move and full Library film strips
 
 Published successfully 20:04 UTC through Sites; public source `72a1b0c`, private source `2b132f2a140d52c4b30785604a794411eb914602`, deployment `appgdep_6add0f45c3cc81918cb57b1a77aebcd8`. 83 unit tests, orientation browser suite and production build passed. Classic remains byte-identical.

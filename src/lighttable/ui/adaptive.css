@@ -178,24 +178,27 @@
 
 /* Approved single-column light table: every action under the left thumb. */
 @media(orientation:landscape){
- .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{--rail-width:56px;--scale-width:0px;--tool-step:calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))/8);grid-template-columns:52px var(--rail-width) minmax(0,1fr) var(--rail-width) var(--scale-width)}
- .workspace.editing[data-edit-mode=levels],.workspace.editing[data-edit-mode=halo]{--scale-width:44px}
- .workspace.editing .topbar{grid-area:auto;left:calc(4px + env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + (var(--tool-step) - 44px)/2)}
+ .workspace.editing,.workspace.has-rails.editing,.workspace.has-rails.rails-collapsed.editing{--rail-width:56px;--scale-width:44px;--tool-step:calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))/9);--control-size:min(44px,var(--tool-step));grid-template-columns:52px var(--rail-width) minmax(0,1fr) var(--rail-width) var(--scale-width)}
+ .workspace.editing[data-edit-mode]{--scale-width:44px}
+ .workspace.editing .stage{margin:12px}
+ .workspace.editing .topbar,.workspace.editing .topbar button{width:var(--control-size);height:var(--control-size);flex-basis:var(--control-size)}
+ .workspace.editing .topbar{grid-area:auto;left:calc(4px + env(safe-area-inset-left));top:calc(env(safe-area-inset-top) + (var(--tool-step) - var(--control-size))/2)}
  .workspace.editing .sources,.workspace.editing .layer-controls,.workspace.editing .rail-handle{display:none!important}
  .workspace.editing .film-tray,.workspace.editing.rails-collapsed .film-tray{display:contents}
  .workspace.editing .toolbar [data-action=undo]{display:none!important}
- .workspace.editing [data-mode=browse]{top:calc(env(safe-area-inset-top) + var(--tool-step)*1.5 - 22px)}
- .workspace.editing [data-mode=layers]{top:calc(env(safe-area-inset-top) + var(--tool-step)*2.5 - 22px)}
+ .workspace.editing [data-mode=browse]{top:calc(env(safe-area-inset-top) + var(--tool-step)*1.5 - var(--control-size)/2)}
+ .workspace.editing [data-mode=layers]{top:calc(env(safe-area-inset-top) + var(--tool-step)*2.5 - var(--control-size)/2)}
  .workspace.editing .edit-modes,.workspace.editing .edit-actions{display:contents;position:static;inset:auto}
- .workspace.editing .edit-modes button,.workspace.editing .edit-actions button{position:absolute;left:calc(4px + env(safe-area-inset-left));width:44px;height:44px;margin:0;z-index:2}
+ .workspace.editing .edit-modes button,.workspace.editing .edit-actions button{position:absolute;left:calc(4px + env(safe-area-inset-left));width:var(--control-size);height:var(--control-size);margin:0;z-index:2}
  .workspace.editing .edit-modes button{display:flex;flex-direction:column;justify-content:center;gap:2px;border-radius:12px}
  .workspace.editing .edit-modes button svg{width:21px;height:21px}
  .workspace.editing .edit-modes button span{font-size:9px;line-height:11px}
- .workspace.editing [data-mode=levels]{top:calc(env(safe-area-inset-top) + var(--tool-step)*3.5 - 22px)}
- .workspace.editing [data-mode=halo]{top:calc(env(safe-area-inset-top) + var(--tool-step)*4.5 - 22px)}
- .workspace.editing [data-action=favorite]{top:calc(env(safe-area-inset-top) + var(--tool-step)*5.5 - 22px)}
- .workspace.editing [data-action=export]{top:calc(env(safe-area-inset-top) + var(--tool-step)*6.5 - 22px)}
- .workspace.editing [data-mode=looks]{top:calc(env(safe-area-inset-top) + var(--tool-step)*7.5 - 22px)}
+ .workspace.editing [data-mode=levels]{top:calc(env(safe-area-inset-top) + var(--tool-step)*3.5 - var(--control-size)/2)}
+ .workspace.editing [data-mode=halo]{top:calc(env(safe-area-inset-top) + var(--tool-step)*4.5 - var(--control-size)/2)}
+ .workspace.editing [data-action=favorite]{top:calc(env(safe-area-inset-top) + var(--tool-step)*5.5 - var(--control-size)/2)}
+ .workspace.editing [data-action=export]{top:calc(env(safe-area-inset-top) + var(--tool-step)*6.5 - var(--control-size)/2)}
+ .workspace.editing [data-action=rotate]{top:calc(env(safe-area-inset-top) + var(--tool-step)*7.5 - var(--control-size)/2)}
+ .workspace.editing [data-mode=looks]{top:calc(env(safe-area-inset-top) + var(--tool-step)*8.5 - var(--control-size)/2)}
  .workspace.editing .edit-content>.look-options{position:absolute;grid-area:auto;left:calc(56px + env(safe-area-inset-left));right:auto;bottom:calc(8px + env(safe-area-inset-bottom));top:auto;width:104px;padding:6px;gap:2px;background:#35312df5;border:1px solid #ffffff18;border-radius:14px;z-index:5}
  .workspace.editing .pro-range-label span{visibility:hidden}
  .workspace.editing .film-rail.active-layer button[aria-pressed=true]{border-color:var(--sage);outline:1px solid var(--sage);outline-offset:-2px}

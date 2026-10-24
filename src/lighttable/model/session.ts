@@ -61,6 +61,11 @@ export class Session {
   }
   private refreshDirty() { this.dirty=JSON.stringify({...this.saved,revision:0})!==JSON.stringify({...this.draft,revision:0}); }
   markSaved(composition:Composition){
+    if(this.draft.id!==composition.id){
+      // A saved variant starts a separate working copy on its first edit.
+      // Rebase undo and edit-cancel snapshots as well as the visible draft.
+      for(const c of [this.draft,...this.history,...(this.before?[this.before]:[]),...(this.edit?[this.edit.draft,...this.edit.history]:[])]){c.id=composition.id;c.revision=composition.revision;}
+    }
     this.saved=copyComposition(composition);this.draft.revision=composition.revision;
     this.refreshDirty();this.onChange();
   }
