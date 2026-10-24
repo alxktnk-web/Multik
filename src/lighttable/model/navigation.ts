@@ -31,22 +31,33 @@ export class Navigation {
     });
   }
   async select(layer:LayerId,index:number){
-    if(!this.project||!this.rolls||this.busy||this.project.kind==='favorite')return false;
+    if(!this.project||!this.rolls||this.busy)return false;
     const key=layer==='a'?'a':'b';
-    if(this.project[key]===index){this.session.activeLayer=layer;this.session.tool={kind:'layer'};this.onChange();return true;}
+    if(this.project[key]===index){this.session.activeLayer=layer;this.onChange();return true;}
     if(!Number.isInteger(index)||index<0||index>=this.rolls[layer==='a'?0:1].assetIds.length)return false;
     return this.boundary(async()=>{
-      const next={...this.project!,[key]:index};await this.present(next,this.rolls!);
+      const project=await this.browsingProject();
+      const next={...project,[key]:index};await this.present(next,this.rolls!);
       this.session.activeLayer=layer;this.session.tool={kind:'layer'};this.onChange();
     });
   }
   async step(direction:-1|1){
-    if(!this.project||!this.rolls||this.busy||this.project.kind==='favorite')return false;
+    if(!this.project||!this.rolls||this.busy)return false;
     return this.boundary(async()=>{
-      const p=this.project!,r=this.rolls!;
+      const p=await this.browsingProject(),r=this.rolls!;
       const next={...p,a:(p.a+direction+r[0].capacity)%r[0].capacity,b:(p.b+direction+r[1].capacity)%r[1].capacity};
       await this.present(next,r);
     });
+  }
+  private async browsingProject(){
+    const project=this.project!;
+    if(project.kind!=='favorite')return project;
+    // Favorites own a fixed pair. Browse other sources in their originating Mix.
+    const source=project.favoriteSourceId?JSON.parse(project.favoriteSourceId):undefined;
+    if(!Array.isArray(source)||source[0]!=='pair'||typeof source[1]!=='string')throw Error('Favorite source unavailable');
+    const origin=await this.repo.project(source[1]),rolls=this.rolls!;
+    if(origin.kind==='favorite'||origin.rollA!==project.rollA||origin.rollB!==project.rollB||pairId(origin,rolls[0].assetIds[project.a],rolls[1].assetIds[project.b])!==project.favoriteSourceId)throw Error('Favorite source unavailable');
+    return {...origin,a:project.a,b:project.b};
   }
   private async present(project:Project,rolls:[Roll,Roll]){
     const ids=[rolls[0].assetIds[project.a],rolls[1].assetIds[project.b]];

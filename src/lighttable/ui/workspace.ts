@@ -46,9 +46,9 @@ export async function mountWorkspace(root:HTMLElement){
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
   const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync()}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
-  gestures.onSwipe=direction=>{if(!session.editing)void navigation.step(direction).catch(reportError);};
-  const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode('layers');sync();});
-  gestures.allowScale=()=>orientation.matches;
+  gestures.onSwipe=direction=>{if(session.interaction==='browse')void navigation.step(direction).catch(reportError);};
+  const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode();sync();});
+  gestures.allowScale=()=>orientation.matches&&session.interaction==='move';
   const baseLocked=()=>busy||exportBusy||navigation.busy;
   const locked=()=>baseLocked()||gestures.active||session.gesturing;
   const sync=()=>{
@@ -88,7 +88,7 @@ export async function mountWorkspace(root:HTMLElement){
   const finish=()=>{session.interaction='browse';session.tool={kind:'layer'};report('');sync();};
   editor.onChange=sync;
   const updateFavoriteCover=async()=>{if(navigation.project?.kind!=='favorite')return;const snapshot=copyComposition(session.draft);try{await repo.updateFavoriteThumbnail(navigation.project.id,await covers.render(snapshot),snapshot.revision);}catch{report('Edits saved. Preview will refresh when reopened.');}};
-  editor.onDone=()=>{void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();}).catch(reportError);};
+  editor.onDone=()=>{editor.finishGesture();session.end();editor.selectMode('browse');sync();void navigation.boundary(async()=>{await updateFavoriteCover();session.acceptEdit();finish();}).catch(reportError);};
   editor.onCancel=()=>{session.discardEdit();finish();};
   exportDialog.onBusy=value=>{exportBusy=value;sync();};
   exportDialog.onStatus=report;
@@ -149,12 +149,11 @@ export async function mountWorkspace(root:HTMLElement){
     if(locked())return;
     const directions:Record<string,[number,number]>={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
     if(event.key==='Escape'&&session.editing){event.preventDefault();editor.requestCancel();return;}
-    if(!orientation.matches){const d=directions[event.key];if(d?.[0]){event.preventDefault();void navigation.step(d[0]===1?1:-1).catch(reportError);}return;}
+    if(!orientation.matches||session.interaction==='browse'){const d=directions[event.key];if(d?.[0]){event.preventDefault();void navigation.step(d[0]===1?1:-1).catch(reportError);}return;}
     if(event.key==='0'){event.preventDefault();session.scaleLayer(1);sync();return;}
     if(event.key==='+'||event.key==='='){event.preventDefault();session.scaleLayer((session.layer.transform.scale??1)*1.25);sync();return;}
     if(event.key==='-'){event.preventDefault();session.scaleLayer((session.layer.transform.scale??1)/1.25);sync();return;}
     const direction=directions[event.key];if(!direction)return;event.preventDefault();
-    if(!session.editing&&session.interaction==='browse'){if(direction[0])void navigation.step(direction[0]===1?1:-1).catch(reportError);return;}
     session.begin();
     if(session.tool.kind==='layer'){
       const d=vector(inverse(filmToScreen(session.draft.frame,session.viewport)),{x:direction[0]*(event.shiftKey?20:4),y:direction[1]*(event.shiftKey?20:4)});

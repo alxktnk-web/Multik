@@ -1,3 +1,15 @@
+# 24.10.2026 — explicit View / Move (supersedes earlier controls)
+
+One left column: Home, View (eye), Move, Levels, Halo, Favorite, Save, Looks.
+Undo has no visible button. View closes adjustments, blocks transform gestures,
+and saves through the existing boundary; write failure retains the dirty draft.
+View swipes browse pairs. Move explicitly enables selected-layer drag/pinch.
+Source selection and repeated tool taps retain the selected tool, including Levels.
+Both full film strips are visible in landscape, including Library favorites.
+Choosing another frame or swiping from a favorite saves its edits then opens the
+originating mix; the saved favorite keeps its fixed source pair. Looks is the only
+popup. Right edge contains only the active full-height adjustment track.
+
 # 24.10.2026 — approved single-column mockup
 
 Landscape has exactly one left-hand tool column: Home, Undo, Levels, Halo,

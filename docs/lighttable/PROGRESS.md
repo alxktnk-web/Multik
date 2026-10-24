@@ -1,3 +1,10 @@
+## 2026-10-24 — Explicit View / Move and full Library film strips
+
+- Replaced visible Undo with View; added explicit Move. View prevents drag/pinch edits and saves at the existing boundary, preserving drafts on failure.
+- Levels/Halo remain selected across source/layer selection; no repeated-tap switch to Move.
+- Full source strips in Library; choosing other frames returns to the original mix after committing favorite edits, without changing its fixed source pair.
+- Orientation browser suite passed (single column, 44px controls, full-length tracks, Levels persistence and View pinch lock). Navigation tests cover favorite source safety and pair swipes. Device confirmation remains pending.
+
 ## 2026-10-24 — Film navigation hit target
 
 - Landscape: cleared the topbar’s inherited grid area so its absolute left offset is relative to the workspace, not an already safe-area-inset grid cell. Film navigation now aligns with the left tool column instead of overlapping the first source frame on iPhone.

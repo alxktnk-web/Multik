@@ -35,15 +35,14 @@ export class FilmRails {
   }
   async update(){
     const rolls=this.navigation.rolls,p=this.navigation.project;if(!rolls||!p){this.layout();return;}
-    const key=JSON.stringify([rolls.map(r=>r.id),p.kind==='favorite'?[p.a,p.b]:null]);
+    const key=JSON.stringify(rolls.map(r=>r.id));
     if(key!==this.rollKey){
       this.rollKey=key;const generation=++this.generation;for(const url of this.urls)URL.revokeObjectURL(url);this.urls=[];
       for(const [side,roll] of rolls.entries()){
         const layer:LayerId=side?'b':'a',rail=this.tray.querySelector<HTMLElement>(`[data-rail="${layer}"]`)!;rail.replaceChildren();
         for(let i=0;i<roll.assetIds.length;i++){
-          if(p.kind==='favorite'&&i!==(side?p.b:p.a))continue;
           const button=document.createElement('button');button.type='button';button.dataset.index=String(i);button.setAttribute('aria-label',`${side?'Upper':'Lower'} roll, frame ${i+1}`);const image=document.createElement('img');image.alt='';image.loading='lazy';button.append(image);
-          button.onclick=()=>{if(this.navigation.project?.kind==='favorite'){this.navigation.session.activeLayer=layer;this.onSelect();return;}void this.navigation.select(layer,i).then(selected=>{if(selected)this.onSelect();}).catch(this.error);};rail.append(button);
+          button.onclick=()=>{void this.navigation.select(layer,i).then(selected=>{if(selected)this.onSelect();}).catch(this.error);};rail.append(button);
           void this.repo.asset(roll.assetIds[i]).then(a=>{if(generation!==this.generation)return;const url=URL.createObjectURL(a.thumb);this.urls.push(url);image.src=url;image.classList.toggle('portrait-source',a.height>a.width);}).catch(this.error);
         }
       }
