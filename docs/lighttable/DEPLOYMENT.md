@@ -1,4 +1,17 @@
-# Current release — 24 October 2026 phone fixes
+# Current release — 24 October 2026 direct Save to Photos
+
+- URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
+- Native private deployment `appgdep_6adc749dcb008191869335c38d375c6d` succeeded at 2026-10-24 09:04:41 UTC.
+- Saved version `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_d7d1db84c490819184078764c99a75ab`.
+- GitHub runtime `4f12122`; Sites source `26ac88292adc89c532d308abb114decd936a4142`, same source tree. Archive `/workspace/multik-direct-save-deploy.tar.gz`.
+- Export-only change: removed preview dialog, Download and extra save buttons. Existing icon renders maximum supported 4000px JPEG and attempts native Share immediately. If Safari expires activation, the same icon retries synchronously using the ready RAM file. Native Save Image selection remains user-controlled.
+- PASS: 75 tests, build, editor save-failure/retry, full export (same-file Share retry, cancellation, quota failure, 4000px, context recovery), production PWA/offline/update. Native Share is mocked in Chromium; iPhone activation behavior still needs device acceptance.
+- Independent build matched tested dist byte-for-byte; 13 Classic files unchanged. Audience, origin, data and other UI retained. Use home Update to install.
+- Documented source-helper-unavailable fallback: RAM-only hidden-stdin credential, non-force push, verified remote SHA, archive-backed native publication.
+
+---
+
+# Previous release — 24 October 2026 phone fixes
 
 - URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Native owner-private deployment `appgdep_6adc2e1197e881918500293a5a7c3d8b` succeeded at 2026-10-24 04:03:45 UTC.
