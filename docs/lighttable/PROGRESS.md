@@ -1,7 +1,7 @@
 ## 2026-10-24 — Film navigation hit target
 
 - Landscape: cleared the topbar’s inherited grid area so its absolute left offset is relative to the workspace, not an already safe-area-inset grid cell. Film navigation now aligns with the left tool column instead of overlapping the first source frame on iPhone.
-- No changes to image processing, gestures or persistence. Publication pending.
+- No changes to image processing, gestures or persistence. Orientation browser suite and production build passed. Published successfully through Sites at 2026-10-24 19:11 UTC; deployment `appgdep_6add02b6a8c08191823a9e06854cfb8f`, source `c57edb918c40a2ed4013110d57bbf7d24551e573`. Real iPhone confirmation remains with owner.
 
 # Multik Lighttable — состояние реализации
 
