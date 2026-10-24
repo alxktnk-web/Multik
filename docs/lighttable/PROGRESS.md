@@ -1,5 +1,7 @@
 ## 2026-10-24 — Explicit View / Move and full Library film strips
 
+Published successfully 20:04 UTC through Sites; public source `72a1b0c`, private source `2b132f2a140d52c4b30785604a794411eb914602`, deployment `appgdep_6add0f45c3cc81918cb57b1a77aebcd8`. 83 unit tests, orientation browser suite and production build passed. Classic remains byte-identical.
+
 - Replaced visible Undo with View; added explicit Move. View prevents drag/pinch edits and saves at the existing boundary, preserving drafts on failure.
 - Levels/Halo remain selected across source/layer selection; no repeated-tap switch to Move.
 - Full source strips in Library; choosing other frames returns to the original mix after committing favorite edits, without changing its fixed source pair.
