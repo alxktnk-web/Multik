@@ -3,7 +3,7 @@
 - Added direct Library collection icon alongside Mixes film icon. Saved variant swipes remain in Library instead of jumping into source film pairs. Persisted anchor handles working drafts/reload, removed items, empty and single-item collections.
 - Library View hides film strips; editing shows only the two fixed source selectors. Ordinary Mixes retains full strips. No canvas geometry changes when toggling tools or hiding controls.
 - Short View tap hides/restores interface in portrait and landscape; swipes still browse. Motion, long presses, pinches, cancellation and editing tools suppress taps.
-- 109 unit tests, production build, orientation geometry suite and new real-browser viewer workflow passed. Device gesture feel is not inferred from Chromium. Publication pending.
+- 109 unit tests, production build, orientation geometry suite and new real-browser viewer workflow passed. Favorite/Undo and landscape Levels regression suites also passed. Published successfully via Sites at 2026-10-25 15:20 UTC: public source `c771eb8`, private source `ceadb615c02fef5ecc044a63363545b7bc564e57`, deployment `appgdep_6ade1e444ca08191b6549ea778f2c25e`. Device gesture feel is not inferred from Chromium.
 
 ## 2026-10-24 — stable canvas, rotation and immutable Library variants
 
