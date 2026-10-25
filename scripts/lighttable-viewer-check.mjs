@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+const vite=await createServer({server:{host:'127.0.0.1',port:5206,strictPort:true},logLevel:'error'});let browser;
+try{
+ await vite.listen();browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ const page=await browser.newPage({viewport:{width:874,height:402},hasTouch:true}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:5206/lighttable/');await page.waitForFunction(()=>window.__lighttable?.renderer.ready);await page.click('[data-close-library]');
+ const fixture=await page.evaluate(async()=>{const l=window.__lighttable,{demoSources}=await import('/src/lighttable/ui/fixtures.ts'),{Selection,importFiles}=await import('/src/lighttable/data/import.ts');const blobs=await demoSources(),s=new Selection();s.setCapacity(6);s.add(Array.from({length:6},(_,i)=>new File([blobs[i%2]],`${i}.png`,{type:'image/png'})));const roll=await importFiles(l.repo,s,'Viewer',()=>{}),mix=await l.repo.createProject(roll.id,roll.id);await l.navigation.open(mix);const first=await l.repo.favoriteCurrent(mix,l.session.draft,l.navigation.sources[0].thumb);l.session.rotate();await l.navigation.commit();const second=await l.repo.favoriteCurrent(mix,l.session.draft,l.navigation.sources[0].thumb);return {first,second,mix};});
+ const idle=()=>page.waitForFunction(()=>!window.__lighttable.navigation.busy);
+ const swipe=async()=>{const r=await page.locator('canvas').boundingBox();await page.mouse.move(r.x+r.width*.75,r.y+r.height*.5);await page.mouse.down();await page.mouse.move(r.x+r.width*.25,r.y+r.height*.5,{steps:8});await page.mouse.up();await idle();};
+ await page.click('[data-action=collection]');await page.waitForFunction(()=>document.querySelector('.library-dialog').open&&document.querySelector('.library-dialog h1').textContent==='Library');
+ await page.locator(`[data-favorite="${fixture.first.id}"]`).click();await idle();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.space),'library');
+ assert.equal(await page.locator('.rail-a').isVisible(),false);
+ const rect=await page.locator('canvas').boundingBox();await page.locator('canvas').click();assert.equal(await page.locator('.workspace').evaluate(e=>e.classList.contains('clean-view')),true);assert.deepEqual(await page.locator('canvas').boundingBox(),rect);
+ assert.equal(await page.locator('[data-action=collection]').isVisible(),false);
+ await swipe();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.project.id),fixture.second.projectId);assert.equal(await page.locator('.workspace').evaluate(e=>e.classList.contains('clean-view')),true);
+ await page.locator('canvas').click();assert.equal(await page.locator('[data-action=collection]').isVisible(),true);assert.deepEqual(await page.locator('canvas').boundingBox(),rect);
+ await page.click('[data-mode=levels]');assert.equal(await page.locator('.rail-a').isVisible(),true);assert.equal(await page.locator('.rail-a button').count(),1);await page.locator('canvas').click();assert.equal(await page.locator('.workspace').evaluate(e=>e.classList.contains('clean-view')),false);
+ await page.locator('[data-level=mid]').focus();await page.keyboard.press('ArrowUp');await page.click('[data-mode=browse]');await idle();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.project.kind),'draft');
+ await page.reload();await page.waitForFunction(()=>window.__lighttable?.navigation.project);assert.equal(await page.evaluate(()=>window.__lighttable.navigation.space),'library');await swipe();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.project.id),fixture.first.projectId);
+ await page.setViewportSize({width:402,height:874});await page.waitForFunction(()=>!window.__lighttable.session.editing);const portrait=await page.locator('canvas').boundingBox();await page.locator('canvas').click();assert.equal(await page.locator('.workspace').evaluate(e=>e.classList.contains('clean-view')),true);assert.deepEqual(await page.locator('canvas').boundingBox(),portrait);await swipe();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.project.id),fixture.second.projectId);await page.locator('canvas').click();
+ await page.click('[data-action=library]');await page.waitForFunction(()=>document.querySelector('.library-dialog').open&&document.querySelector('.library-dialog h1').textContent==='Mixes');await page.locator('.mix-grid .mix-card').first().click();await idle();assert.equal(await page.evaluate(()=>window.__lighttable.navigation.space),'mixes');const index=await page.evaluate(()=>window.__lighttable.navigation.project.a);await swipe();assert.notEqual(await page.evaluate(()=>window.__lighttable.navigation.project.a),index);
+ assert.deepEqual(errors,[]);console.log('PASS: direct Library/Mixes, Library-only swipes across drafts/reload, fixed-layer selectors, clean taps and stable geometry in both orientations, clean swipes, editing taps unaffected');
+}finally{await browser?.close();await vite.close();}

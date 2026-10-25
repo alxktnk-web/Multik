@@ -4,7 +4,7 @@ import { dragParameter, xyTools } from '../model/parameters';
 import { clamp, type Point, type Tool, type Levels } from '../model/types';
 import type { Session } from '../model/session';
 
-type Single = { start:Point;last:Point;x:number;y:number;inverse:Matrix;tool:Tool;value:number;valueX:number;moved:boolean;browse:boolean;levels:Readonly<Levels> };
+type Single = { start:Point;last:Point;startedAt:number;x:number;y:number;inverse:Matrix;tool:Tool;value:number;valueX:number;moved:boolean;browse:boolean;levels:Readonly<Levels> };
 type Pinch = { distance:number;scale:number;x:number;y:number;anchor:Point;moved:boolean;explicitScale:boolean };
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
 const center=(a:Point,b:Point)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
@@ -16,6 +16,7 @@ export class Gestures {
   private pinch?:Pinch;
   private waiting=false;
   onSwipe:(direction:-1|1)=>void=()=>{};
+  onTap:()=>void=()=>{};
   allowScale:()=>boolean=()=>true;
   constructor(readonly session:Session){}
   get active(){return this.points.size>0||this.waiting;}
@@ -31,7 +32,7 @@ export class Gestures {
         s.tool={kind:'levels',point:(['black','mid','white'] as const)[clamp(Math.floor(fraction*3),0,2)]};
       }
       s.begin();
-      this.single={start:p,last:p,x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},levels:{...getLevels(s.layer)},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
+      this.single={start:p,last:p,startedAt:performance.now(),x:s.layer.transform.xMm,y:s.layer.transform.yMm,inverse:inverse(filmToScreen(s.draft.frame,s.viewport)),tool:{...s.tool},levels:{...getLevels(s.layer)},value:s.tool.kind==='parameter'?s.draft.effects[s.tool.parameter]:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].y]:0,valueX:s.tool.kind==='xy'?s.draft.effects[xyTools[s.tool.pair].x]:0,moved:false,browse:s.interaction==='browse'&&s.tool.kind==='layer'};
     }else if(this.points.size===2){
       if(!this.allowScale()){this.cancel();return;}
       s.cancel();this.single=undefined;s.begin();
@@ -60,14 +61,16 @@ export class Gestures {
     else{s.draft.effects[g.tool.parameter]=dragParameter(g.tool.parameter,g.value,delta.y,s.viewport.height);s.onChange();}
   }
   up(id:number){
-    if(!this.points.has(id))return;this.points.delete(id);let swipe:-1|1|undefined;
+    if(!this.points.has(id))return;this.points.delete(id);let swipe:-1|1|undefined,tap=false;
     if(this.single){const g=this.single,dx=g.last.x-g.start.x,dy=g.last.y-g.start.y;
       if(g.browse&&Math.abs(dx)>=48&&Math.abs(dx)>Math.abs(dy)*1.4)swipe=dx<0?1:-1;
+      tap=g.browse&&!g.moved&&performance.now()-g.startedAt<300;
       this.session.end();this.single=undefined;
     }
     if(this.pinch){this.session.end();this.pinch=undefined;this.waiting=this.points.size>0;}
     if(this.points.size===0)this.waiting=false;
     if(swipe!==undefined)this.onSwipe(swipe);
+    else if(tap)this.onTap();
   }
   cancel(){this.session.cancel();this.single=undefined;this.pinch=undefined;this.waiting=this.points.size>0;}
   cancelPointer(id:number){if(!this.points.has(id))return;this.cancel();this.up(id);}

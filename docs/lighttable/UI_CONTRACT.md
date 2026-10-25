@@ -1,3 +1,18 @@
+# 25.10.2026 — Library browsing and clean view (latest)
+
+Mixes and Library have separate direct buttons. Mixes swipes browse pairs;
+Library swipes browse saved variants only, even after editing forks a draft and
+across reload. Unlike leaves the image onscreen until the next swipe. A singleton
+Library does not reload its original over a working draft. Empty Library stays put.
+Library View hides source strips; Move/Levels/Halo expose only each current source
+for layer selection, never replacement. Grid reservations keep the photo fixed.
+
+A short stationary tap on the photograph in View hides all ordinary controls and
+strips in either orientation; another tap restores them. Swipes continue browsing
+the current space. Photo geometry is unchanged. Editing, long presses, drags,
+pinches and cancelled gestures never toggle clean view. Errors and removal Undo
+remain available. Ten compact controls fit one landscape column, Looks last.
+
 # 24.10.2026 — stable editor and saved variants (latest)
 
 Landscape always reserves the same 44px right adjustment column. Switching tools

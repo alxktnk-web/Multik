@@ -1,5 +1,6 @@
 // Lucide 0.468.0, ISC (and Feather notices); see third_party/LUCIDE-LICENSE.txt.
 const icons={
+  "collection": '<rect x="6" y="6" width="16" height="16" rx="2"/><path d="M18 2H4a2 2 0 0 0-2 2v14m4-2 4-4 4 4 3-3 5 5"/><circle cx="16" cy="10" r="1"/>',
   "eye": '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   "film": '<rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/>',
   "advanced": '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/>',

@@ -1,3 +1,10 @@
+## 2026-10-25 — distinct Library navigation and clean preview
+
+- Added direct Library collection icon alongside Mixes film icon. Saved variant swipes remain in Library instead of jumping into source film pairs. Persisted anchor handles working drafts/reload, removed items, empty and single-item collections.
+- Library View hides film strips; editing shows only the two fixed source selectors. Ordinary Mixes retains full strips. No canvas geometry changes when toggling tools or hiding controls.
+- Short View tap hides/restores interface in portrait and landscape; swipes still browse. Motion, long presses, pinches, cancellation and editing tools suppress taps.
+- 109 unit tests, production build, orientation geometry suite and new real-browser viewer workflow passed. Device gesture feel is not inferred from Chromium. Publication pending.
+
 ## 2026-10-24 — stable canvas, rotation and immutable Library variants
 
 - Fixed mode-dependent right column widths (0 / 44 / 96px), which resized the canvas on tool switches. All landscape tools now reserve 44px; stage gets a fixed 12px margin. Rotation added to the single left column with compact controls on short screens.

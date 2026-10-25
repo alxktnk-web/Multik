@@ -28,11 +28,11 @@ try{
    if(stableStage)assert.deepEqual(geo.stage,stableStage,`stage moved for ${mode}`);else stableStage=geo.stage;
    assert.ok(geo.stage.y>=12&&geo.stage.bottom<=h-12);
    for(const r of geo.tracks)assert.ok(r.h>=h-80,`short track ${mode}`);
-   for(let i=0;i<geo.buttons.length;i++){const a=geo.buttons[i];assert.ok(a.x>=0&&a.y>=0&&a.right<=w+.5&&a.bottom<=h+.5,`offscreen ${a.label}`);assert.ok(a.w>=Math.min(44,h/9)-.1&&a.h>=Math.min(44,h/9)-.1);for(const b of geo.buttons.slice(i+1))assert.ok(Math.min(a.right,b.right)-Math.max(a.x,b.x)<=1||Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)<=1,`overlap ${a.label}/${b.label}`);}
+   for(let i=0;i<geo.buttons.length;i++){const a=geo.buttons[i];assert.ok(a.x>=0&&a.y>=0&&a.right<=w+.5&&a.bottom<=h+.5,`offscreen ${a.label}`);assert.ok(a.w>=Math.min(44,h/10)-.1&&a.h>=Math.min(44,h/10)-.1);for(const b of geo.buttons.slice(i+1))assert.ok(Math.min(a.right,b.right)-Math.max(a.x,b.x)<=1||Math.min(a.bottom,b.bottom)-Math.max(a.y,b.y)<=1,`overlap ${a.label}/${b.label}`);}
    if(w===874)await page.screenshot({path:`${out}/landscape-${mode}.png`});
   }
-  const column=await page.locator('[data-action=library], [data-mode=browse], [data-mode=layers], [data-mode=levels], [data-mode=halo], [data-action=favorite], [data-action=export], [data-action=rotate], [data-mode=looks]').evaluateAll(es=>es.filter(e=>e.getClientRects().length).map(e=>({label:e.getAttribute('aria-label'),x:e.getBoundingClientRect().x})));
-  assert.equal(column.length,9,JSON.stringify(column));assert.ok(column.every(b=>Math.abs(b.x-column[0].x)<1),JSON.stringify(column));
+  const column=await page.locator('[data-action=library], [data-action=collection], [data-mode=browse], [data-mode=layers], [data-mode=levels], [data-mode=halo], [data-action=favorite], [data-action=export], [data-action=rotate], [data-mode=looks]').evaluateAll(es=>es.filter(e=>e.getClientRects().length).map(e=>({label:e.getAttribute('aria-label'),x:e.getBoundingClientRect().x})));
+  assert.equal(column.length,10,JSON.stringify(column));assert.ok(column.every(b=>Math.abs(b.x-column[0].x)<1),JSON.stringify(column));
   const looks=await page.locator('[data-mode=looks]').boundingBox(),popup=await page.locator('.look-options').boundingBox();assert.ok(popup.x>=looks.x+looks.width,JSON.stringify({looks,popup}));
   await page.click('[data-profile-version="3"]');assert.equal(await page.evaluate(()=>window.__lighttable.session.tool.kind),'layer');assert.equal(await page.locator('.look-options').isVisible(),false);
   for(const mode of ['levels','halo']){await page.click(`[data-mode=${mode}]`);await page.click(`[data-mode=${mode}]`);assert.equal(await page.evaluate(()=>window.__lighttable.editor.mode),mode);}
@@ -55,7 +55,9 @@ try{
  await page.evaluate(()=>window.__lighttable.repo.commit=window.__commit);await page.click('[data-action=library]');await page.waitForFunction(()=>!window.__lighttable.navigation.busy);assert.equal(await page.evaluate(()=>window.__lighttable.session.dirty),false);
  await page.click('[data-close-library]');await page.evaluate(async()=>{const l=window.__lighttable,f=await l.repo.favoriteCurrent(l.navigation.project,l.session.draft,l.navigation.sources[0].thumb);await l.navigation.open(await l.repo.project(f.projectId));});
  await page.setViewportSize({width:874,height:402});await page.waitForFunction(()=>window.__lighttable.session.editing);await frame();
- for(const side of ['a','b']){const rail=page.locator(`[data-rail=${side}]`);assert.equal(await rail.isVisible(),true);assert.equal(await rail.locator('button').count(),6);await rail.locator('[aria-pressed=true]').click();assert.equal(await page.evaluate(()=>window.__lighttable.session.activeLayer),side);assert.equal(await page.evaluate(()=>window.__lighttable.editor.mode),'browse');}
+ assert.equal(await page.locator('.rail-a').isVisible(),false);
+ await page.click('[data-mode=levels]');
+ for(const side of ['a','b']){const rail=page.locator(`[data-rail=${side}]`);assert.equal(await rail.isVisible(),true);assert.equal(await rail.locator('button').count(),1);await rail.locator('[aria-pressed=true]').click();assert.equal(await page.evaluate(()=>window.__lighttable.session.activeLayer),side);assert.equal(await page.evaluate(()=>window.__lighttable.editor.mode),'levels');}
  await page.click('[data-mode=levels]');
  const beforeTurn=await page.evaluate(()=>window.__lighttable.session.draft.frame.turns);await page.click('[data-action=rotate]');assert.equal(await page.evaluate(()=>window.__lighttable.session.draft.frame.turns),(beforeTurn+1)%4);assert.equal(await page.evaluate(()=>window.__lighttable.session.tool.kind),'levels');
  await page.evaluate(()=>{const l=window.__lighttable,before=JSON.stringify(l.session.draft);l.gestures.down(1,{x:80,y:120});l.gestures.down(2,{x:180,y:120});l.gestures.move(2,{x:300,y:150});l.gestures.up(1);l.gestures.up(2);if(JSON.stringify(l.session.draft)!==before)throw Error('Levels pinch edited photo');});

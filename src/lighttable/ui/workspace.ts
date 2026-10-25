@@ -20,7 +20,7 @@ import { demoSources } from './fixtures';
 
 export async function mountWorkspace(root:HTMLElement){
   root.innerHTML=`<main class="workspace">
-    <header class="topbar">${button('library','Open rolls and mixes','film')}</header>
+    <header class="topbar">${button('library','Open Mixes','film')}${button('collection','Open Library','collection')}</header>
     <section class="stage" aria-label="Lighttable"><canvas tabindex="0" aria-label="Photo. Swipe to browse. Edit to move a selected photo."></canvas></section>
     <p class="status" role="status" aria-live="polite"></p>
     <footer class="toolbar glass"><div class="sources">
@@ -34,7 +34,7 @@ export async function mountWorkspace(root:HTMLElement){
   let pwa:ReturnType<typeof setupPwa>|undefined;
   let busy=true,exportBusy=false,sourceUrls:string[]=[],thumbKey='';
   const orientation=matchMedia('(orientation: landscape)');
-  let orientationSavePending=false;
+  let orientationSavePending=false,cleanView=false;
   const repo=new Repository(),navigation=new Navigation(repo,session,renderer);
   const status=root.querySelector<HTMLElement>('.status')!;
   const action=(id:string)=>root.querySelector<HTMLButtonElement>(`[data-action="${id}"]`)!;
@@ -49,6 +49,7 @@ export async function mountWorkspace(root:HTMLElement){
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
   const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync(),onFavoritesChange:refreshFavorites}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
   const favoriteNotice=new FavoriteNotice(repo,refreshFavorites,reportError);workspace.append(favoriteNotice.element);
+  gestures.onTap=()=>{if(session.interaction==='browse'&&session.tool.kind==='layer'){cleanView=!cleanView;sync();}};
   gestures.onSwipe=direction=>{if(session.interaction==='browse')void navigation.step(direction).catch(reportError);};
   const rails=new FilmRails(workspace,navigation,repo,reportError,()=>{if(orientation.matches)editor.selectMode();sync();});
   gestures.allowScale=()=>orientation.matches&&editor.mode==='layers';
@@ -61,6 +62,11 @@ export async function mountWorkspace(root:HTMLElement){
       if(session.editing){editor.finishGesture();session.end();session.acceptEdit();orientationSavePending=true;}
       session.interaction='browse';session.tool={kind:'layer'};
     }
+    if(session.interaction!=='browse')cleanView=false;
+    workspace.classList.toggle('clean-view',cleanView);
+    workspace.dataset.space=navigation.space;
+    action('library').setAttribute('aria-pressed',String(navigation.space==='mixes'));
+    action('collection').setAttribute('aria-pressed',String(navigation.space==='library'));
     const save=action('export'),dock=session.editing?editor.element.querySelector('.edit-actions')!:workspace.querySelector('.toolbar')!;
     if(save.parentElement!==dock)dock.insertBefore(save,session.editing?null:action('pro'));
     const rotate=action('rotate');
@@ -74,7 +80,7 @@ export async function mountWorkspace(root:HTMLElement){
     for(const b of root.querySelectorAll<HTMLButtonElement>('.toolbar button'))b.disabled=lock;
     action('export').disabled=lock||!navigation.sources;
     action('undo').disabled=lock||!session.canUndo;
-    action('library').disabled=lock;
+    action('library').disabled=lock;action('collection').disabled=lock;
     heart.disabled=lock||!navigation.sources;
     action('pro').setAttribute('aria-expanded',String(session.editing));
     for(const b of root.querySelectorAll<HTMLButtonElement>('[data-layer]'))b.setAttribute('aria-pressed',String(b.dataset.layer===session.activeLayer));
@@ -82,7 +88,7 @@ export async function mountWorkspace(root:HTMLElement){
     action('export').disabled=lock||!navigation.sources;heart.disabled=lock||!navigation.sources;
     const selected=session.tool.kind==='parameter'?session.tool.parameter:session.tool.kind==='xy'?session.tool.pair:'';
     for(const b of root.querySelectorAll<HTMLButtonElement>('.pro-options [data-action]'))b.setAttribute('aria-pressed',String(b.dataset.action===selected));
-    canvas.setAttribute('aria-label',session.tool.kind==='levels'?`Levels of photo ${session.activeLayer==='a'?'I':'II'}. Left, middle and right thirds adjust black, midtones and white. Slide vertically. Pinch resizes the selected layer.`:session.tool.kind==='xy'?xyTools[session.tool.pair].label:session.tool.kind==='parameter'?`${parameters[session.tool.parameter].label}. Slide up to increase.`:'Photo. Swipe to browse. Edit to move a selected photo.');
+    canvas.setAttribute('aria-label',session.tool.kind==='levels'?`Levels of photo ${session.activeLayer==='a'?'I':'II'}. Left, middle and right thirds adjust black, midtones and white. Slide vertically. Select Move to resize this layer.`:session.tool.kind==='xy'?xyTools[session.tool.pair].label:session.tool.kind==='parameter'?`${parameters[session.tool.parameter].label}. Slide up to increase.`:'Photo. Swipe to browse. Edit to move a selected photo.');
     canvas.style.pointerEvents=baseLocked()||editor.activeGesture?'none':'';
     rails.setLocked(lock);pwa?.refresh();
     if(orientationSavePending&&!baseLocked()&&!session.gesturing&&!gestures.active){
@@ -146,7 +152,7 @@ export async function mountWorkspace(root:HTMLElement){
       await refreshFavorites();
     }).catch(reportError);return;}
     if(id==='export'){if(!session.dirty&&exportDialog.shareReady(session.draft))return;void navigation.boundary(async()=>{if(navigation.sources&&navigation.project){session.acceptEdit();finish();await exportDialog.open(session.draft,navigation.sources,navigation.project.id);}}).catch(reportError);return;}
-    if(id==='library'){void navigation.boundary(async()=>{session.acceptEdit();finish();await library.open(navigation.project?.kind?'favorites':'mixes');}).catch(reportError);return;}
+    if(id==='library'||id==='collection'){void navigation.boundary(async()=>{cleanView=false;session.acceptEdit();finish();await library.open(id==='collection'?'favorites':'mixes');}).catch(reportError);return;}
     sync();renderer.invalidate();
   },opts);
   canvas.addEventListener('keydown',event=>{

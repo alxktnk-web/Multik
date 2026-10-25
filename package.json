@@ -33,6 +33,7 @@
     "test:lighttable:import": "node scripts/lighttable-import-v3-check.mjs",
     "test:lighttable:controls": "node scripts/lighttable-long-controls-check.mjs",
     "test:lighttable:levels-landscape": "node scripts/lighttable-levels-landscape-check.mjs",
+    "test:lighttable:viewer": "node scripts/lighttable-viewer-check.mjs",
     "test:lighttable:orientation": "node scripts/lighttable-orientation-check.mjs"
   },
   "devDependencies": {

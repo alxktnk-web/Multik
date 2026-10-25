@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createComposition, turns, type QuarterTurns } from './types';
 import { filmToScreen, inverse, point, vector, sourceToFilm } from './transforms';
 import { Session } from './session';
@@ -113,5 +113,48 @@ describe('browse and layer pinch',()=>{
     const m=sourceToFilm(c.frame,c.layers[1],c.layers[1].placements[0]);
     expect(point(m,{x:.5,y:.5})).toEqual({x:18,y:13.5});
     const edge=vector(m,{x:1,y:0});expect(Math.hypot(edge.x,edge.y)).toBeCloseTo(54);
+  });
+});
+
+describe('browse taps',()=>{
+  afterEach(()=>vi.restoreAllMocks());
+  function tapping(){
+    const {s,g}=setup();s.interaction='browse';
+    let now=1000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+    const tap=vi.fn(),swipe=vi.fn();g.onTap=tap;g.onSwipe=swipe;
+    return {s,g,tap,swipe,advance:(ms:number)=>{now+=ms;}};
+  }
+  it('emits one short stationary browse tap after releasing ownership without editing',()=>{
+    const {s,g,tap,swipe,advance}=tapping(),before=structuredClone(s.draft);
+    g.down(1,{x:100,y:100});g.move(1,{x:102,y:102});advance(299);g.up(1);g.up(1);
+    expect(tap).toHaveBeenCalledTimes(1);expect(swipe).not.toHaveBeenCalled();expect(g.active).toBe(false);
+    expect(s.draft).toEqual(before);expect(s.dirty).toBe(false);expect(s.canUndo).toBe(false);
+  });
+  it('ignores long presses, swipes, vertical drags and excursions that return to their origin',()=>{
+    const {g,tap,swipe,advance}=tapping();
+    g.down(1,{x:100,y:100});advance(300);g.up(1);
+    g.down(1,{x:100,y:100});g.move(1,{x:40,y:100});g.up(1);
+    g.down(1,{x:100,y:100});g.move(1,{x:100,y:160});g.up(1);
+    g.down(1,{x:100,y:100});g.move(1,{x:104,y:100});g.move(1,{x:100,y:100});g.up(1);
+    expect(tap).not.toHaveBeenCalled();expect(swipe).toHaveBeenCalledExactlyOnceWith(1);
+  });
+  it('ignores cancelled pointers, reset and either lift order of a stationary pinch',()=>{
+    const {g,tap}=tapping();
+    g.down(1,{x:100,y:100});g.cancelPointer(1);g.up(1);
+    g.down(1,{x:100,y:100});g.reset();g.up(1);
+    for(const first of [1,2]){
+      g.down(1,{x:100,y:100});g.down(2,{x:200,y:100});g.up(first);g.up(first===1?2:1);
+    }
+    g.allowScale=()=>false;g.down(1,{x:100,y:100});g.down(2,{x:200,y:100});g.up(2);g.up(1);
+    expect(tap).not.toHaveBeenCalled();expect(g.active).toBe(false);
+    g.down(1,{x:100,y:100});g.up(1);expect(tap).toHaveBeenCalledTimes(1);
+  });
+  it('does not emit a tap for move mode or adjustment tools',()=>{
+    const {s,g,tap}=tapping();s.interaction='move';g.down(1,{x:100,y:100});g.up(1);
+    s.interaction='browse';
+    for(const tool of [{kind:'parameter',parameter:'halo'},{kind:'levels',point:'mid'},{kind:'xy',pair:'lightXY'}] as const){
+      s.tool=tool;g.down(1,{x:100,y:100});g.up(1);
+    }
+    expect(tap).not.toHaveBeenCalled();
   });
 });

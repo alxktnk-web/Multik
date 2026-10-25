@@ -72,7 +72,7 @@ export class Library {
   get active(){return this.dialog.open||this.importer.dialog.open||this.rename.open;}
   async open(tab:HomeTab='mixes'){this.tab=tab;this.status.textContent='';if(!this.dialog.open)this.dialog.showModal();try{await this.refresh();}catch(e){this.showError(e);}}
   private async openProject(project:Project){
-    if(!await this.navigation.open(project))throw Error('Finish the current action and try again.');
+    if(!await this.navigation.open(project,project.kind==='favorite'?'library':'mixes'))throw Error('Finish the current action and try again.');
     this.rename.close();this.dialog.close();this.hooks.onOpen?.(project);
   }
   private showError(error:unknown){this.status.textContent=error instanceof Error?error.message:'Could not open library';}

@@ -28,20 +28,21 @@ export class FilmRails {
   private toggle(force?:boolean){const key=this.media.matches?'landscape':'portrait';this.hidden[key]=force??!this.hidden[key];this.layout();void this.repo.setPreference('rails-hidden',this.hidden).catch(this.error);}
   setLocked(locked:boolean){this.locked=locked;this.handle.disabled=locked;for(const button of this.tray.querySelectorAll<HTMLButtonElement>('button'))button.disabled=locked||this.navigation.busy;}
   private layout(){
-    const hidden=this.hidden[this.media.matches?'landscape':'portrait'];
+    const library=this.navigation.space==='library',hidden=!library&&this.hidden[this.media.matches?'landscape':'portrait'];
     this.root.classList.toggle('has-rails',!!this.navigation.rolls);this.root.classList.toggle('rails-collapsed',hidden);
-    this.tray.hidden=!this.navigation.rolls;this.handle.hidden=this.tray.hidden;
+    this.tray.hidden=!this.navigation.rolls;this.handle.hidden=this.tray.hidden||library;
     this.handle.setAttribute('aria-label',hidden?'Show rolls':'Hide rolls');this.handle.setAttribute('aria-expanded',String(!hidden));this.handle.innerHTML=icon(this.media.matches?(hidden?'right':'back'):(hidden?'up':'down'));
   }
   async update(){
     const rolls=this.navigation.rolls,p=this.navigation.project;if(!rolls||!p){this.layout();return;}
-    const key=JSON.stringify(rolls.map(r=>r.id));
+    const library=this.navigation.space==='library';
+    const key=JSON.stringify([this.navigation.space,...rolls.map(r=>r.id),...(library?[p.a,p.b]:[])]);
     if(key!==this.rollKey){
       this.rollKey=key;const generation=++this.generation;for(const url of this.urls)URL.revokeObjectURL(url);this.urls=[];
       for(const [side,roll] of rolls.entries()){
         const layer:LayerId=side?'b':'a',rail=this.tray.querySelector<HTMLElement>(`[data-rail="${layer}"]`)!;rail.replaceChildren();
-        for(let i=0;i<roll.assetIds.length;i++){
-          const button=document.createElement('button');button.type='button';button.dataset.index=String(i);button.setAttribute('aria-label',`${side?'Upper':'Lower'} roll, frame ${i+1}`);const image=document.createElement('img');image.alt='';image.loading='lazy';button.append(image);
+        for(const i of library?[side?p.b:p.a]:roll.assetIds.map((_,i)=>i)){
+          const button=document.createElement('button');button.type='button';button.dataset.index=String(i);button.setAttribute('aria-label',library?`${side?'Upper':'Lower'} layer`:`${side?'Upper':'Lower'} roll, frame ${i+1}`);const image=document.createElement('img');image.alt='';image.loading='lazy';button.append(image);
           button.onclick=()=>{void this.navigation.select(layer,i).then(selected=>{if(selected)this.onSelect();}).catch(this.error);};rail.append(button);
           void this.repo.asset(roll.assetIds[i]).then(a=>{if(generation!==this.generation)return;const url=URL.createObjectURL(a.thumb);this.urls.push(url);image.src=url;image.classList.toggle('portrait-source',a.height>a.width);}).catch(this.error);
         }

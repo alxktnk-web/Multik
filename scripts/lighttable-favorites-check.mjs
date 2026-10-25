@@ -91,7 +91,7 @@ try{
   await heart.click();await idle();await workspace.waitForFunction(async()=> (await window.__lighttable.repo.listFavorites()).length===1);
   assert.equal(await heart.getAttribute('aria-pressed'),'true');
   await workspace.evaluate(async()=>{const l=window.__lighttable;window.originalVariant=(await l.repo.listFavorites())[0];window.originalSnapshot=await l.repo.composition(window.originalVariant.compositionId);});
-  await workspace.click('[data-action=library]');await workspace.click('[data-home-tab=favorites]');await workspace.click('.mix-card[data-favorite]');await idle();
+  await workspace.click('[data-action=collection]');await workspace.click('.mix-card[data-favorite]');await idle();
   await workspace.setViewportSize({width:874,height:402});await workspace.waitForFunction(()=>window.__lighttable.session.editing);
   await workspace.click('[data-mode=levels]');await workspace.locator('[data-level=black]').focus();await workspace.keyboard.press('Shift+ArrowUp');
   assert.equal(await heart.getAttribute('aria-pressed'),'false');
@@ -116,7 +116,7 @@ try{
   await workspace.locator('.workspace>.favorite-notice button').click();await workspace.waitForFunction(()=>document.querySelector('[data-action=favorite]').getAttribute('aria-pressed')==='true');await idle();
   assert.equal(await heart.getAttribute('aria-pressed'),'true');
   assert.equal(await workspace.evaluate(async()=> (await window.__lighttable.repo.listFavorites()).length),2);
-  await workspace.click('[data-action=library]');await workspace.locator(`.mix-card[data-project="${originalId}"]`).click();await idle();
+  await workspace.click('[data-action=collection]');await workspace.locator(`.mix-card[data-project="${originalId}"]`).click();await idle();
   assert.equal(await workspace.evaluate(()=>window.__lighttable.session.draft.layers[1].levels),undefined);
   assert.equal(await heart.getAttribute('aria-pressed'),'true');
   const savedId=await workspace.evaluate(()=>window.__lighttable.session.draft.id);
