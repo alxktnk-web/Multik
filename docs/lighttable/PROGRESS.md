@@ -1,3 +1,12 @@
+## 2026-10-25 — documentation baseline and independent review
+
+- Runtime remains c771eb8 (live publication recorded at46b5ccb); no application, test, workflow, build or storage changes in this baseline task.
+- Replaced historical root README/ARCHITECTURE/TRANSFER with current entry points. Added AGENTS, PRODUCT_SPEC, BASELINE, KNOWN_ISSUES; consolidated UI_CONTRACT/ACCEPTANCE. Preserved exact old documents in docs/history; marked remaining roadmap/validation pages historical. Corrected DEPLOYMENT's stale current heading.
+- Captured real synthetic-fixture screenshots for portrait, Mixes View/Levels/Looks, Library View/Levels and clean view. No user photos included.
+- Fresh Node22 validation: 109 unit tests, production build (13 Classic files identical), orientation, viewer capture, levels-landscape, favorites, import, GPU L*, export profile2 all PASS. Full PWA harness has old gesture setup and is explicitly not claimed current; real iPhone acceptance stays open.
+- Independent read-only review reproduced P2: persisted Library working drafts have no UI reopening route once navigating away. Recorded in BASELINE_CODE_REVIEW/KNOWN_ISSUES; no silent runtime fix or data reset. User baseline means a supported starting point with future bugfixes, not a defect-free freeze.
+- Immutable baseline tag/release: baseline-2026-10-25. Documentation-only, no Sites redeployment.
+
 ## 2026-10-25 — distinct Library navigation and clean preview
 
 - Added direct Library collection icon alongside Mixes film icon. Saved variant swipes remain in Library instead of jumping into source film pairs. Persisted anchor handles working drafts/reload, removed items, empty and single-item collections.

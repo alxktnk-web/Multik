@@ -1,202 +1,222 @@
-# Мультик — архитектура и план работы
+# Multik architecture — stable Lighttable baseline
 
-Версия 1.1 · 13.10.2026 · опирается на [SPEC.md](SPEC.md) 1.2. Учтён разбор ChatGPT от 13.10.2026.
+Audited 25 October 2026 against runtime `c771eb8` and documentation base
+`46b5ccb`. This describes the implemented application, not the original Classic
+roadmap. The previous document is preserved verbatim in
+[docs/history/ARCHITECTURE-pre-baseline.md](docs/history/ARCHITECTURE-pre-baseline.md).
+The product contract is [PRODUCT_SPEC.md](docs/lighttable/PRODUCT_SPEC.md); publication provenance is
+[docs/lighttable/DEPLOYMENT.md](docs/lighttable/DEPLOYMENT.md).
 
-## Главная идея
+## Applications, stack and build
 
-**Один конвейер изображения на двух площадках.** Обработка пишется один раз
-(TypeScript + шейдеры WebGL2) и запускается:
+Two applications share one hosting origin but have separate entry points and
+browser data. Classic remains at `/`; Lighttable runs at `/lighttable/`. The live
+owner-private host is
+<https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/>. Source is maintained
+in `alxktnk-web/Multik`; GitHub Actions verifies source without deploying Pages.
 
-- **в приложении** — в Safari на iPhone;
-- **в лаборатории** — в headless Chromium в облачной среде Claude, на тестовых фото.
+Lighttable uses TypeScript, Vite 6, DOM/Pointer Events, WebGL2, a native IndexedDB
+adapter and a custom service worker. There is no React/Preact, Workbox, `idb` or
+`exifr` dependency, photo-processing server or account sync. Hosting access control
+does not move the browser's photo library to the server. Vitest covers logic;
+Playwright/Chromium scripts exercise the browser. Use Node 22 and the lockfile.
 
-Второй, «черновой» реализации нет, поэтому алгоритм в лаборатории и в приложении один.
-Но одинаковый код ещё не значит одинаковую картинку: Chromium и Safari по-разному
-декодируют фото, обращаются с цветом и точностью GPU. Поэтому лаборатория — тоже
-веб-страница, которую Александр открывает **на своём iPhone**: так вид и 12 Мп проверяются
-на настоящем устройстве с самого начала. Скорость iPhone по облачному программному WebGL
-не оценивается; лимиты текстур узнаются на устройстве.
+`npm run build` builds Lighttable into `dist-lighttable/`, assembles it with
+`deployment/classic-baseline.tar.gz` into `dist-combined/`, then stages `dist/` for
+the existing Sites manifest. Assembly checks every Classic file byte for byte
+(13 in this baseline). It does not rebuild Classic from `src/app`.
+`npm run build:classic` is a separate source build. The vendored tar is a required
+build input. Documentation-only changes need no new runtime deployment.
 
-## Стек
+## File map
 
-| Что | Чем | Почему |
-|---|---|---|
-| Язык | TypeScript | типы ловят ошибки геометрии и рецептов |
-| Сборка | Vite | быстрая, PWA-плагин, статический результат для GitHub Pages |
-| PWA | vite-plugin-pwa (Workbox) | манифест, service worker, офлайн |
-| Интерфейс | Preact (~4 КБ) | экранов мало, тяжёлый фреймворк не нужен |
-| Обработка | WebGL2, half-float текстуры, свои шейдеры GLSL | быстро на GPU iPhone, линейный свет > 1.0 |
-| Хранение | IndexedDB через `idb` | исходники, кадры, рецепты; `navigator.storage.persist()` |
-| Метаданные | `exifr` | ориентация, профиль, поиск HDR gain map |
-| Случайность | свой ГПСЧ с сидом (xoshiro128**) | воспроизводимые рецепты |
-| Тесты логики | Vitest | геометрия, перемешивание, рецепты |
-| Тесты в браузере, лаборатория | Playwright + Chromium | рендер конвейера без телефона |
-| Анализ картинок | Python + Pillow + NumPy | гистограммы, точка чёрного, насыщенность, контакт-листы для сравнения с референсами |
-| Публикация | GitHub Actions → GitHub Pages | автоматически при пуше в `main` |
+Paths below are relative to `src/lighttable/` unless stated otherwise.
 
-Проверено в среде Claude 13.10.2026: Node 22, headless Chromium с WebGL2,
-`EXT_color_buffer_float` и `EXT_color_buffer_half_float` есть, макс. текстура 8192 (на iPhone — 16384).
+| Area | Files and responsibility |
+| --- | --- |
+| Entry/orchestration | `main.ts`, `ui/workspace.ts`: persistent workspace, session/renderer/navigation wiring, orientation, actions and locks |
+| Presentation | `style.css`, `fonts.css`, `ui/adaptive.css`, `ui/home.css`, `ui/import.css`, local Manrope, `ui/icons.ts` local SVG |
+| Editor/source strips | `ui/editor.ts`, `ui/film-rails.ts`: tools, direct controls, source selection and rail visibility |
+| Collections/import | `ui/library.ts`, `ui/import-roll.ts`, `ui/covers.ts`, `ui/favorite-notice.ts`: Mixes/Library, two-roll flow, thumbnails, membership Undo |
+| Model | `model/types.ts`, `model/session.ts`, `model/transforms.ts`, `model/levels.ts`, `model/parameters.ts`: composition, RAM draft/Undo, geometry and control bounds |
+| Navigation | `model/navigation.ts`: serial save boundaries, pair loading, browsing context, conflict copy |
+| Input | `input/gestures.ts`: pointer ownership, View swipe/tap, Move drag/pinch, cancellation |
+| GPU | `render/renderer.ts`, `shaders.ts`, `levels.ts`, `film-profile.ts`, `dense-profile.ts`: preparation, direct preview and shared export math |
+| GPU lifecycle | `render/assets.ts`, `resources.ts`, `scheduler.ts`: serial decode, allocations, limits and one pending animation frame |
+| Persistence | `data/types.ts`, `repository.ts`, `import.ts`: records/validation, IDB transactions and staged import |
+| Export | `ui/export-dialog.ts`: historical name; direct native Share with RAM JPEG retry, no dialog |
+| PWA/build (repository root) | `lighttable/pwa/`, `vite.lighttable.config.ts`, `scripts/lighttable-pwa.mjs`, `lighttable-assemble.mjs`, `lighttable-stage.mjs`; UI activation in `ui/pwa.ts` |
+| Preserved Classic (root) | `src/app/`, `src/core/`, `src/gl/`, `lab/`, `public/`: separate historical implementation/research |
 
-## Структура кода
+Lighttable reuses the deterministic RNG in `src/core/rng.ts`; it does not run
+Classic's development pipeline. `data/legacy-reader.ts` and adoption helpers remain
+in source, but the current Library has no legacy import UI. Their presence is not
+a promise of migration, rendering parity or a supported Classic workflow.
 
-```
-src/
-  app/            экраны: длина плёнки, проход A, проход B, проявка, галерея, настройки, история
-  core/
-    rng.ts        ГПСЧ с сидом
-    recipe.ts     рецепт проявки: перемешивание, сдвиг, film swap, засветки, пыль,
-                  разброс экспозиции; версия алгоритма; JSON
-    geometry.ts   мм ↔ px, кадры на ленте, какие кадры B попадают в окно кадра A
-    import.ts     декодирование, ориентация, профиль, уменьшение до 4000 px
-    storage.ts    IndexedDB: исходники, плёнки, кадры, рецепты
-    develop.ts    проявка скользящим окном, возобновление после прерывания
-    share.ts      Web Share API, партии
-  gl/
-    context.ts    WebGL2, проверка возможностей, восстановление контекста
-    passes/       шейдеры по шагам конвейера (см. ниже)
-    pipeline.ts   сборка шагов для одного окна ленты
-  looks/
-    portra400.json   параметры вида (кривые, ореол, зерно, засветки) — без фото
-lab/
-  lab.html, lab.ts   страница лаборатории (только для разработки)
-  run.mjs            Playwright: тестовые фото → конвейер → PNG
-  analyze.py         статистика и контакт-листы
-```
+## Composition and browser data
 
-## Модель данных
+Database `multik-lighttable`, version 1, contains `assets`, `rolls`, `jobs`,
+`projects`, `compositions` and `prefs`. Classic's `multik-app` remains separate.
+Normal updates neither clear databases nor migrate Classic.
 
-- **Источник** — уменьшенный снимок (до 4000 px), профиль, ориентация, отметка «вертикальный».
-- **Пачка** — N источников одного прохода. Пачки общие для всех проявок.
-- **Плёнка** — две пачки + **рецепт** + готовые кадры + статус (план / идёт / готово).
-- **Рецепт** — сид, порядок кадров A и B, сдвиг, люфт каждого кадра, film swap,
-  засветки (где, какие), засветка концов, пыль, разброс экспозиции, параметры вида,
-  версия алгоритма. Сохраняется **до** начала проявки → проявку можно продолжить.
+- An **asset** retains its original Blob unchanged, revision 1, plus JPEG preview
+  up to 1024px and thumbnail up to 160px. Stored dimensions describe the preview;
+  export decodes the original again. Browser decoding handles EXIF orientation;
+  explicit ICC/HDR gain-map interpretation is not implemented.
+- A **roll** holds an ordered immutable source list. Native import offers
+  6/12/24/36, default 12, and requires exactly the chosen count. Preparation is
+  serial; unfinished imports use ownership-scoped staged jobs. Cancellation cannot
+  delete committed rolls or unrelated assets.
+- A **project** selects two rolls and current indices. Each normal Mix stores one
+  composition per source pair within that project. Pair IDs include project,
+  roll/source identity and source revisions. Swiping advances both indices by one
+  with wraparound; it does not enumerate all possible combinations.
+- A **composition** is schema 1, manual-pair mode, 36×27mm frame, two layers with
+  exactly one placement each, source/frame rotations, transforms/Levels, effects,
+  seed, profile and optimistic revision. Portrait sources initially lie sideways
+  in the common film direction. Frame and source rotation are distinct.
+- A **Library variant** stores a full composition snapshot, its own favorite
+  project, shared original references, membership and thumbnail. Its editable
+  sources are not replaced by a JPEG. Canonical state keys ignore record identity
+  and revision, normalizing neutral Levels/unit scale for deduplication.
 
-## Конвейер одного кадра
+Saved Library snapshots are immutable. Their first dirty save boundary creates
+a hidden `kind: 'draft'` working project; later edits update that working copy.
+A new heart saves another immutable variant. Unlike removes membership only;
+snapshot/assets remain, and `Removed · Undo` restores membership for eight seconds.
+Membership Undo is distinct from edit Undo.
 
-Проявка идёт **скользящим окном**: для кадра A№i берётся окно ленты = кадр + поля
-~3 мм (запас на радиус ореола). В память загружаются только снимки, попадающие в окно
-(кадр A и 1–2 кадра B).
+`Session` owns a deep-copied RAM draft, saved revision, gesture checkpoint and up
+to 50 Undo states. Gesture end adds at most one Undo state and marks dirty, without
+writing IDB. Navigation/export/heart/collection transitions and leaving landscape
+own save boundaries. Failed saves retain dirty RAM edits. Compare-and-swap revision
+conflicts offer a separate copy. Unsaved edits and Undo are not guaranteed after
+Safari termination or reload.
 
-1. **Подготовка снимка** (на каждый снимок): линеаризация из его профиля →
-   ограниченное расширение светов (или HDR gain map, если доступна) → объектив
-   (виньетирование, мягкость) → разброс экспозиции.
-2. **Укладка на ленту**: снимок рисуется прямоугольником с поворотом (вертикальный,
-   film swap), сдвигом и люфтом, умножается на маску кадрового окна (скруглённые углы,
-   мягкий край). Смешивание `ONE, ONE` — **свет складывается** прямо на GPU, в half-float.
-3. **Засветки и засвеченные концы** — процедурные, по рецепту, в координатах ленты.
-4. **Ореол** — пирамида размытий (несколько радиусов в мм плёнки, на пониженном
-   разрешении), тонировка в красно-оранжевый, добавление. Затем слабое «дыхание» светов.
-5. **Плёночная кривая** — поканально, в плотностях негатива (1D-LUT на канал;
-   позже, возможно, 3D-LUT).
-6. **Зерно и неравномерность проявки** — шум, привязанный к мм ленты (нет швов между
-   окнами), зависит от плотности.
-7. **Пыль и волоски** — по рецепту.
-8. **Вырезка кадра A№i** → выходной профиль → JPEG 4000 × 3000 → IndexedDB.
+Browsing space (`mixes`/`library`) is separate from project identity. Library
+persists its saved-variant anchor/order even when editing creates a working draft.
+Swipes stay within Library membership; removed, empty and single-item cases retain
+the working image as appropriate. Library pairs are fixed: its two selectors
+choose layers, never replacement source photos.
 
-Память: окно ~4660 × 3660 RGBA16F ≈ 136 МБ + текстуры 2–3 снимков по ~48 МБ +
-пирамида ореола на ¼ разрешения. Бюджет проверяется на iPhone 16 Pro; при нехватке —
-окно режется на полосы с перекрытием.
+## Rendering and color
 
-## Лаборатория — как я подбираю вид
+Sources upload as `SRGB8_ALPHA8`; sampling supplies linear RGB. Halo intermediates
+are `RGBA8`. Light addition occurs in floating point fragment-shader arithmetic,
+followed by tone/output conversion. Lighttable does not use Classic's half-float
+film-strip framebuffer or sliding-window development.
 
-1. Тестовые фото и референсы лежат в **приватном** репозитории `Multik-photos`
-   (в публичный `Multik` не попадают).
-2. `lab/run.mjs` открывает страницу лаборатории в headless Chromium, подаёт две пачки,
-   сид и параметры вида, сохраняет кадры и ленту PNG во временную папку (не в git).
-3. `lab/analyze.py` считает метрики (точка чёрного, контраст, насыщенность по зонам,
-   доля засвеченных пикселей) и собирает контакт-лист «референс ↔ результат».
-4. Я смотрю результаты сам (вижу изображения), правлю параметры в `looks/portra400.json`
-   и шейдеры, повторяю.
-5. Показательные варианты — **Александру в чат**. Его реакции и решения → Notion.
-   ChatGPT смотрит описания и реакции в Notion и предлагает идеи.
-6. Утверждённый вид фиксируется как версия `portra400.json` + версия алгоритма.
+The shared preview/export shader performs:
 
-Ограничение: Chromium в облаке рендерит программно (SwiftShader) и по-другому
-обращается с цветом, чем Safari на iPhone (P3, Metal). Поэтому вид окончательно
-проверяется на телефоне Александра.
+1. Screen/tile coordinates → film millimetres → transformed source UVs.
+2. Independent source Levels on **CIELAB L\*** (D65), before conditioning/addition.
+   Black/mid/white remap normalized L\*. The shader preserves a\*/b\* in gamut;
+   otherwise it reduces chroma at fixed L\*/Lab hue using a bounded search. Exact
+   neutral Levels bypass conversion. These are not RGB-channel Levels.
+3. Profile conditioning/gains and linear light addition, with source-anchored
+   halo where allowed, then exposure/tone and visible-range contrast.
+4. sRGB display encoding and bounded output.
 
-## План работы
+| Look | Stored version | Processing |
+| --- | --- | --- |
+| Original | 2 | Source halo, linear addition, highlight shoulder, restrained S curve |
+| Film | 3 | Film tone model; halo is positive blurred spill outside each emitter |
+| Dense | 4 | Additional per-source conditioning before Film processing |
+| Clear | 5 | Manual source Levels, linear addition, clipping, sRGB encoding; bypasses automatic tone/color, gains, exposure, halo and contrast |
 
-| Этап | Что | Результат |
-|---|---|---|
-| 0 | Каркас репозитория: Vite + TS, ГПСЧ, рецепт, геометрия, тесты Vitest | основа, на которую садится всё остальное |
-| 1 | Конвейер v0 + лаборатория: сложение света, укладка, кадровое окно, простая кривая | первые двойные экспозиции на тестовых фото → Александру |
-| 2 | Вид: кривая Portra, засветки, ореол, зерно, пыль, неравномерность; 2–4 круга с Александром | утверждённый `portra400` v1 |
-| 3 | PWA: экраны, импорт, хранение, проявка, галерея, сохранение; репозиторий → публичный, GitHub Pages | Александр ставит приложение на iPhone |
-| 4 | Проверка на iPhone 16 Pro: время, память, цвет, возобновление, экспорт | исправления по факту |
-| 5 | Скрытые настройки, «плёнка полосой», история, «Проявить заново» | полный сценарий |
-| 6 | Остальные плёнки | |
+Version-1 records normalize to 2 when copied; opt-in profile versions remain
+unchanged. New pairs use Original/2. Lighttable has no grain, dust or light-leak
+pipeline. Model fields and handlers for exposure, balance, contrast, halo
+radius/threshold and XY remain in code; the baseline visible editor exposes
+Levels, Halo strength and Looks.
 
-## Кто что делает
+Halo extraction operates independently on each source after its Levels, before
+addition, using padded source-space masks and separable blur. Two medium sources
+cannot jointly cross the emitter threshold. Cached masks follow source transforms.
+Position/scale/rotation/halo strength reuse textures; Levels or radius/threshold
+changes refresh affected masks/blur without CPU readback. Seeded halo variation
+stays stable across movement and export.
 
-- **Александр** — решения, тестовые фото, проверка на iPhone, реакции на варианты.
-- **Claude** — архитектура, весь код, лаборатория, публикация, записи в Notion по команде.
-- **ChatGPT** — творческий взгляд: разбор референсов и вариантов, идеи для вида — через Notion.
+## Input and the interactive hot path
 
-## Принятые уточнения после разбора ChatGPT (13.10.2026)
+Portrait is View; landscape opens the editor with explicit View/Move, Levels,
+Halo and Looks. View permits horizontal pair/variant swipes and a short tap to
+hide/restore chrome. Move owns selected-layer translation and anchored pinch scale
+(.5–4). Two fingers do not pan/zoom the viewport. View, Levels and Halo disable
+pinch. Pointer cancellation, blur and visibility changes restore an incomplete
+gesture; completed gestures retain their RAM Undo checkpoint.
 
-- **iPhone проверяется сразу**, а не после сборки PWA: лаборатория — веб-страница, на телефоне
-  открывается полный кадр 4000 × 3000 (сложение, кривая, цвет).
-- **Бюджет памяти считается по всем буферам** (окно, пирамида, исходники, выход, кодирование).
-  Буферы переиспользуются (кэш по имени), исходники в приложении грузятся последовательно,
-  декодированные копии освобождаются после загрузки в GPU. Какие снимки нужны окну — считается
-  по пересечению прямоугольников (могут попасть и соседи A), а не фиксированным числом.
-  Интерфейс рендера сразу допускает разбиение окна на полосы; включать ли по умолчанию — по замеру.
-- **Ореол не теряет маленькие яркие точки**: выделение светов идёт в полном разрешении
-  (в первом проходе уменьшения, по центрам текселей), размытие — на пониженном. *Сделано в lab-0.2.*
-- **Поля окна выводятся из радиуса фильтров** (3σ самого широкого размытия, не меньше 3 мм).
-  *Сделано в lab-0.2.* Проверка: цельный кадр и тот же кадр полосами совпадают без швов.
-- **Переход негатив → позитив назван честно**: сейчас это упрощённая прямая функция
-  «экспозиция → готовый позитив» (зерно — в логарифме экспозиции, поканальная кривая, точки
-  чёрного/белого). Художественное приближение. Если трёх кривых не хватит — небольшая матрица
-  смешения каналов, затем 3D-LUT.
-- **Импорт нормализуется один раз**: ориентация, цветовое пространство, версия подготовки.
-  `exifr` — только парсер метаданных; SDR-ветка самостоятельна, HDR gain map — отдельное
-  исследование на реальных файлах.
-- **Лаборатория сравнивает один эксперимент**: все варианты вида рендерятся по одному рецепту
-  и одним исходникам. У каждого эффекта свой поток случайности (порядок, сдвиг, экспозиция,
-  засветки, концы, пыль): выключение пыли не меняет порядок кадров. *Сделано в lab-0.2.*
-  Нажатие на кадр открывает его в полном размере (зерно, край, ореол 1:1).
-  Добавить синтетические сцены для проверок: чёрное + изображение, яркая точка у края,
-  серый градиент, узкая перемычка.
-- **Метрики «референс ↔ результат»** с разными сюжетами — не оценка сходства, а только
-  ограничители грубых ошибок.
-- **Приложение**: состояния задания (подготовлено / идёт / пауза-ошибка / готово); возобновление
-  с последнего сохранённого кадра; обновление service worker не перезагружает страницу во время
-  проявки; в рецепт пишется версия профиля вида; незавершённое старое задание не продолжается
-  новым несовместимым алгоритмом.
-- **Вид по референсам**: «плёночность» — не общая дымка и поднятый чёрный. Глубокие тени и чёткие
-  детали сохраняются; потеря контраста связана с наложением и засветками. Засветка — дополнительная
-  экспозиция до кривой (так и сделано). Край кадрового окна чёткий с небольшой неровностью.
-- **Приватность**: ни референсы, ни тестовые фото, ни результаты не попадают в `public/`, сборку
-  Pages и артефакты CI. Страница лаборатории публична только как код; фото выбираются локально.
+Pointer updates mutate the RAM model and invalidate the renderer. A latest-state
+scheduler coalesces them into one pending `requestAnimationFrame`; no idle loop
+runs. Canvas/context stay mounted. Warm movement must not decode, upload textures,
+compile shaders, encode JPEG, call `readPixels` or write IDB, including finger lift.
+Tool/layer switches preserve geometry and independent Levels. A swipe may save
+and load at its explicit navigation boundary.
 
-## lab-0.7 — правка кадра и разбор ChatGPT (13.10.2026)
+Preview sources decode serially, normally at 1024px. Preview framebuffer tiers
+are 1024/768/512 with DPR capped at 1.5. Prepared-source caching targets 24MiB;
+active/pending sources are pinned. Texture allocation has a 96MiB guard. These
+track GPU texture estimates, not total Safari RAM or measured hardware usage.
+Selection/context generations reject stale async loads. Context loss discards
+invalid handles and reloads the pair; hidden documents pause the scheduler.
 
-- **Ореол по каждому проходу:** снимки дополнительно рисуются в буфер половинного разрешения с порогом яркости
-  на каждом проходе (4 полноразмерных отсчёта на пиксель) — два средних света не «зажигают» ореол сложением,
-  мелкие яркие точки не теряются. Лишнего полноразмерного буфера нет.
-- **Переход в белое (модель 'faithful', виды M/N):** плечо по яркости с сохранением отношений каналов, поздний
-  переход в чистый белый w0…w1, сжатие цветности вместо обрезки каналов (формула ChatGPT). «Слияние белого»
-  двигает w0/w1. Цветная кайма засветок сохраняется.
-- **Засветки:** три типа (glow / stripe / burn) в шейдере LEAKS; генерация — `randomLeak` в `core/recipe.ts`.
-- **Правка кадра:** `core/edit.ts` (FrameEdit, переопределения рецепта, кривые Фриче–Карлсона → таблица
-  256 × RGBA для шейдера), `app/develop.ts` (`FrameRenderer` — свой контекст WebGL и только нужные снимки),
-  `app/edit.ts` (экран). Хранение: `Development.edits[i]`, исходный кадр — ключ `…:orig` в том же хранилище.
-- Проявки, сделанные раньше (lab-0.6), при правке пересчитываются текущим алгоритмом — их предпросмотр
-  может немного отличаться от исходного кадра.
+## JPEG export and native Share
 
-## Риски
+Save first commits dirty metadata through Navigation, snapshots the composition
+and decodes originals serially at up to 4000px edge. The same presentation shader
+renders into a separate 1024px tile target, using `readPixels` and a CPU output
+canvas. Output is 4000×3000 or 3000×4000 JPEG at .95, not arbitrary original
+resolution. The exporter also accepts 2000px internally; the UI has no size choice.
 
-- **HDR gain map** может быть недоступна в Safari после выбора фото → остаётся эвристика светов.
-- **Цвет Chromium ≠ Safari** → финальная проверка вида только на телефоне.
-- **Память Safari** на 12 Мп → резка окна на полосы.
-- **Хранилище браузера** может быть очищено → важные кадры сохранять в Фото, persist().
+Export pauses interactive rendering and guards tracked textures at 160MiB. It
+does not overwrite visible drafts or originals. Tiling/readback, encoding,
+cancellation and cleanup belong to export. Heart/cover actions separately capture
+small previews at explicit collection boundaries.
 
+Save attempts `navigator.share({files})` after rendering. If Safari activation
+expires, the ready File stays in RAM; the same icon retries Share synchronously
+on a fresh tap without rerendering. System cancellation is quiet. There is no
+download fallback or preview dialog. Selecting Save Image/Photos belongs to the
+system sheet/user; browser success does not prove storage in Photos. RAM retry
+files disappear on reload.
 
-## Viewer gestures and frame-local shifts
+## PWA, deployment and recovery
 
-`app/zoom.ts` arbitrates pointer gestures: quick swipe, slow single-pointer drag, two-pointer zoom, and pan while zoomed. Zoom is display-only; adding another pointer cancels a pending frame edit. `app/viewer-drag.ts` reuses `FrameEdit`, `FrameRenderer`, and the existing transactional frame store. It changes only `mix.shiftMm` or `mix.bottomShiftMm` for the displayed output index; screen deltas are converted to film coordinates using orientation metadata. A serialized, bounded preview renderer handles motion. Release retains a draft and the movable-layer session; each new gesture starts from the previous draft. The main viewer keeps that draft across menu/layout/favorite rerenders. Navigation, leaving the viewer, editor entry or explicit export awaits one commit at development resolution, atomically storing the frame and thumbnail. A failed commit retains the draft and prevents navigation. Pinch cancellation reverts only the active stroke, preserving earlier strokes. The zoom wrapper includes both the original image and draft canvas. Other frame images and recipes are untouched. One-step undo restores the preceding stroke in memory without writing. After a commit, the prior saved edit remains available for undo; when absent, undo restores the original image bytes from the store.
+Manifest/start URL and worker scope are `/lighttable/`. The custom worker caches
+only the generated shell, checks response URL/type/MIME, rejects login HTML in
+place of assets and normalizes safe redirects for Safari. Recovery/unknown paths
+use the network. Photos/edits remain in IDB, outside the shell cache.
 
-New developments store `haloAmount` and `highlightVariation`. The variation depends on development seed and frame index, so preview, editor, resumed development and export agree. Missing fields retain legacy rendering. Mix preference migration v6 resets leaks to zero while retaining unrelated preferences; no existing development is migrated or re-rendered.
+Updates wait for the visible Update action, activate through a safe save boundary
+and reload only the requesting page. Another tab's controller change does not
+automatically reload this one. Cleanup affects only Lighttable's cache prefix.
+Recovery must not delete either database or the other application's worker/cache.
+Offline launch requires a successfully installed shell. Hosting rollback does not
+move or restore browser data.
+
+Classic retains its root shell and separate cache/database. Runtime rollback and
+source revert are distinct; older applications may reject newer profile/record
+semantics. A saved hosting artifact is not proof of data-compatible rollback.
+Deployment hashes/procedures belong in DEPLOYMENT.md, outside runtime code.
+
+## Boundaries for future design work
+
+Start design changes in CSS, icons and UI DOM/control layout. Preserve the
+canvas/stage rectangle across tool/rail/chrome changes, whole-frame fitting,
+44px touch targets, long direct-control tracks, orientation and selection rules.
+Library View hides strips; Library edit shows only its two fixed-source selectors;
+Mixes retains full source strips.
+
+Transforms, gesture ownership, save boundaries, source identity, immutable
+snapshots, color/Levels formulas, profile versions, export, databases and worker/
+build scope are behavioral contracts. Changing them requires explicit scope and
+relevant regression checks; a visual redesign alone does not authorize it.
+Do not alter Classic, hosting origin/access or erase browser data as a styling step.
+
+See [ACCEPTANCE.md](docs/lighttable/ACCEPTANCE.md) and `package.json`: current checks include
+`test:lighttable:viewer`, `:orientation`, `:favorites`, `:levels-landscape`, `:levels`,
+`:export`. The production `:pwa` harness needs its old gesture setup updated before
+claiming a fresh full PASS; past evidence is in VALIDATION. Several older scripts/docs describe removed Edit/Done/Cancel/
+Pro layouts and are historical, not the current contract. Chromium establishes
+browser behavior, not actual iPhone timing/memory, HEIC/HDR/P3 fidelity or native
+Save-to-Photos success; those device acceptance items remain open.

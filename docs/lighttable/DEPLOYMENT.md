@@ -1,4 +1,36 @@
-# Current release — 24 October 2026 single-column editor
+# Current runtime publication — 25 October 2026
+
+- Live: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ ; existing owner-private Sites audience/origin.
+- Public runtime: `c771eb896204b96e3dbf52e37f6d09614c69bb0d`. Public publication record: `46b5ccb`.
+- Sites source: `ceadb615c02fef5ecc044a63363545b7bc564e57`, matching public runtime source tree at publication.
+- Deployment: `appgdep_6ade1e444ca08191b6549ea778f2c25e`, native status **succeeded**, 25.10.2026 15:20:46 UTC.
+- Saved version: `appgprj_6ad0be6c39f48191b3dad11c00502dc4~appgver_0a7e41304b408191ba7e7d4505885fcc`.
+- Archive at publication: `/workspace/multik-viewer-deploy.tar.gz` (ephemeral workspace path, not a durable backup requirement).
+- Shipped: direct Library button, Library-only saved-variant browsing, fixed layer selectors, tap-to-hide View in both orientations with stable canvas. Previous immutable variants/Levels/Rotate fixes included.
+- Documentation tag `baseline-2026-10-25` adds current contracts, audit and screenshots without changing or republishing this runtime. See [BASELINE](BASELINE.md) for fresh checks and limitations.
+
+## Publication and rollback boundaries
+
+GitHub Actions only verifies tests/build; it does not publish GitHub Pages. Continue
+using the existing Sites project and origin; source repository pushes do not update
+the live app. Preserve access policy. Read the current Sites skill/tool instructions
+when actually publishing; temporary credentials/helpers from old sessions may expire.
+
+Build via `npm run build`, package combined `dist/` with `.openai/hosting.json`, verify
+exact source/build provenance and use native Sites publication. Do not replace root
+Classic with dist-lighttable. Owner installs a waiting release with home Update.
+A Git revert/tag checkout does not roll back hosting: redeploy a selected saved Sites
+version or a reviewed compatible build. Browser IndexedDB does not roll back with code;
+review schema/behavior compatibility before deploying older versions. Do not clear it.
+
+## Publication history (below is historical, not the current UI contract)
+
+Intermediate 24 October releases and their exact source/deployment IDs are recorded
+in dated [PROGRESS](PROGRESS.md) entries. Earlier records below remain for provenance.
+
+---
+
+# Historical release — 24 October 2026 single-column editor
 
 - URL: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ .
 - Native owner-private deployment `appgdep_6adcc2095004819186a8a8d24c9d58e5` succeeded at 2026-10-24 14:35:07 UTC.

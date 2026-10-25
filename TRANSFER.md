@@ -1,44 +1,33 @@
-# Multik — source transfer
+# Multik — передача рабочей базы
 
-## Development base — 20 October 2026
+Дата: **25 октября 2026**. Начать с [AGENTS.md](AGENTS.md) и [BASELINE.md](docs/lighttable/BASELINE.md).
 
-The owner authorized ongoing development through `alxktnk-web/Multik`, with v8 as the base of `main`. This supersedes all historical no-GitHub restrictions, not only packaging. The imported source remains at `multik-v8-source`, commit `4f139e6740641aa25178245d5ad446e6fce7225f`; the previous main is preserved at `backup/main-before-v8-2026-10-20` (`57ce58e6c9f68c2e81bd8156218426bc347ba695`).
+## Где мы находимся
 
-GitHub Actions now verifies tests/build without publishing. Sites remains the live host; this is not an origin migration and does not move browser photos. See `docs/lighttable/DEPLOYMENT.md` for the merge rollback procedure.
+- Репозиторий: https://github.com/alxktnk-web/Multik ; рабочая ветка `main`.
+- Именованная точка возврата: `baseline-2026-10-25`, включает актуальную документацию. Это поддерживаемая исходная база для новых исправлений, не «идеально завершённая программа».
+- Функциональная версия: `c771eb896204b96e3dbf52e37f6d09614c69bb0d`; последующий `46b5ccb` фиксирует её публикацию. При создании базы код приложения не изменяется.
+- Live: https://multik-photo-room.alexanderhot.chatgpt.site/lighttable/ ; Sites, прежний origin и доступ владельца. Classic на `/` не заменять.
+- Последняя подтверждённая публикация: 25.10.2026 15:20 UTC, Sites source `ceadb615c02fef5ecc044a63363545b7bc564e57`, deployment `appgdep_6ade1e444ca08191b6549ea778f2c25e`. Точные версии/откат — [DEPLOYMENT.md](docs/lighttable/DEPLOYMENT.md).
 
-`CHECKSUMS.sha256` is the immutable manifest of the original import (104 entries plus the manifest itself = 105 files). It was verified before integration. It is not a rolling checksum of subsequent workflow/documentation edits in main; verify it in a checkout of `4f139e6`.
+## Важнейшее действующее поведение
 
-## Original transfer record
+Mixes и Library — разные пространства. Library листает сохранённые варианты даже после перехода к рабочему черновику; Mixes листает пары. В portrait только просмотр; в landscape отдельные View и Move, Levels, Halo, Looks. Тап в View скрывает инструменты без сдвига фото. Levels меняет CIELAB L* каждого слоя, щипок — только в Move. Положение canvas не зависит от выбранного инструмента.
 
-Snapshot: `a0881c035929a4523fc1c7706d418f000a94f90c`. Published application source: `d22a3ca1ec4ba3d6885e803b746eb787c6bc6688`, Sites version 8. The difference is publication documentation only.
+Сердце сохраняет состояние, а не только пару. Старый вариант не перезаписывается; новый лайк после изменений создаёт вариант. Снятие лайка — membership only, `Undo` 8 секунд. Отрыв пальца не пишет в IDB; ошибка записи оставляет черновик. Save to Photos вызывает native Share; Safari может потребовать второй тап тем же значком.
 
-The owner explicitly requested transferring this source to GitHub. This supersedes historical no-GitHub instructions for this transfer. No runtime code or functionality was changed for packaging.
+## Как продолжать
 
-## Run
+1. Посмотреть `git status`, текущий `main`, последние записи PROGRESS и текущую задачу владельца.
+2. Прочитать актуальные PRODUCT_SPEC, UI_CONTRACT, ARCHITECTURE и KNOWN_ISSUES. Исторические планы не реализовывать заново.
+3. Создать небольшую ветку от актуального main; менять только нужную подсистему. Дизайн сам по себе не требует изменения рендера/хранилища.
+4. Выполнить соответствующие проверки из ACCEPTANCE, обновить документы и записать реальные ограничения проверки.
+5. Публиковать через Sites только когда публикация входит в задачу/авторизацию; документацию можно обновлять без повторной публикации кода.
 
-Use Node.js 22 and npm.
+Для следующего ИИ можно дать: «Работай в alxktnk-web/Multik. Прочитай AGENTS.md, TRANSFER.md и текущие спецификации. Используй существующее приложение, вноси точечные изменения. Задача: …».
 
-```sh
-npm ci --include=dev
-npm run dev
-```
+## Что не потерять
 
-Open the Vite address with `/lighttable/` for the current application. `/` is the preserved Classic UI.
+Исходные фото/правки находятся в браузере, не в GitHub; новый hostname их не переносит. Не очищать данные как способ ремонта. Baseline — резерв исходников и контракта, не резерв пользовательской фотобиблиотеки.
 
-```sh
-npm test
-npm run build
-npm run preview
-```
-
-`npm run build` creates `dist/`: immutable Classic at root and the current PWA at `/lighttable/`. `deployment/classic-baseline.tar.gz` is a required build input, not a temporary artifact. Build dependencies and package-lock.json are included; installed node_modules is not. Browser suites require Chromium; several scripts use `/usr/bin/chromium`.
-
-## Included and excluded
-
-All tracked source, assets, scripts, tests and project documentation are included. .gitignore has additional secret-file exclusions; this README notice and TRANSFER.md are packaging-only documentation. `.openai/hosting.json` retains the existing Sites project ID, which is configuration rather than a credential. Do not use it to deploy to a different Sites project.
-
-No Git history, node_modules, dist output, logs, temporary files, local environment files or user photos are included. The app stores photos and edits in the browser's IndexedDB; this source export does not transfer that library. Existing deployment was not changed.
-
-Pattern-based secret scanning covered tracked files and the contents of the required baseline tar. No matches were found; this is not a guarantee against every possible secret format. CHECKSUMS.sha256 covers all other packaged files.
-
-For current architecture and limitations read docs/lighttable/PROGRESS.md and DEPLOYMENT.md. iPhone hardware acceptance remains pending.
+Прошлая история (v8, 105 сверенных файлов, исходные checksums, разрешение GitHub, старый main) сохранена в [архиве TRANSFER](docs/history/TRANSFER-pre-baseline.md). Исходный запрет GitHub отменён; M7/Classic migration отменены. Реальное устройство владельца: iPhone 16 Pro, iOS была сообщена как «27.01»; точный номер и аппаратная приёмка не подтверждены автоматически.

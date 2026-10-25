@@ -1,180 +1,102 @@
-# Приёмка Multik Lighttable v2
+# Multik — приёмка рабочей базы и изменений
 
-## Актуальное дополнение 20.10.2026
+Актуально для `baseline-2026-10-25` / runtime `c771eb8`. Старые критерии с Pro,
+Done/Cancel и viewport pinch — в [архиве](../history/lighttable-ACCEPTANCE-pre-baseline.md),
+они не отменяют нынешнее поведение. «PASS» означает конкретный выполненный тест,
+а не отсутствие всех возможных ошибок. Результат этого аудита — [BASELINE.md](BASELINE.md).
 
-Этот раздел заменяет прежние D11/D12, G2/G5 и пункты плана о viewport zoom/always-drag. Default browse: горизонтальный свайп переключает обе плёнки на один слот; move включается миниатюрой слоя, повторным tap или ↔ возвращается browse. Pinch всегда масштабирует выбранный слой (.5–4), viewport неизменен. Одна навигация сохраняет dirty metadata; lift/переключение browse–move не сохраняют. Pro и экспорт сохраняют принятые раньше save boundaries. Подробности нового профиля 2, сохранности данных и ограничения отката — PROGRESS.md.
+## Обязательные инварианты
 
-Приёмка: `npm run test:lighttable:gestures` — native touch browse/move/pinch, zero writes on lift, swipe commit/reload, retry при storage failure, safe library navigation и GPU black/mid/white probes. `test:lighttable:export` проверяет масштабированный слой (1.7×) в tiled/monolithic JPEG. `test:lighttable:workspace` также проверяет возврат к conflict-copy revision 0 без сброса правок. Hardware acceptance на iPhone остаётся открытым.
+| ID | Проверяемое поведение | Основная проверка |
+|---|---|---|
+| A01 | TypeScript/сборка проходят, Classic сохранён byte-for-byte | `npm test`, `npm run build` |
+| A02 | Portrait только View; landscape явные View/Move; не двигается canvas при смене инструмента | orientation |
+| A03 | Move drag/pinch меняют только выбранный слой; View и Levels не масштабируют | orientation, levels-landscape, unit |
+| A04 | Levels — независимый CIELAB L*, neutral identity, midpoint и цвет проверены | levels, levels-landscape, unit |
+| A05 | Значения Levels сохраняются при смене инструмента/слоя, навигации и reload | levels-landscape |
+| A06 | Движение и отрыв пальца: ноль IDB writes/readPixels/JPEG; запись только на save boundary | levels-landscape; model; favorites |
+| A07 | Ошибка commit не теряет RAM-черновик, повтор сохраняет | orientation, favorites |
+| A08 | Library swipes только variants, Mixes swipes только pairs; draft/reload/empty/singleton/unlike не меняют смысл | viewer, navigation unit |
+| A09 | Тап скрывает/возвращает controls без изменения геометрии; свайп/pinch/longpress/edit tap этого не делают | viewer, gesture unit |
+| A10 | Variant immutable; изменённое состояние создаёт новое; unlike + Undo восстанавливают точный snapshot | favorites, unit |
+| A11 | Импорт 6/12/24/36, default12, overflow, true progress, retry/cancel без потери оригиналов | import |
+| A12 | Rotate90 доступен в editor и portrait, не разрушает другие правки | orientation, unit |
+| A13 | JPEG из оригиналов до4000px; snapshot isolation; tiled/monolithic согласованы; Share retry/cancel | export, levels GPU |
+| A14 | PWA update/offline не очищает библиотеку и не меняет scope/host | build + аппаратная приёмка; см. долг PWA suite ниже |
+| A15 | Никакого удаления оригиналов/сброса базы ради обновления; Like не копирует исходные blobs | favorites, data unit, review |
 
+## Команды и окружение
 
-> Scope 19.10.2026: старые плёнки/проявки не нужны владельцу. Проверки legacy rendering/adoption ниже сохраняются как история; они не блокируют новую версию. E3 проверяет clean-profile halo, без legacy grain. Сохранность старого checkout/DB по-прежнему обязательна.
+Node 22; `npm ci --include=dev`. Chromium нужен для browser suites отдельно:
+текущие скрипты вызывают **`/usr/bin/chromium`**, Playwright — из devDependencies.
+Не обещать универсальный `CHROMIUM_PATH`: не каждый скрипт его поддерживает.
+SwiftShader используется для автоматизации GPU, не для измерения скорости телефона.
+Запускать из корня репозитория. Некоторые сценарии создают локальный HTTP-server;
+в ограниченной среде ему требуется разрешение на сеть/listen.
 
-
-Это матрица приёмки, не утверждение, что каждый пункт уже пройден.
-Фактические результаты M0–M4 — PROGRESS.md/VALIDATION.md. Baseline evidence — BASELINE.json.
-
-## Как запускать проверки
-
-Действующие команды baseline:
-```
+```sh
 npm test
 npm run build
-npm run test:browser
-npm run test:pwa
+npm run test:lighttable:orientation
+npm run test:lighttable:viewer
+npm run test:lighttable:levels-landscape
+npm run test:lighttable:favorites
+npm run test:lighttable:import
+npm run test:lighttable:levels
+npm run test:lighttable:export
 ```
 
-Для v2 по мере появления модулей добавить отдельные suites/scripts, например `test:lighttable`, `test:lighttable:browser`, `test:lighttable:pwa`. Актуальные команды см. package.json. test:lighttable:pwa ещё не реализован; не вписывать его в отчёт как выполненный.
-Использовать отдельный браузерный профиль и синтетические изображения. Не запускать destructively tests на origin с фотографиями владельца.
-В managed среде следовать актуальным правилам preview/browser tools; если тест недоступен, указать NOT RUN и причину. Не устанавливать/запускать обходной браузер вопреки ограничениям среды.
-Не оценивать iPhone fps по Chromium SwiftShader. Не считать эмуляцию размера экрана Safari-проверкой.
+Каждый сценарий использует тестовый браузерный контекст и fixtures, не библиотеку
+владельца. Не запускать разрушительные fixtures в пользовательском профиле Safari.
+Для algorithm changes дополнительно проверить нужные Looks через
+`LIGHTTABLE_TEST_PROFILE=3` / `4` / `5` у export suite; baseline fresh run не означает
+свежий экспортный прогон всех четырёх профилей.
 
-## Fixtures
+## Что запускать после изменения
 
-F1. Две coordinate-grid картинки: A красная сетка с обозначенными углами, B синяя с центром и диагональю. Различимые асимметричные стороны.
-F2. Чёрное поле и один белый диск; второй диск у края. Изолированная проверка halo и padding.
-F3. Два средне-серых объекта: отдельно ниже порога halo, вместе ярче. Не должно возникать ложного per-source ореола.
-F4. Градиенты серого/цвета, насыщенные красные/зелёные участки, почти белые детали. Тональная кривая, clipping, цвет.
-F5. Плёнки с 6/12/24/36 синтетическими source ids, разными соотношениями сторон и поворотами.
-F6. Повреждённый JPEG, неподдержанный файл, фото с EXIF orientation; на устройстве — разрешённый пользователем HEIC/HDR пример.
-F7. Slow/reordered decode, failed texture load, injected storage failure, context loss, old/new schema records.
+| Изменение | Достаточный начальный набор |
+|---|---|
+| Только документы | Проверка ссылок/статуса, отсутствие runtime diff; не повторять GPU/export без причины |
+| CSS, кнопки, навигация | build, unit, orientation, viewer; favorites/import если их экраны затронуты |
+| Жесты / Levels | unit, orientation, levels-landscape; GPU levels при изменении математики |
+| Хранение / Library | unit, favorites, viewer, levels-landscape; failure/reload/immutable-variant cases обязательны |
+| Рендер / экспорт | unit, GPU levels, export затронутых profiles, viewport/layout smoke, тест на iPhone |
+| Service worker / хостинг | build, scope/cache/offline/update сценарии и реальный Safari; сначала актуализировать исторический PWA harness |
 
-## A. Геометрия и композиция
+## Исторические сценарии: не выдавать за актуальную проверку
 
-| ID | Действие | Проверяемый результат |
-|---|---|---|
-| A1 | Перенос A по x/y/диагонали | B не меняется; указанный экранный delta совпадает с видимым переносом |
-| A2 | То же для B | A не меняется; source id выбранного слоя прежний |
-| A3 | Повторить для frame turns 0/1/2/3 | Направление следует пальцу; нет перепутанных знаков осей |
-| A4 | Повторить при viewport 1×/2×/4× и pan | Нет умножения displacement дважды; export не содержит zoom/pan |
-| A5 | 100 циклов transform → inverse | Углы/центр восстанавливаются с допустимой float погрешностью без накопления |
-| A6 | 4 поворота кадра и телефона | Метаданные кадра возвращаются; исходные blobs byte-identical; поворот телефона frame.turns не меняет |
-| A7 | Изменить выходной кадр i старой проявки | Записи остальных кадров/рецепт/исходные blobs неизменны; свойство проверяется до/после |
-| A8 | Пара A1+B2, затем A3+B2, затем назад | Первая пара возвращает свои значения; вторая получила собственную идентичность/исходные значения |
-| A9 | Увести слои к краям | Нет edge stretching и скрытого auto-crop; покрытие и пустые области соответствуют документированному профилю |
+В package.json сохранены старые workspace/pro/editor/gestures/adaptive/controls/
+onehand/browser scripts. Часть ожидает удалённые кнопки и portrait editing; их
+нужно читать перед использованием, а не возвращать UI ради зелёного теста.
+`test:browser` / `test:pwa` относятся к Classic. `test:lighttable:pwa` проверял
+production worker в прошлых релизах, но сейчас его `drag()` не выбирает Move перед
+pinch, а современный landscape начинает с View. Полный свежий PASS этого harness
+для данной базы **не заявляется**. Требуется отдельная корректировка теста и запуск,
+не молчаливое ослабление проверок. Это долг тестовой автоматизации, не доказанный
+дефект PWA. Журнал прежних запусков сохранён в PROGRESS/VALIDATION.
 
-## G. Жесты
+## Открытая регрессия для следующего исправления
 
-| ID | Сценарий | Ожидание |
-|---|---|---|
-| G1 | Drag → lift → drag → lift | Накопленные позиции сохраняются в RAM; ноль commit writes и JPEG encode |
-| G2 | 1 pointer перемещает слой, появился второй | Откат только текущего незавершённого жеста; предыдущие законченные жесты остаются; затем viewport gesture |
-| G3 | После pinch остался один палец | Не начинается неожиданное редактирование до следующего полноценного gesture start |
-| G4 | pointercancel/lostpointercapture | Предыдущий draft сохранён; active gesture отменён, controls не зависают в disabled |
-| G5 | Быстрый и медленный drag внутри фото | Оба перемещают слой; ни один не меняет кадр |
-| G6 | Навигация по result rail | Предыдущий dirty snapshot committed один раз, затем новый кадр; no-op frame без записи |
-| G7 | Orientation/resize в середине drag | Отмена только текущего жеста; корректный новый fit, без скачка или двойного поворота |
-| G8 | 100 чередований gesture/layer/menu/rail | Один gesture owner, нет утечки listeners/RAF/контекстов и ложных свайпов |
+R01/P2 из [BASELINE_CODE_REVIEW](BASELINE_CODE_REVIEW.md): сохраняемый Library draft
+после ухода не имеет UI-входа. Будущий fix должен добавить проверку: изменить
+variant → уйти → найти/возобновить draft → reload → значения сохранены, исходный
+variant неизменён. Это не пройденный инвариант нынешней базы и не повод очищать IDB.
 
-## D. Сохранение, данные и откат
+## Проверка на iPhone
 
-| ID | Сценарий | Ожидание |
-|---|---|---|
-| D1 | Инструментировать repository commits/IDB writes | pointerup не пишет composition; один переход пишет ровно одну новую revision |
-| D2 | Commit прошёл, сразу reload | Источники и параметры восстановлены; отсутствие готового JPEG не теряет результат |
-| D3 | Quota/abort при commit | Остаёмся на старом кадре; draft/undo доступны; повтор успешно сохраняет тот же итог |
-| D4 | 10 быстрых переходов при задержке commit | Нет параллельного commit одного snapshot; целевой кадр следует выбранной политике блокировки |
-| D5 | Background thumbnail r1 завершился после r2 | Thumbnail r1 не заменяет r2; source parameters не меняются от background tasks |
-| D6 | Две вкладки редактируют revision N | Второй stale commit не затирает первый; draft второй вкладки остаётся для разрешения конфликта |
-| D7 | Adoption двух старых плёнок прерван/повторён | Нет готовой неполной плёнки, duplicate sources или удаления оригинала; операция возобновляется/отменяется безопасно |
-| D8 | Работать в v2, вернуться в v1 | multik-app всё ещё version 1, записи/фото прежние; v1 открывается без VersionError |
-| D9 | Удалить legacy roll после adoption, затем открыть v2 | Принятые v2 assets самостоятельны; v2 композиция не потеряла источники |
+Сделать на iPhone 16 Pro в Safari и установленной PWA; зафиксировать точный номер
+iOS, дату и адрес. Ранее владелец сообщил «27.01», не нормализовать его догадкой.
 
-Дополнительно: snapshot чистой v1 DB до/после полного сценария v2. Никаких objectStore put/delete/clear или upgrade из legacy-reader. В тесте ловить попытки записи, а не только сравнивать видимую галерею.
+1. Update на главной; имеющиеся фото и Library остаются. Открыть в portrait и landscape, проверить safe areas и доступность крайних кнопок.
+2. В Mixes свайпнуть пары; в Library открыть variant и свайпнуть только сохранённые работы. Повторить после Levels-edit, View и перезапуска.
+3. Включить Levels, поработать всеми тремя точками на фото и шкале, выбрать второй слой. Фото не скачет, инструмент остаётся, values независимы.
+4. Move drag/pinch, View lock, Rotate90; проверить кадры portrait и landscape. Переключение инструментов не смещает canvas.
+5. Короткий tap скрывает/возвращает controls. Swipe в чистом просмотре работает; drag/pinch/редакторский tap не скрывает случайно.
+6. Сохранить вариант сердцем, изменить, сохранить второй; старый неизменен. Снять лайк в Library, Undo, открыть восстановленный. Повторить в workspace.
+7. Импорт12, лишние кадры, отмена и retry. Прогресс понятен, имена редактируются. Системное меню iOS допустимо.
+8. Save to Photos → системный Save Image, при необходимости второй tap тем же значком. Сравнить JPEG с предпросмотром: ориентация, границы, Levels, Halo; проверить итоговый размер.
+9. После успешного сохранения закрыть/открыть PWA; offline, возврат из background, повторный вход приватного сайта, update. Не очищать данные. Проверить несколько минут жестов, нагрев, память на реальных фото.
 
-Не обещать восстановление RAM draft после принудительного убийства Safari до commit. Зафиксировать ожидаемую потерю только незавершённой правки, не исходников/предыдущих сохранений.
-
-## I. Импорт
-
-- I1: 0→N фото: счётчик всегда актуален, Save только при правильном количестве и валидных источниках.
-- I2: N/N: plus и input выключены; искусственное событие change тоже не обходит инвариант.
-- I3: Из системного picker пришло N+3: виден отбор, ничего молча не выброшено, commit заблокирован до исправления.
-- I4: Уже 9/12, добавлено 5: прежние 9 не теряются, выбор трёх из новых пяти очевиден.
-- I5: Удалили один из 12: добавление снова работает; увеличение/уменьшение длины согласованно меняет вместимость.
-- I6: Один источник сломан: остальные сохраняются, исправление и retry возможны без начала заново.
-- I7: Большой пакет/отмена: ограничены decode jobs и RAM; object URLs/bitmaps освобождены, staging записи очищаются только по ownership.
-
-## R. GPU и точность
-
-- R1: Во время прогретого drag перехватить readPixels, toBlob/toDataURL, ImageData, texture upload, shader compile и repo commit. Readback/encode/compile/DB должны быть 0; upload при чистом переносе уже готовой пары — 0.
-- R2: 100 input updates перед одним rAF: в GPU отправляется последнее состояние, очередь из 100 рендеров не растёт.
-- R3: Async decode A/B завершается в неправильном порядке: экран показывает только последнюю выбранную полную пару; старые ресурсы освобождены.
-- R4: Halo F2 следует источнику при переносе/повороте, не обрезан у краёв, не выбирает соседний объект после drag.
-- R5: Halo strength=0 выключает ореол полностью; F3 не создаёт красный ореол от суммы двух средних светов; seed стабилен при zoom/drag/resize.
-- R6: В одном браузере reference/optimized pipeline при одном разрешении совпадают в заранее указанной численной погрешности; тест отдельно охватывает halo padding/перекрытия. Не устанавливать огромный tolerance после провала.
-- R7: Увеличение preview tier не меняет положения и seed; допустимые отличия только от sampling/resolution, не от другого look.
-- R8: Legacy adapter с соседними кадрами и существующими edits воспроизводит текущий renderer при равных условиях. Простое открытие legacy JPEG не пересчитывает его.
-- R9: Источник с anchored wand glow и отдельный legacy frame-anchored glow: обе документированные семантики сохраняются; никакой автоматической неверной перепривязки.
-
-## U. Компоновка и минимализм
-
-- U1: Portrait result rail снизу, landscape result rail слева; поворот не изменяет selected frame/pair.
-- U2: Свернули rail handle → доступен язычок; раскрыли → прежний scroll/selection. Работает одной рукой и с VoiceOver.
-- U3: Manual landscape: A слева, B справа; вертикальная прокрутка не выбирает новые источники.
-- U4: Tap на выбранный thumbnail переключает active layer без пересброса offset.
-- U5: Поворот телефона при открытом Pro/скрытых rails: состояние корректно восстанавливается, параметр не меняется.
-- U6: Меню/любимое/настройка внешнего вида не теряют RAM draft и не создают full JPEG.
-- U7: 375×667, 390×844, 430×932 и обратные landscape размеры: controls достижимы, нет наложения на safe-area. Это desktop emulation, не hardware доказательство.
-- U8: Reduced motion/transparency: приложение работает без blur/анимаций, не теряет контраст и информацию.
-- U9: Обычный экран без постоянных названий/чисел параметров; ошибки/статусы импорта читаемы; hit targets ≥44 CSS px.
-- U10: Main library empty/full/2 selected + import ready/overflow/error визуально просмотрены; фото не является чёрным placeholder после смены ориентации.
-
-## P. Профессиональные инструменты
-
-- P1: Явный выбор parameter переводит движение фото в parameterDrag; слой не движется.
-- P2: Закрыли Pro/нажали layer: вернулся layerDrag без скрытого сохранённого parameter mode.
-- P3: Второе движение продолжает текущее значение, нет скачка к координате первого пальца.
-- P4: В one-axis X игнорируется. XY включается явно, X/Y меняют только назначенные значения.
-- P5: Clamp до min/max без NaN/overflow; обратное движение из края отзывчиво после нового касания.
-- P6: Undo одной gesture-сессии восстанавливает оба значения XY; pinch не оставляет изменения эффекта.
-- P7: Все действия доступны через keyboard/VoiceOver, без необходимости читать несуществующий tooltip на touch.
-
-## E. Экспорт и память
-
-- E1: Full export и preview одной revision совпадают по геометрии, blend, halo, seed и orientation; CSS chrome/viewport не попали в картинку.
-- E2: Экспорт запущен для r3, пользователь позже сделал r4: результат относится к r3 и не маркируется r4.
-- E3: Монолитный и tiled render маленького эталона совпадают без швов, включая halo на границе плиток и grain legacy профиля.
-- E4: 2000×1500, затем около 4000×3000 на устройстве: измеренные время/пик budget, успешный JPEG, нет context crash. Если размер не поддерживается, явный статус вместо тихого меньшего файла.
-- E5: Отмена export освобождает его ресурсы; draft/undo/выбранная пара остаются доступны.
-- E6: Safari user activation истекла: готовый файл не теряется, доступен новый явный Share tap; реальный Save to Photos проверен владельцем.
-- E7: 20 экспортов + 100 смен пары + 10 background/resume: число контекстов и оценка живых allocations возвращаются к bounded plateau. Отсутствие точного iOS memory API не заменять выдуманными MB.
-
-## W. PWA/dual version
-
-- W1: После assembly все baseline root файлы совпадают с production.tar.gz; v2 assets только в своём каталоге, root SW не включает их в precache.
-- W2: Первая навигация /→/lighttable под активным старым worker, затем reload/standalone: правильные entry/assets/scope.
-- W3: Офлайн после полноценной установки: оба приложения открываются, source data доступна согласно своей БД; offline cache не обещается до успешной установки.
-- W4: Redirect /index.html→/ и /lighttable/index.html→/lighttable/: Safari-safe ответы, отсутствие redirected response из SW cache.
-- W5: Истёкшая авторизация/HTML login вместо JS: логин не попадает в cache, приложение восстанавливается после входа.
-- W6: Recovery root/v2 не удаляет чужой cache/registration и ни одну IndexedDB; протестировать реальные селекторы регистраций.
-- W7: Update available во время draft/import/export не вызывает автоматический reload; после безопасной границы обновление доступно.
-- W8: Classic возврат после работы v2; полный hosting rollback отдельно, с честной проверкой поведения установленной /lighttable PWA. Новые данные не удалены.
-
-## PERFORMANCE: протокол настоящего iPhone
-
-Перед M2 попросить у владельца модель iPhone и версию iOS; не блокировать независимую подготовку ожиданием этих сведений. Зафиксировать Safari и установленную PWA отдельно, режим энергосбережения, приблизительный нагрев, разрешение исходников и preview tier.
-
-1. Прогреть два источника, не включать загрузку файлов в замер drag.
-2. 30 секунд медленных диагоналей, затем 30 секунд быстрых возвратов/петель.
-3. Повторить для обоих слоёв, портрет/landscape, halo on/off, zoom 1×/2×.
-4. Переключить 20 пар, замерить cold-load отдельно от warm interaction.
-5. Pro яркость и radius halo по 30 секунд; запись rAF/CPU/GPU при поддержке.
-6. Пять минут обычного пользования, повтор измерения после нагрева.
-7. Уйти в фон, заблокировать/разблокировать, вернуться; проверить draft, texture recovery, отсутствие двойной регистрации gestures.
-8. Экспорт стандартного и большого кадра; проверить в Фото целиком и у края halo.
-
-Цели (подлежат проверке, не гарантии):
-- основной профиль на согласованном устройстве около 60 fps; p95 frame interval ≤20 ms на 60 Hz;
-- CPU обработка input + подготовка draw p95 <4 ms после прогрева;
-- оценка input→present p95 <50 ms; оговорить метод измерения;
-- 0 steady-state long tasks >50 ms от нашего drag-кода, 0 JPEG/IDB/readback на move/up;
-- memory bounded, 0 context losses/crashes за нормальный тестовый сеанс;
-- если 60 fps недостижимы: уменьшить preview tier/эффекты по измерениям, повторить; отдельный fallback 30 fps с p95 ≤36 ms описать как fallback, не PASS 60 fps.
-
-Результаты хранить: device/iOS/build SHA, dataset, tier, p50/p95, dropped frames, allocations estimate, counters, caveats. Нет устройства — статус HARDWARE NOT VERIFIED; не подменять screen emulation.
-
-## Условия выпуска пилота
-
-- M0–M9 имеют фактические статусы, критические data/gesture/Safari regressions закрыты.
-- Минимум базовое M2 тестирование на реальном iPhone либо пилот честно обозначен как не прошедший hardware performance acceptance; owner должен понимать ограничение.
-- Никаких claims «12 MP verified» без E4, «Safari fixed» без соответствующей проверки, «rollback restores photos» без реального backup данных.
-- Терминальный successful Sites deployment с точным commit/artifact, root Classic сохранён, v2 URL и rollback путь известны.
+Записать PASS/FAIL/NOT TESTED по пунктам и шаги воспроизведения. При ошибке указать
+режим, ориентацию, откуда открыто фото, последнюю кнопку и версию приложения;
+не просить удалять библиотеку как первый способ диагностики.

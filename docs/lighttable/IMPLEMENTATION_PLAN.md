@@ -1,3 +1,5 @@
+> **Архивный план M0–M10.** Не список будущих задач к реализации. Текущие обязательные правила: [PRODUCT_SPEC](PRODUCT_SPEC.md), [UI_CONTRACT](UI_CONTRACT.md), [BASELINE](BASELINE.md). Новые задачи формулируются от действующего main; старые запреты GitHub/Pro/viewport/Classic migration не возвращать.
+
 # Multik Lighttable v2 — план реализации
 
 > 20.10.2026, перенос базы разработки: владелец отменил запрет на GitHub. Рабочая база — v8 в `alxktnk-web/Multik`, ветка `main`; хостинг остаётся Sites. Старые запреты ниже исторические. Актуальное решение и порядок отката — DECISIONS.md и DEPLOYMENT.md.
