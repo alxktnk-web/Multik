@@ -1,3 +1,7 @@
+# 26.10.2026 — уточнение рабочей среды проекта
+
+По поручению владельца после ревизии уточнены границы обсуждения, реализации, интеграции и публикации в AGENTS; старые ALGORITHM_HANDOFF/UI_REQUESTS обозначены историческими; цель 44px в ARCHITECTURE согласована с известным K06. Уточнены передача задач агентам и актуальность брифа. Только документация: runtime, данные, Sites и baseline tag не менялись. Проверка: сравнение исходного и итогового текста и чтение сохранённых файлов; runtime-тесты для этой правки не требуются.
+
 ## 2026-10-25 — documentation baseline and independent review
 
 - Runtime remains c771eb8 (live publication recorded at46b5ccb); no application, test, workflow, build or storage changes in this baseline task.
