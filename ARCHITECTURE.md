@@ -203,7 +203,7 @@ Deployment hashes/procedures belong in DEPLOYMENT.md, outside runtime code.
 
 Start design changes in CSS, icons and UI DOM/control layout. Preserve the
 canvas/stage rectangle across tool/rail/chrome changes, whole-frame fitting,
-44px touch targets, long direct-control tracks, orientation and selection rules.
+a 44px touch-target goal (the compact landscape column currently has the documented K06 exception), long direct-control tracks, orientation and selection rules.
 Library View hides strips; Library edit shows only its two fixed-source selectors;
 Mixes retains full source strips.
 
