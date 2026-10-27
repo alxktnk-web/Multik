@@ -1,6 +1,6 @@
 # Multik implementation handoff — 27 October 2026
 
-Plan: MULTIK_IMPLEMENTATION_PLAN_2026-10-27.md v1.0, supplied outside the repository. Base: `2bd50ac5933e430fe2e370c6800d7749d8edb390`, confirmed origin/main. Branch: `feat/rolls-random-mixes`. Runtime implementation and tests through `5897295`; documentation/review harness may follow in a later commit. Main and the live Site were not changed or published.
+Plan: [MULTIK_IMPLEMENTATION_PLAN_2026-10-27.md v1.0](https://chatgpt.com/library?file_id=libfile_1f863478ce688191b63d6722364d2d7f&account_id=personal). Base: `2bd50ac5933e430fe2e370c6800d7749d8edb390`, confirmed origin/main. Branch: `feat/rolls-random-mixes`. Local runtime implementation and tests through `5897295`; the equivalent remote squash is `ef88cbd6fc4d0f81752fcc7b50df2bb5071beff4`. Draft PR: https://github.com/alxktnk-web/Multik/pull/3. Subsequent documentation-only commits do not change runtime. Main and the live Site were not changed or published.
 
 ## Completed and evidence
 
@@ -17,4 +17,4 @@ M01–M03, M06 algorithm/isolation: covered by unit tests; M04 and S01/S03 have 
 
 ## Next step and rollback
 
-Review on a real iPhone with existing data: import one roll, select two, create and edit, navigate away/resume, reload and check Library draft; then test PWA update/offline separately. Do not publish until separately authorized. Previous JavaScript does not understand recipe slots; rollback of code does not roll back IndexedDB and may make new projects behave incorrectly. Close/update older tabs, retain all data, and prefer a compatible forward fix; safe rollback is not established. All worktrees are local: `../Multik-data` and `../Multik-ui`; agents are finished. Preview: `npm ci --include=dev`, then `sites-preview start <checkout>` and open returned origin `/review/phone.html`; `/review/` runs actual collection components but intentionally cannot open WebGL editor.
+Review on a real iPhone with existing data: import one roll, select two, create and edit, navigate away/resume, reload and check Library draft; then test PWA update/offline separately. Do not publish until separately authorized. Previous JavaScript does not understand recipe slots; rollback of code does not roll back IndexedDB and may make new projects behave incorrectly. Close/update older tabs, retain all data, and prefer a compatible forward fix; safe rollback is not established. All worktrees are local: `../Multik-data` and `../Multik-ui`; agents are finished. Preview: `npm ci --include=dev`, then `npm run dev` and open the displayed local origin at `/review/phone.html`; `/review/` runs actual collection components but intentionally cannot open WebGL editor.
