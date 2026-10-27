@@ -1,4 +1,5 @@
-import { assertComposition, compositionStateKey, ConflictError, pairId, validateRoll, type Favorite, type Asset, type ImportJob, type Project, type Roll } from './types';
+import { createRecipe } from './recipe';
+import { assertComposition, compositionStateKey, ConflictError, pairId, validateRoll, type Favorite, type Asset, type ImportJob, type Project, type Roll, type MixRecipe } from './types';
 import { copyComposition, type Composition } from '../model/types';
 const stores=['assets','rolls','jobs','projects','compositions','prefs'] as const;
 type Store=typeof stores[number];
@@ -60,7 +61,7 @@ export class Repository {
     // Keeping kind=favorite without a new membership would hide the copy.
     const {kind: _kind,favoriteSourceId: _source,...base}=project;
     const p:Project={...base,id:crypto.randomUUID(),updatedAt:new Date().toISOString(),...(working?{kind:'draft',favoriteSourceId:project.favoriteSourceId}:{})};
-    const c=copyComposition(snapshot);c.id=JSON.stringify(['pair',p.id,p.rollA,c.layers[0].placements[0].source.assetId,1,p.rollB,c.layers[1].placements[0].source.assetId,1]);c.revision=working?1:0;
+    const c=copyComposition(snapshot);c.id=pairId(p,c.layers[0].placements[0].source.assetId,c.layers[1].placements[0].source.assetId);c.revision=working?1:0;
     assertComposition(c);
     await this.write(['projects','compositions','prefs'],tx=>{tx.objectStore('projects').add(p);tx.objectStore('compositions').add(c);tx.objectStore('prefs').put({id:'last-project',value:p.id});});return {composition:c,project:p};
   }
@@ -153,10 +154,11 @@ export class Repository {
     });
   }
   async listProjects(){return (await this.all<Project>('projects')).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));}
-  async project(id:string){const p=await this.read<Project>('projects',id);if(!p||typeof p.rollA!=='string'||typeof p.rollB!=='string'||!Number.isInteger(p.a)||!Number.isInteger(p.b)||p.a<0||p.b<0)throw Error('Session unavailable');return p;}
-  async createProject(a:string,b:string){await Promise.all([this.roll(a),this.roll(b)]);const p:Project={id:crypto.randomUUID(),rollA:a,rollB:b,a:0,b:0,updatedAt:new Date().toISOString()};await this.write(['projects'],tx=>{tx.objectStore('projects').add(p);});return p;}
-  async select(project:Project){await this.write(['projects','prefs'],tx=>{tx.objectStore('projects').put({...project,updatedAt:new Date().toISOString()});tx.objectStore('prefs').put({id:'last-project',value:project.id});});}
+  async project(id:string){const p=await this.read<Project>('projects',id);if(!p||typeof p.rollA!=='string'||typeof p.rollB!=='string'||!Number.isInteger(p.a)||!Number.isInteger(p.b)||p.a<0||p.b<0)throw Error('Session unavailable');if(p.recipe&&(p.recipe.version!==1||!Array.isArray(p.recipe.slots)||!p.recipe.slots.length||!Number.isInteger(p.slot)||p.slot!<0||p.slot!>=p.recipe.slots.length||p.recipe.slots.some(s=>!s||typeof s.id!=='string'||typeof s.assetAId!=='string'||typeof s.assetBId!=='string')||new Set(p.recipe.slots.map(s=>s.id)).size!==p.recipe.slots.length))throw Error('Session data is damaged');return p;}
+  async createProject(a:string,b:string){const [ra,rb]=await Promise.all([this.roll(a),this.roll(b)]);await Promise.all([...new Set([...ra.assetIds,...rb.assetIds])].map(id=>this.asset(id)));const recipe=createRecipe(ra,rb);const first=recipe.slots[0];const p:Project={id:crypto.randomUUID(),rollA:a,rollB:b,a:ra.assetIds.indexOf(first.assetAId),b:rb.assetIds.indexOf(first.assetBId),slot:0,recipe,updatedAt:new Date().toISOString()};await this.write(['projects'],tx=>{tx.objectStore('projects').add(p);});return p;}
+  async select(project:Project,expectedRecipe?:MixRecipe){await this.write(['projects','prefs'],(tx,fail)=>{const projects=tx.objectStore('projects');const save=()=>{projects.put({...project,updatedAt:new Date().toISOString()});tx.objectStore('prefs').put({id:'last-project',value:project.id});};if(!project.recipe){save();return;}const q=projects.get(project.id);q.onsuccess=()=>{if(!q.result||JSON.stringify(q.result.recipe)!==JSON.stringify(expectedRecipe??project.recipe)){fail(new ConflictError());return;}save();};});}
   async lastProject(){const id=(await this.read<{id:string;value:string}>('prefs','last-project'))?.value;return id?this.project(id):undefined;}
+  async ensureRollCover<T>(id:string,recipe:T):Promise<T>{let result=recipe;await this.write(['prefs'],tx=>{const prefs=tx.objectStore('prefs'),q=prefs.get(id);q.onsuccess=()=>{if(q.result)result=q.result.value as T;else prefs.add({id,value:recipe});};});return result;}
   async preference(id:string){return (await this.read<{id:string;value:unknown}>('prefs',id))?.value;}
   async setPreference(id:string,value:unknown){await this.write(['prefs'],tx=>{tx.objectStore('prefs').put({id,value});});}
   async close(){(await this.opened)?.close();this.opened=undefined;}

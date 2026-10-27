@@ -5,7 +5,9 @@ export type Capacity=typeof capacities[number];
 export type Asset={id:string;revision:1;blob:Blob;preview:Blob;thumb:Blob;width:number;height:number;owner:string;origin?:string};
 export type Roll={id:string;name:string;capacity:number;assetIds:string[];createdAt:string;origin?:string};
 export type ImportJob={id:string;rollId:string;name:string;capacity:number;assetIds:string[];origin?:string};
-export type Project={id:string;rollA:string;rollB:string;a:number;b:number;updatedAt:string;kind?:'favorite'|'draft';favoriteSourceId?:string};
+export type MixSlot={id:string;assetAId:string;assetBId:string};
+export type MixRecipe={version:1;slots:MixSlot[]};
+export type Project={id:string;rollA:string;rollB:string;a:number;b:number;updatedAt:string;kind?:'favorite'|'draft';favoriteSourceId?:string;recipe?:MixRecipe;slot?:number};
 // Membership can be undone without deleting the immutable snapshot or its shared assets.
 export type Favorite={id:string;projectId:string;compositionId:string;sourceCompositionId:string;createdAt:string;thumb:Blob;stateKey?:string};
 export function compositionStateKey(value:Composition):string {
@@ -37,5 +39,5 @@ export function validateRoll(value:unknown):Roll {
   if(!r||typeof r.id!=='string'||typeof r.name!=='string'||!Number.isInteger(r.capacity)||r.capacity<1||r.capacity>1000||!Array.isArray(r.assetIds)||r.assetIds.length!==r.capacity||new Set(r.assetIds).size!==r.capacity||r.assetIds.some(id=>typeof id!=='string')||typeof r.createdAt!=='string')throw Error('Roll data is damaged');
   return r;
 }
-export const pairId=(project:Project,a:string,b:string)=>JSON.stringify(['pair',project.id,project.rollA,a,1,project.rollB,b,1]);
+export const pairId=(project:Project,a:string,b:string)=>project.recipe?JSON.stringify(['pair',project.id,'slot',project.recipe.slots[project.slot??0]?.id,project.rollA,a,1,project.rollB,b,1]):JSON.stringify(['pair',project.id,project.rollA,a,1,project.rollB,b,1]);
 export function stableSeed(id:string){let hash=2166136261;for(let i=0;i<id.length;i++)hash=Math.imul(hash^id.charCodeAt(i),16777619);return hash>>>0;}

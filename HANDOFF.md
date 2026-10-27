@@ -1,0 +1,20 @@
+# Multik implementation handoff — 27 October 2026
+
+Plan: MULTIK_IMPLEMENTATION_PLAN_2026-10-27.md v1.0, supplied outside the repository. Base: `2bd50ac5933e430fe2e370c6800d7749d8edb390`, confirmed origin/main. Branch: `feat/rolls-random-mixes`. Runtime implementation and tests through `5897295`; documentation/review harness may follow in a later commit. Main and the live Site were not changed or published.
+
+## Completed and evidence
+
+- Stages 0–4: contract in `docs/lighttable/CONTRACT.md`; new projects persist balanced random slots; old projects retain modular navigation and original keys; slots isolate compositions. Rolls, persistent mosaics, selection, separate import, Mixes, Library and resume are implemented. IndexedDB remains version 1; no data reset. A/B agents were actually run as gpt-6.1-terra high/medium in isolated worktrees; C was run independently as gpt-6.1-terra high. C identified resume context and retry failures; corrections through 5897295 were reviewed by C with no additional defects in that targeted diff.
+- Base `npm ci --include=dev` PASS; base `npm test` 109/109 PASS. Base plain build FAILED because tar could not chown uid 1000 in container. `TAR_OPTIONS=--no-same-owner npm run build` PASS: 13 Classic files byte-identical. Node 24.22.1 used; specified Node 22 unavailable.
+- At runtime `5897295`, `npm test` PASS 124/124, `TAR_OPTIONS=--no-same-owner npm run build` PASS, including TypeScript and 13 Classic files. Geometry tests cover 1,000 seeded cases. Regression unit tests cover recipe balance, legacy, editing context failure/retry and layer reload.
+- Cloud Chromium actual DOM on synthetic collection: 402×874 Rolls grid, I/II, two strips, third selection warning and Mix; 430×932 selection and 812×375 landscape inspected; 375×812 Mixes inspected. Corrected inherited 220px-tall Mix button. This is partial visual coverage, not an iPhone test. Safe-area, increased text, long collection, photographic crops and all responsive states NOT TESTED.
+- `/review/data-check.html` with synthetic data and actual repository/IndexedDB, with renderer stub: mix edit and slot resume, Library draft resume, immutable favorite snapshot PASS. This is not the full editor or native import. Review fixture origin is separate; no owner's photo data used.
+- `npm run test:lighttable:orientation`, `viewer`, `favorites`, `import`, `levels-landscape` could not start: `/usr/bin/chromium` absent. NOT TESTED. GPU/export and full PWA harness NOT TESTED. Real iPhone/PWA: NOT TESTED (Photos, gestures, safe area, update/offline, memory and color).
+
+## Acceptance status
+
+M01–M03, M06 algorithm/isolation: covered by unit tests; M04 and S01/S03 have synthetic real-IDB coverage with stub renderer, not full UI. M05 legacy and D01/D02: code paths/unit tests only; real pre-existing browser database and cross-version tabs NOT TESTED. M07/S04 failures: mocked regression tests; real browser quota/failure NOT TESTED. R01/R03 native import and R02 full end-to-end: NOT TESTED; R02 selection part observed in DOM. C01 geometry covered by tests; C02/C03/C04 partial DOM with synthetic images, actual photos/DPR NOT TESTED. S02 partial unit coverage. U01/U02/U03 partial DOM, no full device test. P01 PASS as above; P02 NOT TESTED.
+
+## Next step and rollback
+
+Review on a real iPhone with existing data: import one roll, select two, create and edit, navigate away/resume, reload and check Library draft; then test PWA update/offline separately. Do not publish until separately authorized. Previous JavaScript does not understand recipe slots; rollback of code does not roll back IndexedDB and may make new projects behave incorrectly. Close/update older tabs, retain all data, and prefer a compatible forward fix; safe rollback is not established. All worktrees are local: `../Multik-data` and `../Multik-ui`; agents are finished. Preview: `npm ci --include=dev`, then `sites-preview start <checkout>` and open returned origin `/review/phone.html`; `/review/` runs actual collection components but intentionally cannot open WebGL editor.

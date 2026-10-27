@@ -175,3 +175,7 @@ build, orientation/viewer и связанные favorite/Levels browser suites. 
 спецификации. Реальные iPhone/Safari, точность пальцем, Photos share,
 HEIC/HDR/P3, нагрев, память и аппаратная плавность остаются открытой приёмкой.
 Chromium emulation и SwiftShader не подтверждают эти свойства.
+
+## 27 October 2026 — rolls and experiments (development branch)
+
+Rolls are reusable and imported independently. Mixes are separate experiments: each new mix stores its randomly generated, balanced source-pair slots; navigating or reopening does not regenerate them. Existing projects without recipes retain their original modular navigation. Manual source selection changes the current slot. Self-mixing is explicit. The three home sections are Rolls, Mixes and Library; saved Library variants remain immutable and edited copies are drafts. Continue editing restores the last saved editing context, subject to save boundaries and storage errors.

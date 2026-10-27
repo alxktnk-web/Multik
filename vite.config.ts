@@ -4,6 +4,7 @@ import { offlineApp } from './scripts/pwa.mjs';
 
 export default defineConfig({
   base: './',
+  server: { allowedHosts: ['terminal.local'] },
   plugins: [offlineApp()],
   build: {
     rollupOptions: {
