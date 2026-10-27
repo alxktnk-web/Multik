@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { createServer } from 'vite';
+
+// Draft: syntax checked but not yet run through assertions.
+// Ephemeral browser context only: no existing browser profile or user photographs.
+const vite = await createServer({server:{host:'127.0.0.1',port:5217,strictPort:true},logLevel:'error'});
+let browser;
+try {
+  await vite.listen(); console.log('Server ready');
+  browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || chromium.executablePath(),args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  console.log('Browser ready');
+  const context = await browser.newContext({viewport:{width:402,height:874},deviceScaleFactor:1,hasTouch:true});
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  const errors=[]; page.on('pageerror',e=>errors.push(e.stack || e.message));
+  await page.goto('http://127.0.0.1:5217/lighttable/');
+  await page.waitForFunction(()=>window.__lighttable?.renderer.ready); console.log('Renderer ready');
+  const gpu = await page.evaluate(()=>({version:window.__lighttable.renderer.gl.getParameter(window.__lighttable.renderer.gl.VERSION),renderer:window.__lighttable.renderer.gl.getParameter(window.__lighttable.renderer.gl.RENDERER)}));
+  assert.match(gpu.version,/WebGL/);
+  const images=await page.evaluate(()=>Array.from({length:12},(_,i)=>{const c=document.createElement('canvas');c.width=160;c.height=120;const x=c.getContext('2d');x.fillStyle=`hsl(${i*29},70%,50%)`;x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.fillRect(10+i*3,20,35,40);return c.toDataURL('image/png').split(',')[1];}));
+  await page.click('[data-home-tab="rolls"]');
+  for(let roll=0;roll<2;roll++){ console.log('Import roll',roll+1);
+    const [picker]=await Promise.all([page.waitForEvent('filechooser'),page.click('[data-add-roll]')]);
+    await page.click('[data-capacity="6"]');
+    await picker.setFiles(images.slice(roll*6,roll*6+6).map((png,i)=>({name:`synthetic-${roll}-${i}.png`,mimeType:'image/png',buffer:Buffer.from(png,'base64')})));
+    await page.fill('[data-roll-name]',`Synthetic ${roll+1}`);
+    assert.equal(await page.locator('.candidate').count(),6);
+    await page.click('[data-save-roll]');
+    await page.waitForFunction(()=>!document.querySelector('.roll-import-dialog').open);
+    await page.waitForFunction(n=>document.querySelectorAll('[data-roll]').length===n,roll+1);
+  }
+  console.log('Imports complete');
+  const rolls=await page.evaluate(()=>window.__lighttable.repo.listRolls());
+  assert.equal(rolls.length,2); assert.ok(rolls.every(r=>r.assetIds.length===6));
+  await page.click('[data-home-tab="mixes"]');
+  await page.click('[data-new-mix]');
+  await page.locator('[data-roll]').first().waitFor();
+  await page.click(`[data-roll="${rolls[0].id}"]`);
+  await page.click(`[data-roll="${rolls[1].id}"]`);
+  assert.equal(await page.locator('[data-roll][aria-pressed="true"]').count(),2);
+  await page.click('[data-start-mix]');
+  await page.waitForFunction(()=>window.__lighttable?.navigation.project && !document.querySelector('.library-dialog').open && !window.__lighttable.navigation.busy);
+  const snapshot=()=>page.evaluate(async()=>{const l=window.__lighttable;return {project:structuredClone(l.navigation.project),stored:await l.repo.project(l.navigation.project.id),draft:structuredClone(l.session.draft),dirty:l.session.dirty};});
+  console.log('Mix open');
+  const initial=await snapshot();
+  assert.equal(initial.project.recipe.version,1); assert.equal(initial.project.recipe.slots.length,6);
+  for(const [side,roll] of [['assetAId',rolls[0]],['assetBId',rolls[1]]]) assert.deepEqual([...initial.project.recipe.slots.map(s=>s[side])].sort(),[...roll.assetIds].sort());
+  assert.deepEqual(initial.stored.recipe,initial.project.recipe);
+  await page.setViewportSize({width:874,height:402});
+  await page.click('[data-rail="a"] [aria-pressed="true"]');
+  await page.click('[data-mode="levels"]');
+  await page.locator('[data-level="black"]').focus(); await page.keyboard.press('ArrowUp');
+  console.log('Edited');
+  const edited=await snapshot();
+  assert.ok(edited.draft.layers[0].levels.black>0,'Levels input must change the first layer');
+  assert.equal(edited.dirty,true);
+  await page.click('[data-action="library"]');
+  await page.locator('.library-dialog').waitFor({state:'visible'});
+  await page.locator('[data-resume]').waitFor({state:'visible'});
+  await page.click('[data-resume]');
+  await page.locator('.library-dialog').waitFor({state:'hidden'});
+  console.log('Resumed');
+  const resumed=await snapshot();
+  assert.equal(resumed.project.id,initial.project.id); assert.deepEqual(resumed.project.recipe,initial.project.recipe);
+  assert.equal(resumed.project.slot,initial.project.slot); assert.deepEqual(resumed.draft.layers,edited.draft.layers);
+  await page.reload();
+  await page.waitForFunction(()=>window.__lighttable?.renderer.ready && window.__lighttable.navigation.project && !window.__lighttable.navigation.busy);
+  const reloaded=await snapshot();
+  assert.equal(reloaded.project.id,initial.project.id); assert.deepEqual(reloaded.project.recipe,initial.project.recipe);
+  assert.deepEqual(reloaded.stored.recipe,initial.project.recipe); assert.equal(reloaded.project.slot,initial.project.slot);
+  assert.deepEqual(reloaded.draft.layers,edited.draft.layers); assert.deepEqual(errors,[]);
+  console.log('PASS: two six-photo UI imports, selection, balanced persisted recipe, landscape Levels edit, home/resume and reload');
+  console.log(`GPU: ${JSON.stringify(gpu)}; project ${initial.project.id}; slot ${initial.project.slot}`);
+  await context.close();
+} finally { await browser?.close(); await vite.close(); }
