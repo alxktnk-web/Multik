@@ -22,7 +22,7 @@ try {
   await page.locator('[data-roll]').nth(0).click();await page.locator('[data-roll]').nth(1).click();
   assert.equal(await page.locator('[data-roll][aria-pressed=true]').count(),2);
   assert.equal(await page.locator('.selected-strip').count(),2);
-  const remove=page.getByRole('button',{name:'Remove roll I'});const rect=await remove.boundingBox();assert.ok(rect.width>=44&&rect.height>=44);
+  const remove=page.getByRole('button',{name:'Remove roll I',exact:true});const rect=await remove.boundingBox();assert.ok(rect.width>=44&&rect.height>=44);
   const mix=page.locator('[data-start-mix]');assert.ok(await mix.isEnabled());
   const geometry=await page.evaluate(()=>{const r=e=>{const a=e.getBoundingClientRect();return {top:a.top,bottom:a.bottom,left:a.left,right:a.right};};return {strip:r(document.querySelector('.selected-strips')),mix:r(document.querySelector('[data-start-mix]')),dock:r(document.querySelector('.home-navigation'))};});
   assert.ok(geometry.strip.bottom<=geometry.mix.top+1&&geometry.mix.bottom<=geometry.dock.top+1,JSON.stringify(geometry));
