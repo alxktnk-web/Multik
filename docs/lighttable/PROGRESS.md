@@ -535,3 +535,7 @@ Share/retry/context-loss и границы preview после этой CSS-пр�
 Version 10 размещена. Следующие действия: feedback владельца по Levels I/II, Clear и новым controls в portrait/landscape; сравнение JPEG/Photos и проверка Done/Cancel/Undo, browse/move/pinch на реальном iPhone 16 Pro; Safari/PWA install, native picker, Save Image, offline, wake/auth и hardware gesture timings. Не просить повторного разрешения на уже состоявшуюся публикацию и не публиковать её заново ради документации. M7 отменён; M10 переключение root остаётся отдельным решением.
 
 В новом чате не начинать M0 заново: читать этот файл и фактический Git. В portable package новый код — `implementation/repository.bundle`/`source.zip`; `baseline/` оставлен для отката. После следующего этапа обновить файл и его зеркало в handoff.
+
+## 27 October 2026 — rolls and experiments development
+
+Work based on 2bd50ac in feat/rolls-random-mixes. Added persistent balanced mix recipes with legacy path, isolated slot identity, reusable roll mosaics, selection and resume. At runtime commit 5897295, full unit suite 124/124 and combined build with 13 byte-identical Classic files passed; details and device limitations are in HANDOFF.md. UI review uses an isolated synthetic data origin; it is not a real editor/iPhone test. No publication or main integration.

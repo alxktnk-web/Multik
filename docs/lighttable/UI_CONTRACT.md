@@ -87,3 +87,7 @@ Update появляется на главной только при доступ
 
 Дизайн-предложения в будущем следует сравнивать с этими состояниями, а изменение
 их поведения отмечать в PRODUCT_SPEC/DECISIONS, не маскировать как «только CSS».
+
+## 27 October 2026 — rolls and mix selection (development branch)
+
+Rolls use a two-column grid without visible names; each persisted mosaic selects up to six unique photos, with a count and a separate View photos action. New mix opens selection with I/II markers and source strips; third selection requires deselection, and Use twice is explicit. Add roll remains independent. Mixes, Rolls and Library are separate tabs; Continue editing is hidden while selecting. Portrait remains View only; existing save boundaries apply. Mosaic save errors are reported rather than presented as permanent.

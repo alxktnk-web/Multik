@@ -70,3 +70,9 @@ runtime-багами:
 сохранённого draft, доступное evidence и результат проверки исправления.
 Не переносить исторический PASS на новую версию без соответствующего запуска;
 не объявлять browser PASS аппаратной приёмкой.
+
+## 27 October 2026 — development branch limitations
+
+- Previous runtime does not understand new mix recipes; rollback of code does not roll back IndexedDB and is not established as safe for new projects. Close/update older tabs. Preserve data and use a forward fix if needed.
+- Real iPhone/PWA, Photos, offline/update, gesture/memory and full editor integration are NOT TESTED in this environment. Cloud UI harness uses synthetic photos and deliberately does not open the renderer.
+- Local Chromium browser suites cannot launch when /usr/bin/chromium is absent. Their results must not be called PASS on that basis.

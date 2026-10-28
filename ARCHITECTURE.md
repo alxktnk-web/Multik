@@ -220,3 +220,7 @@ claiming a fresh full PASS; past evidence is in VALIDATION. Several older script
 Pro layouts and are historical, not the current contract. Chromium establishes
 browser behavior, not actual iPhone timing/memory, HEIC/HDR/P3 fidelity or native
 Save-to-Photos success; those device acceptance items remain open.
+
+## 27 October 2026 — development branch additions
+
+New projects store `recipe.version=1`, an ordered list of stable slot IDs and source IDs, and a current slot. The current a/b indices remain synchronized for rails. Composition IDs include project and slot for recipe projects; legacy projects and IDs keep the prior path. A manual source change updates only the current recipe slot. Cover recipes live in prefs, created through an atomic get-or-add; originals are not copied. `last-editing-session` records the saved working context separately from browsing. No IDB version upgrade or database reset is used. Old runtime code does not understand recipes and may corrupt navigation of a new project; rollback of JS alone is therefore not a proven safe data rollback. Close or update old tabs before use; retain data for a forward-compatible repair if needed.

@@ -6,7 +6,7 @@ import { parameters, xyTools, toolParameters } from '../model/parameters';
 import { Gestures, bindGestures } from '../input/gestures';
 import { Renderer } from '../render/renderer';
 import { Repository } from '../data/repository';
-import { compositionStateKey, ConflictError, type Favorite } from '../data/types';
+import { compositionStateKey, ConflictError, type Favorite, type Project } from '../data/types';
 import { Navigation } from '../model/navigation';
 import { Library } from './library';
 import { FavoriteNotice } from './favorite-notice';
@@ -47,7 +47,13 @@ export async function mountWorkspace(root:HTMLElement){
   let noticeTimer=0;
   const report=(message:string)=>{clearTimeout(noticeTimer);status.textContent=message;status.hidden=!message;};
   const reportError=(error:unknown)=>{report(error instanceof Error?error.message:'Could not complete action');copy.hidden=!(error instanceof ConflictError);};
-  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),onStateChange:()=>sync(),onFavoritesChange:refreshFavorites}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
+  const library=new Library(root,repo,navigation,{cover:p=>covers.project(p),resumeCover:async()=>{
+    const context=await repo.preference('last-editing-session') as {project?:Project}|undefined;
+    if(!context?.project)return undefined;
+    const saved=await repo.project(context.project.id),slotId=context.project.recipe?.slots[context.project.slot??0]?.id;
+    if(saved.recipe&&slotId){const slot=saved.recipe.slots.findIndex(s=>s.id===slotId);if(slot<0)return undefined;const rolls=await Promise.all([repo.roll(saved.rollA),repo.roll(saved.rollB)]);const item=saved.recipe.slots[slot];return covers.project({...saved,slot,a:rolls[0].assetIds.indexOf(item.assetAId),b:rolls[1].assetIds.indexOf(item.assetBId)});}
+    return covers.project({...saved,a:context.project.a,b:context.project.b});
+  },onStateChange:()=>sync(),onFavoritesChange:refreshFavorites}),exportDialog=new ExportDialog(root,renderer,repo),editor=new Editor(workspace,session);
   const favoriteNotice=new FavoriteNotice(repo,refreshFavorites,reportError);workspace.append(favoriteNotice.element);
   gestures.onTap=()=>{if(session.interaction==='browse'&&session.tool.kind==='layer'){cleanView=!cleanView;sync();}};
   gestures.onSwipe=direction=>{if(session.interaction==='browse')void navigation.step(direction).catch(reportError);};

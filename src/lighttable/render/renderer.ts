@@ -2,7 +2,8 @@ import { getLevels } from '../model/levels';
 import { balanceGains } from '../../core/recipe';
 import { Rng } from '../../core/rng';
 import { filmToScreen, glMatrix, inverse, sourceToFilm } from '../model/transforms';
-import { copyComposition, createComposition, type Composition } from '../model/types';
+import { copyComposition, createComposition, type Composition, type SourceRef } from '../model/types';
+import { stripFrame, stripSourceToFilm, visibleStripOffsets, type FilmStripScene } from '../model/film-strip';
 import type { Session } from '../model/session';
 import { decodeSource, type SourceInput, type Decoded } from './assets';
 import { Resources, makeMetrics, sample, type Texture, type Program } from './resources';
@@ -18,13 +19,18 @@ export class Renderer {
   haloBuilds=0;
   readonly scheduler:Scheduler;
   private resources:Resources;
-  private programs!:{present:Program;extract:Program;blur:Program};
+  private programs!:{present:Program;extract:Program;blur:Program;stripAccumulate?:Program;stripFinish?:Program};
+  private sourceResolver?:(source:SourceRef,full:boolean)=>Promise<SourceInput>;
+  private stripPending?:Promise<void>;
+  private stripToken=0;
+  private stripRenderedToken=-1;
+  private stripError?:Error;
   private framebuffer!:WebGLFramebuffer;
   private pair?:[PreparedSource,PreparedSource];
   private inputs?:[SourceInput,SourceInput];
   private cache=new Map<string,PreparedSource>();
   private pendingPins=new Map<PreparedSource,number>();
-  private readonly cacheBudget=24*1024*1024;
+  private readonly cacheBudget=48*1024*1024;
   private generation=0;
   private selection=0;
   private destroyed=false;
@@ -74,7 +80,8 @@ export class Renderer {
     excludes:'Browser decoder/original decode, compositor buffers and driver overhead; not process RSS',
   };}
   setQuality(tier:Quality){this.tier=tier;this.invalidate();}
-  invalidate(){if(!this.lastInput)this.lastInput=performance.now();this.scheduler.invalidate();}
+  setSourceResolver(resolver:(source:SourceRef,full:boolean)=>Promise<SourceInput>){this.sourceResolver=resolver;}
+  invalidate(){this.stripToken++;if(!this.lastInput)this.lastInput=performance.now();this.scheduler.invalidate();}
   private bind(program:Program,name:string,t:Texture,unit:number){
     const gl=this.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t.texture);gl.uniform1i(program.uniform(name),unit);
   }
@@ -160,6 +167,14 @@ export class Renderer {
     const ratio=Math.min(window.devicePixelRatio||1,1.5,this.tier/Math.max(v.width,v.height));
     const w=Math.max(1,Math.round(v.width*ratio)),h=Math.max(1,Math.round(v.height*ratio));
     if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
+    if(c.filmStrip){
+      if(!this.stripPending){
+        this.stripError=undefined;const token=this.stripToken, generation=this.generation, selection=this.selection, snapshot=copyComposition(c) as FilmStripScene, view=structuredClone(v);
+        const check=()=>{if(this.destroyed||this.exporting||this.gl.isContextLost()||generation!==this.generation||selection!==this.selection)throw new DOMException('Superseded','AbortError');};
+        this.stripPending=this.renderStrip(snapshot,inverse(filmToScreen(snapshot.frame,view)),view.width,view.height,w,h,0,0,false,undefined,check).then(()=>{this.stripRenderedToken=token;}).catch(e=>{if(!(e instanceof DOMException&&e.name==='AbortError')){this.stripError=e instanceof Error?e:Error('Could not render film strip');this.onStatus(this.stripError.message);}}).finally(()=>{this.stripPending=undefined;if(token!==this.stripToken&&!this.exporting&&!this.destroyed)this.scheduler.invalidate();});
+      }
+      return;
+    }
     // Latest values only: all pointer events before this rAF coalesce here.
     if(c.profile.version!==5)this.pair!.forEach((source,i)=>this.updateHalo(source,c,i));
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);gl.disable(gl.BLEND);
@@ -190,11 +205,70 @@ export class Renderer {
     const rng=new Rng(c.seed);gl.uniform2f(p.uniform('uHaloVariation'),rng.range(.85,1.15),rng.range(.85,1.15));
     gl.drawArrays(gl.TRIANGLES,0,3);
   }
+  // Render each visible source serially into two bounded float buffers. Every
+  // source has its own Levels and halo extraction before accumulation.
+  private async renderStrip(c:FilmStripScene,screenToFilm:ReturnType<typeof inverse>,viewportW:number,viewportH:number,w:number,h:number,originX:number,originY:number,full:boolean,target:Texture|undefined,check:()=>void,decodeEdge=1024){
+    const gl=this.gl,resolver=this.sourceResolver,generation=this.generation;if(!resolver)throw Error('Film strip sources unavailable');
+    this.programs.stripAccumulate??=this.resources.program(shaders.stripAccumulate);
+    this.programs.stripFinish??=this.resources.program(shaders.stripFinish);
+    let a:Texture|undefined,b:Texture|undefined;
+    try{
+      a=this.resources.texture(w,h,undefined,full?160*1024*1024:undefined,true);
+      b=this.resources.texture(w,h,undefined,full?160*1024*1024:undefined,true);
+      this.target(a);gl.disable(gl.BLEND);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+      const gains=balanceGains(c.effects.balance),rng=new Rng(c.seed),variation=[rng.range(.85,1.15),rng.range(.85,1.15)];
+      for(const index of [0,1] as const){
+        const offsets=visibleStripOffsets(c.frame,c.layers[index],c.filmStrip.gapMm,PAD_MM);
+        if(offsets.length>32)throw Error('Film strip has too many visible frames');
+        for(const offset of offsets){
+          check();const placement=stripFrame(c.filmStrip.layers[index],offset);
+          const key=JSON.stringify(['strip',placement.source.assetId,placement.source.assetRevision,placement.rect.width,placement.rect.height,placement.turns%2,index]);
+          let source=full?undefined:this.touchCache(key);
+          if(!source){
+            const input=await resolver(placement.source,full);if(full)check();
+            if(input.id!==placement.source.assetId)throw Error('Film strip source does not match');
+            const decoded=await decodeSource(input,decodeEdge);
+            try{
+              // Finish warming a preview frame even if pointer input superseded this
+              // draw, so continuous gestures can reuse it on the next pass.
+              if(this.destroyed||generation!==this.generation||this.gl.isContextLost())throw new DOMException('Superseded','AbortError');
+              const frame=copyComposition(c);frame.layers[index].placements=[placement];
+              source=this.prepare(decoded,frame,index,full?160*1024*1024:undefined);
+              if(!full)this.cache.set(key,source);
+            }finally{decoded.close();}
+          }
+          try{
+            check();this.updateHalo(source,c,index);
+            const p=this.programs.stripAccumulate!;this.target(b);gl.useProgram(p.program);
+            this.bind(p,'uPrevious',a,0);this.bind(p,'uSource',source.image,1);this.bind(p,'uHaloSource',source.halo,2);this.bind(p,'uMaskSource',source.mask,3);
+            gl.uniform1i(p.uniform('uProfile'),c.profile.version);const l=getLevels(c.layers[index]);gl.uniform3f(p.uniform('uLevels'),l.black,l.mid,l.white);
+            gl.uniformMatrix3fv(p.uniform('uScreenToFilm'),false,glMatrix(screenToFilm));gl.uniformMatrix3fv(p.uniform('uFilmToSource'),false,glMatrix(inverse(stripSourceToFilm(c,index,offset))));
+            gl.uniform2f(p.uniform('uViewport'),viewportW,viewportH);gl.uniform2f(p.uniform('uOrigin'),originX,originY);gl.uniform2f(p.uniform('uFrame'),c.frame.widthMm,c.frame.heightMm);gl.uniform2f(p.uniform('uSize'),source.widthMm,source.heightMm);
+            gl.uniform1f(p.uniform('uPad'),PAD_MM);gl.uniform1f(p.uniform('uGain'),(index?gains.b:gains.a)*placement.gain);gl.uniform1f(p.uniform('uVariation'),variation[index]);gl.drawArrays(gl.TRIANGLES,0,3);
+            [a,b]=[b,a];
+          }finally{if(full)this.releaseSource(source);}
+
+        }
+      }
+      check();if(target)this.target(target);else gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);
+      const p=this.programs.stripFinish!;gl.useProgram(p.program);this.bind(p,'uAccumulated',a,0);gl.uniform1i(p.uniform('uProfile'),c.profile.version);gl.uniformMatrix3fv(p.uniform('uScreenToFilm'),false,glMatrix(screenToFilm));
+      gl.uniform2f(p.uniform('uViewport'),viewportW,viewportH);gl.uniform2f(p.uniform('uOrigin'),originX,originY);gl.uniform2f(p.uniform('uFrame'),c.frame.widthMm,c.frame.heightMm);
+      gl.uniform1f(p.uniform('uHalo'),c.effects.halo);gl.uniform1f(p.uniform('uExposure'),c.effects.exposure);gl.uniform1f(p.uniform('uContrast'),c.effects.contrast);gl.drawArrays(gl.TRIANGLES,0,3);
+      if(gl.getError()!==gl.NO_ERROR)throw Error('Could not render film strip. Close other apps and try again.');
+      if(!full)this.metrics.frames++;
+    }finally{if(a)this.resources.release(a);if(b)this.resources.release(b);this.trimCache();}
+  }
   // Explicit library/heart boundary only, never called by gestures or animation.
   // Copy immediately after drawing: the WebGL canvas does not preserve its buffer.
   async capturePreview(){
     if(!this.ready||this.destroyed||this.exporting||this.session.gesturing)throw Error('Wait for the photo to finish');
-    this.draw(performance.now());
+    do{
+      const token=this.stripToken;this.draw(performance.now());
+      if(this.stripPending)await this.stripPending;
+      if(this.stripError)throw this.stripError;
+      if(token===this.stripToken&&(!this.session.draft.filmStrip||this.stripRenderedToken===token))break;
+    }while(!this.destroyed&&!this.exporting);
+    if(this.destroyed||this.exporting)throw Error('Preview unavailable');
     const output=document.createElement('canvas');output.width=this.canvas.width;output.height=this.canvas.height;
     const ctx=output.getContext('2d');if(!ctx)throw Error('Could not prepare preview');
     ctx.drawImage(this.canvas,0,0);
@@ -214,11 +288,11 @@ export class Renderer {
     const ctx=output.getContext('2d',{alpha:false});if(!ctx){output.width=output.height=1;throw Error('Could not prepare file');}
     const pair:PreparedSource[]=[],view={width,height,zoom:1,pan:{x:0,y:0}},matrix=inverse(filmToScreen(c.frame,view));
     let target:Texture|undefined;
-    this.exporting=true;this.scheduler.pause();
+    this.exporting=true;this.stripToken++;this.scheduler.pause();
     try{
-      check();
+      await this.stripPending;check();
       // Decode/upload/close serially: at most one prepared CPU original at a time.
-      for(const index of [0,1] as const){
+      for(const index of c.filmStrip?[]:[0,1] as const){
         const decoded=await decodeSource(inputs[index],edge);
         try{check();pair.push(this.prepare(decoded,c,index,budget));}finally{decoded.close();}
       }
@@ -228,7 +302,8 @@ export class Renderer {
       for(let y=0;y<height;y+=tile)for(let x=0;x<width;x+=tile){
         check();const w=Math.min(tile,width-x),h=Math.min(tile,height-y);
         this.target(target);gl.viewport(0,0,w,h);gl.disable(gl.BLEND);
-        this.present(c,pair as [PreparedSource,PreparedSource],matrix,w,h,x,y);
+        if(c.filmStrip)await this.renderStrip(c as FilmStripScene,matrix,w,h,w,h,x,y,true,target,check,edge);
+        else this.present(c,pair as [PreparedSource,PreparedSource],matrix,w,h,x,y);
         gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,raw);check();
         if(gl.getError()!==gl.NO_ERROR)throw Error('Could not prepare full-size photo. Close other apps and try again.');
         const image=ctx.createImageData(w,h);

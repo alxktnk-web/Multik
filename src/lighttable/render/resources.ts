@@ -24,16 +24,17 @@ export class Resources {
     this.programs.push(p);const uniforms=new Map<string,WebGLUniformLocation|null>();
     return {program:p,uniform(name){if(!uniforms.has(name))uniforms.set(name,gl.getUniformLocation(p,name));return uniforms.get(name)!;}};
   }
-  texture(width:number,height:number,image?:TexImageSource,budget=this.budget):Texture {
-    const gl=this.gl,bytes=width*height*4,max=gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
+  texture(width:number,height:number,image?:TexImageSource,budget=this.budget,floating=false):Texture {
+    const gl=this.gl,bytes=width*height*(floating?8:4),max=gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     if(width>max||height>max||this.metrics.liveBytes+bytes>budget)throw Error('Not enough graphics memory for this size');
+    if(floating&&!gl.getExtension('EXT_color_buffer_float'))throw Error('Film strip rendering is unavailable on this device');
     const texture=gl.createTexture();if(!texture)throw Error('Could not prepare photo');
     gl.bindTexture(gl.TEXTURE_2D,texture);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
     if(image){gl.texImage2D(gl.TEXTURE_2D,0,gl.SRGB8_ALPHA8,gl.RGBA,gl.UNSIGNED_BYTE,image);this.metrics.uploads++;}
-    else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,width,height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    else gl.texImage2D(gl.TEXTURE_2D,0,floating?gl.RGBA16F:gl.RGBA8,width,height,0,gl.RGBA,floating?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,null);
     const error=gl.getError();
     if(error!==gl.NO_ERROR){gl.deleteTexture(texture);throw Error(`GPU texture allocation failed (${error})`);}
     const t={texture,width,height,bytes};this.textures.add(t);

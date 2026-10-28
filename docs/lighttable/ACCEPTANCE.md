@@ -100,3 +100,7 @@ iOS, дату и адрес. Ранее владелец сообщил «27.01�
 Записать PASS/FAIL/NOT TESTED по пунктам и шаги воспроизведения. При ошибке указать
 режим, ориентацию, откуда открыто фото, последнюю кнопку и версию приложения;
 не просить удалять библиотеку как первый способ диагностики.
+
+## 27 October 2026 — additional acceptance
+
+For recipe projects check balanced 6+6, 6+8, 6+12 and 12+36, project/slot isolation, manual source replacement and reload. Check legacy projects, immutable favorites, draft resume and write-failure retry without clearing IDB. Check mosaic coverage, nonintersection, saved identity and 1/2/3 selection, import during selection, and bottom panel accessibility. Browser harness uses synthetic images and a stub renderer: it cannot validate the editor, GPU, native Photos, offline updates or an iPhone. Report each unrun test explicitly.

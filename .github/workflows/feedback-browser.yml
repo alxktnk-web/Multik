@@ -1,0 +1,22 @@
+name: Feedback browser checks (no deployment)
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/lighttable-feedback-ui-check.mjs
+      - run: timeout 300s node scripts/lighttable-film-gpu-check.mjs
+      - run: timeout 300s node scripts/lighttable-rolls-e2e-check.mjs

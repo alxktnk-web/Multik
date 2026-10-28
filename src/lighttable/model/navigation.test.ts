@@ -155,3 +155,67 @@ describe('immutable Library working copies',()=>{
     expect(saved.get(initial.id)).toEqual(initial);expect(changed.layers).not.toEqual(initial.layers);
   });
 });
+
+describe('recipe navigation and editing resume',()=>{
+  it('steps through stable slots and replaces only the current slot',async()=>{
+    const {navigation,origin}=await setup();
+    const recipe={version:1 as const,slots:[{id:'one',assetAId:'a2',assetBId:'b2'},{id:'two',assetAId:'a0',assetBId:'b1'}]};
+    await navigation.open({...origin,recipe,slot:0},'mixes');await navigation.step(1);
+    expect(navigation.project).toMatchObject({slot:1,a:0,b:1});
+    await navigation.select('a',1);expect(navigation.project?.recipe?.slots).toEqual([recipe.slots[0],{...recipe.slots[1],assetAId:'a1'}]);
+    await navigation.step(-1);expect(navigation.project).toMatchObject({slot:0,a:2,b:2});
+  });
+  it('restores the edited Library draft and layer after browsing elsewhere',async()=>{
+    const {navigation,session,origin,makeNavigation}=await setup();session.activeLayer='a';session.rotateLayer();await navigation.commit();
+    const draft=navigation.project!.id;await navigation.open(origin,'mixes');
+    const reloaded=makeNavigation();expect(await reloaded.navigation.resumeAvailable()).toBe(true);await reloaded.navigation.resume();
+    expect(reloaded.navigation.project?.id).toBe(draft);expect(reloaded.navigation.space).toBe('library');expect(reloaded.session.activeLayer).toBe('a');
+  });
+});
+
+describe('resume uses the current recipe',()=>{
+  it('restores the saved slot without reverting subsequent source replacements',async()=>{
+    const {navigation,session,origin,projects,makeNavigation}=await setup();
+    const recipe={version:1 as const,slots:[{id:'one',assetAId:'a2',assetBId:'b2'},{id:'two',assetAId:'a0',assetBId:'b1'}]};
+    const start={...origin,recipe,slot:0};projects.set(origin.id,start);
+    await navigation.open(start,'mixes');session.activeLayer='a';await navigation.rememberEditing();
+    const newer={...start,slot:1,a:1,b:1,recipe:{...recipe,slots:[recipe.slots[0],{...recipe.slots[1],assetAId:'a1'}]}};projects.set(origin.id,newer);
+    const resumed=makeNavigation();await resumed.navigation.resume();
+    expect(resumed.navigation.project).toMatchObject({slot:0,a:2,b:2,recipe:newer.recipe});
+    await resumed.navigation.step(1);expect(resumed.navigation.project).toMatchObject({slot:1,a:1,b:1});
+  });
+});
+
+describe('editing context persistence',()=>{
+  it('retries context persistence after composition save succeeds but preference write fails',async()=>{
+    const {navigation,session,repo,prefs,makeNavigation}=await setup();session.rotateLayer();
+    const original=repo.setPreference.getMockImplementation()!;
+    let failed=false;repo.setPreference.mockImplementation(async(id,value)=>{if(id==='last-editing-session'&&!failed){failed=true;throw Error('Storage unavailable');}return original(id,value);});
+    await expect(navigation.commit()).rejects.toThrow('Storage unavailable');expect(session.dirty).toBe(false);expect(session.draft.revision).toBe(1);
+    expect(prefs.get('last-editing-session')).toBeUndefined();await navigation.commit();
+    expect(prefs.get('browsing-context')).toMatchObject({projectId:'draft',anchorId:'favorite'});
+    const reloaded=makeNavigation();await reloaded.navigation.open(navigation.project!);expect(reloaded.navigation.project?.id).toBe('draft');expect(reloaded.session.draft.layers).toEqual(session.draft.layers);
+    await reloaded.navigation.step(1);expect(reloaded.navigation.project?.id).toBe('second');
+  });
+  it('saves the selected layer at the next boundary without replacing the target during browsing',async()=>{
+    const {navigation,session,origin,makeNavigation}=await setup();await navigation.rememberEditing();session.activeLayer='a';
+    await navigation.open(origin,'mixes');session.activeLayer='b';await navigation.boundary(async()=>{});
+    const reloaded=makeNavigation();await reloaded.navigation.resume();expect(reloaded.navigation.space).toBe('library');expect(reloaded.session.activeLayer).toBe('a');
+  });
+});
+
+describe('editing context after reload',()=>{
+  it('tracks a reopened editing target so a clean layer change survives the next boundary',async()=>{
+    const {navigation,session,makeNavigation}=await setup();session.activeLayer='a';session.rotateLayer();await navigation.commit();const project=navigation.project!;
+    const reloaded=makeNavigation();await reloaded.navigation.open(project);reloaded.session.activeLayer='b';await reloaded.navigation.boundary(async()=>{});
+    const again=makeNavigation();await again.navigation.resume();expect(again.session.activeLayer).toBe('b');expect(again.navigation.project?.id).toBe(project.id);
+  });
+  it('retries the Library anchor write after saving a working copy',async()=>{
+    const {navigation,session,repo,prefs,makeNavigation}=await setup();session.rotateLayer();
+    const original=repo.setPreference.getMockImplementation()!;let failed=false;
+    repo.setPreference.mockImplementation(async(id,value)=>{if(id==='browsing-context'&&!failed){failed=true;throw Error('Storage unavailable');}return original(id,value);});
+    await expect(navigation.commit()).rejects.toThrow('Storage unavailable');const project=navigation.project!;expect(project.kind).toBe('draft');
+    await navigation.commit();expect(prefs.get('browsing-context')).toMatchObject({projectId:project.id,anchorId:'favorite'});
+    const reloaded=makeNavigation();await reloaded.navigation.open(project);await reloaded.navigation.step(1);expect(reloaded.navigation.project?.id).toBe('second');
+  });
+});

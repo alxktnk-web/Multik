@@ -108,3 +108,68 @@ void main(){
   else rgb=mix(rgb,.5+(rgb-.5)*.5,(1.-uContrast)*2.);
   color=vec4(clamp(rgb,0.,1.),1.);
 }`;
+
+// A strip frame contributes in linear light. Ping-pong accumulation keeps each
+// source's positive halo spill separate before it enters the sum.
+export const stripAccumulate=head+`
+uniform sampler2D uPrevious, uSource, uHaloSource, uMaskSource;
+uniform int uProfile;
+uniform vec3 uLevels;
+${levelsGLSL}
+${denseProfileGLSL}
+uniform mat3 uScreenToFilm, uFilmToSource;
+uniform vec2 uViewport, uOrigin, uFrame, uSize;
+uniform float uPad, uGain, uVariation;
+float sampleHalo(sampler2D tex,vec2 uv){
+  vec2 p=(uv*uSize+uPad)/(uSize+2.*uPad);
+  if(any(lessThan(p,vec2(0.)))||any(greaterThan(p,vec2(1.))))return 0.;
+  return texture(tex,vec2(p.x,1.-p.y)).r;
+}
+void main(){
+  vec4 previous=texture(uPrevious,vec2(vUV.x,1.-vUV.y));
+  vec2 p=(uScreenToFilm*vec3(uOrigin+vUV*uViewport,1.)).xy;
+  if(any(lessThan(p,vec2(0.)))||any(greaterThan(p,uFrame))){color=previous;return;}
+  vec2 uv=(uFilmToSource*vec3(p,1.)).xy;
+  vec3 src=vec3(0.);
+  if(all(greaterThanEqual(uv,vec2(0.)))&&all(lessThanEqual(uv,vec2(1.))))src=inputLevels(texture(uSource,uv).rgb,uLevels);
+  if(uProfile==5){color=previous+vec4(src,0.);return;}
+  vec3 light=(uProfile==4?denseSource(src):src)*uGain;
+  float h=sampleHalo(uHaloSource,uv);
+  if(uProfile==3||uProfile==4)h=max(h-sampleHalo(uMaskSource,uv),0.);
+  color=previous+vec4(light,h*uGain*uVariation);
+}`;
+
+// Keep the final tone function identical to the legacy present shader.
+export const stripFinish=head+`
+uniform sampler2D uAccumulated;
+uniform int uProfile;
+uniform mat3 uScreenToFilm;
+uniform vec2 uViewport,uOrigin,uFrame;
+uniform float uHalo,uExposure,uContrast;
+vec3 display(vec3 c){return mix(12.92*c,1.055*pow(max(c,vec3(.0031308)),vec3(1./2.4))-.055,step(.0031308,c));}
+${filmProfileGLSL}
+void main(){
+  vec2 p=(uScreenToFilm*vec3(uOrigin+vUV*uViewport,1.)).xy;
+  if(any(lessThan(p,vec2(0.)))||any(greaterThan(p,uFrame))){color=vec4(vec3(44.,41.,38.)/255.,1.);return;}
+  vec4 accumulated=texture(uAccumulated,vec2(vUV.x,1.-vUV.y));
+  if(uProfile==5){color=vec4(display(clamp(accumulated.rgb,0.,1.)),1.);return;}
+  vec3 light=accumulated.rgb+vec3(1.,.055,.012)*accumulated.a*uHalo*1.8;
+  light*=exp2(uExposure);
+  vec3 rgb;
+  if(uProfile==3||uProfile==4){
+    rgb=clamp(display(max(filmTone(light),vec3(0.))),0.,1.);
+  }else{
+    float Y=dot(light,vec3(.2126,.7152,.0722));
+    float T=Y<=.75?Y:.75+.25*(1.-exp(-(Y-.75)/.25));
+    light=Y>1e-6?light*(T/Y):vec3(0.);
+    light=mix(light,vec3(1.),smoothstep(1.,1.8,Y));
+    float luma=min(dot(light,vec3(.2126,.7152,.0722)),1.);
+    float peak=max(light.r,max(light.g,light.b));
+    if(peak>1.)light=vec3(luma)+(light-vec3(luma))*(1.-luma)/max(peak-luma,1e-5);
+    rgb=clamp(display(max(light,vec3(0.))),0.,1.);
+    rgb=mix(rgb,rgb*rgb*(3.-2.*rgb),.35);
+  }
+  if(uContrast>=1.)rgb=mix(rgb,rgb*rgb*(3.-2.*rgb),(uContrast-1.)*2.);
+  else rgb=mix(rgb,.5+(rgb-.5)*.5,(1.-uContrast)*2.);
+  color=vec4(clamp(rgb,0.,1.),1.);
+}`;
