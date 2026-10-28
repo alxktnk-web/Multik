@@ -30,7 +30,7 @@ export class Renderer {
   private inputs?:[SourceInput,SourceInput];
   private cache=new Map<string,PreparedSource>();
   private pendingPins=new Map<PreparedSource,number>();
-  private readonly cacheBudget=24*1024*1024;
+  private readonly cacheBudget=48*1024*1024;
   private generation=0;
   private selection=0;
   private destroyed=false;
@@ -169,8 +169,8 @@ export class Renderer {
     if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
     if(c.filmStrip){
       if(!this.stripPending){
-        this.stripError=undefined;const token=this.stripToken, generation=this.generation, snapshot=copyComposition(c) as FilmStripScene, view=structuredClone(v);
-        const check=()=>{if(this.destroyed||this.exporting||this.gl.isContextLost()||generation!==this.generation||token!==this.stripToken)throw new DOMException('Superseded','AbortError');};
+        this.stripError=undefined;const token=this.stripToken, generation=this.generation, selection=this.selection, snapshot=copyComposition(c) as FilmStripScene, view=structuredClone(v);
+        const check=()=>{if(this.destroyed||this.exporting||this.gl.isContextLost()||generation!==this.generation||selection!==this.selection)throw new DOMException('Superseded','AbortError');};
         this.stripPending=this.renderStrip(snapshot,inverse(filmToScreen(snapshot.frame,view)),view.width,view.height,w,h,0,0,false,undefined,check).then(()=>{this.stripRenderedToken=token;}).catch(e=>{if(!(e instanceof DOMException&&e.name==='AbortError')){this.stripError=e instanceof Error?e:Error('Could not render film strip');this.onStatus(this.stripError.message);}}).finally(()=>{this.stripPending=undefined;if(token!==this.stripToken&&!this.exporting&&!this.destroyed)this.scheduler.invalidate();});
       }
       return;
@@ -255,6 +255,7 @@ export class Renderer {
       gl.uniform2f(p.uniform('uViewport'),viewportW,viewportH);gl.uniform2f(p.uniform('uOrigin'),originX,originY);gl.uniform2f(p.uniform('uFrame'),c.frame.widthMm,c.frame.heightMm);
       gl.uniform1f(p.uniform('uHalo'),c.effects.halo);gl.uniform1f(p.uniform('uExposure'),c.effects.exposure);gl.uniform1f(p.uniform('uContrast'),c.effects.contrast);gl.drawArrays(gl.TRIANGLES,0,3);
       if(gl.getError()!==gl.NO_ERROR)throw Error('Could not render film strip. Close other apps and try again.');
+      if(!full)this.metrics.frames++;
     }finally{if(a)this.resources.release(a);if(b)this.resources.release(b);this.trimCache();}
   }
   // Explicit library/heart boundary only, never called by gestures or animation.

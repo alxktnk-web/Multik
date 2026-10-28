@@ -14,9 +14,9 @@ type EditingContext={project:Project;space:BrowsingSpace;anchor:string;order:str
 export async function initialRecipeScene(repo:Repository,project:Project,initial:Composition):Promise<Composition>{
   if(project.filmStripVersion!==1||!project.recipe||project.kind)return initial;
   const ids=[project.recipe.slots.map(s=>s.assetAId),project.recipe.slots.map(s=>s.assetBId)] as [string[],string[]];
-  const assets=new Map<string,Asset>();
-  for(const id of new Set(ids.flat()))assets.set(id,await repo.asset(id));
-  const sides=ids.map(side=>side.map(id=>{const a=assets.get(id)!;return {source:{assetId:a.id,assetRevision:a.revision},size:{x:a.width,y:a.height}};})) as unknown as Parameters<typeof createFilmStripSnapshot>[1];
+  const assets=new Map<string,{source:{assetId:string;assetRevision:1};size:{x:number;y:number}}>();
+  for(const id of new Set(ids.flat())){const a=await repo.asset(id);assets.set(id,{source:{assetId:a.id,assetRevision:a.revision},size:{x:a.width,y:a.height}});}
+  const sides=ids.map(side=>side.map(id=>assets.get(id)!)) as unknown as Parameters<typeof createFilmStripSnapshot>[1];
   return createFilmStripSnapshot(initial,sides,project.slot??0);
 }
 
