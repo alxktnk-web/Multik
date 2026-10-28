@@ -8,6 +8,8 @@ export type Placement = { source: SourceRef; rect: RectMm; turns: QuarterTurns; 
 export type Levels = { black: number; mid: number; white: number };
 export type LevelPoint = keyof Levels;
 export const neutralLevels: Readonly<Levels> = { black: 0, mid: .5, white: 1 };
+export type StripSnapshot = { center: number; frames: Placement[] };
+export type FilmStrip = { version: 1; gapMm: number; layers: [StripSnapshot, StripSnapshot] };
 export type Layer = { levels?: Levels; id: LayerId; placements: Placement[]; transform: Transform };
 export type Composition = {
   schema: 1;
@@ -19,6 +21,7 @@ export type Composition = {
   profile: { id: 'lighttable-clean-v1'; version: 1 | 2 | 3 | 4 | 5 };
   effects: { halo: number; exposure: number; balance: number; contrast: number; haloRadius: number; haloThreshold: number };
   seed: number;
+  filmStrip?: FilmStrip;
 };
 export type Viewport = { width: number; height: number; zoom: number; pan: Point };
 export type ParameterId = keyof Composition['effects'];

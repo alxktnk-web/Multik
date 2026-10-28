@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compositionStateKey } from '../data/types';
+import { assertComposition, compositionStateKey } from '../data/types';
 import { point } from './transforms';
 import { copyComposition, createComposition } from './types';
 import { createFilmStripSnapshot, stripFrame, stripSourceToFilm, visibleStripOffsets } from './film-strip';
@@ -18,6 +18,18 @@ describe('film strip snapshot foundation',()=>{
     expect(saved).toEqual(snapshot);
     expect(compositionStateKey(saved)).toBe(compositionStateKey(snapshot));
     expect('filmStrip' in base()).toBe(false);
+  });
+  it('validates snapshots without changing legacy records',()=>{
+    assertComposition(base());assertComposition(scene());
+    const invalids=[
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.version=2 as 1;},
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.gapMm=NaN;},
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.layers[0].center=4;},
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.layers[0].frames[1].source.assetRevision=2;},
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.layers[0].frames[0].rect.x=4;},
+      (s:ReturnType<typeof scene>)=>{s.filmStrip.layers[1].frames.pop();},
+    ];
+    for(const corrupt of invalids){const s=scene();corrupt(s);expect(()=>assertComposition(s)).toThrow();}
   });
   it('wraps in both directions, preserving repeated slots and one-frame rolls',()=>{
     const s=scene().filmStrip.layers[0];
@@ -54,5 +66,19 @@ describe('film strip snapshot foundation',()=>{
   it('rejects mismatched center and invalid source dimensions',()=>{
     expect(()=>createFilmStripSnapshot(base(),[[source('wrong')],[source('b')]],0)).toThrow();
     expect(()=>createFilmStripSnapshot(base(),[[source('a',0,1)],[source('b')]],0)).toThrow();
+  });
+});
+
+describe('new recipe scenes',()=>{
+  it('freezes recipe references and preserves old projects',async()=>{
+    const {initialRecipeScene}=await import('./navigation');
+    const assets=new Map(['a','b','c','d'].map(id=>[id,{id,revision:1,width:400,height:300}]));
+    const repo={asset:async(id:string)=>assets.get(id)!};
+    const project={id:'p',rollA:'ra',rollB:'rb',a:0,b:0,slot:0,updatedAt:'',filmStripVersion:1 as const,recipe:{version:1 as const,slots:[{id:'s1',assetAId:'a',assetBId:'b'},{id:'s2',assetAId:'c',assetBId:'d'}]}};
+    const snapshot=await initialRecipeScene(repo as never,project,base());
+    project.recipe.slots[1].assetAId='a';
+    expect(snapshot.filmStrip?.layers[0].frames.map(p=>p.source.assetId)).toEqual(['a','c']);
+    expect((await initialRecipeScene(repo as never,{...project,filmStripVersion:undefined},base())).filmStrip).toBeUndefined();
+    assertComposition(snapshot);
   });
 });

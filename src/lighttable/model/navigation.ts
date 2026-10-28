@@ -1,12 +1,24 @@
 import type { Renderer } from '../render/renderer';
 import { Repository } from '../data/repository';
 import { pairId, stableSeed, type Project, type Roll, type Asset, type MixRecipe } from '../data/types';
-import { createComposition, copyComposition, type LayerId } from './types';
+import { createComposition, copyComposition, type Composition, type LayerId } from './types';
+import { createFilmStripSnapshot } from './film-strip';
 import type { Session } from './session';
 
 export type BrowsingSpace='mixes'|'library';
 type LibraryContext={projectId:string;anchorId:string;order:string[]};
 type EditingContext={project:Project;space:BrowsingSpace;anchor:string;order:string[];layer:LayerId};
+
+// New projects opt in explicitly; legacy projects and saved snapshots retain their
+// original appearance. Fetch metadata only: decoding remains bounded in renderer.
+export async function initialRecipeScene(repo:Repository,project:Project,initial:Composition):Promise<Composition>{
+  if(project.filmStripVersion!==1||!project.recipe||project.kind)return initial;
+  const ids=[project.recipe.slots.map(s=>s.assetAId),project.recipe.slots.map(s=>s.assetBId)] as [string[],string[]];
+  const assets=new Map<string,Asset>();
+  for(const id of new Set(ids.flat()))assets.set(id,await repo.asset(id));
+  const sides=ids.map(side=>side.map(id=>{const a=assets.get(id)!;return {source:{assetId:a.id,assetRevision:a.revision},size:{x:a.width,y:a.height}};})) as unknown as Parameters<typeof createFilmStripSnapshot>[1];
+  return createFilmStripSnapshot(initial,sides,project.slot??0);
+}
 
 // Serial navigation owns persistence. Renderer/gestures never write to the repository.
 export class Navigation {
@@ -22,7 +34,7 @@ export class Navigation {
   busy=false;
   onBusy:()=>void=()=>{};
   onChange:()=>void=()=>{};
-  constructor(readonly repo:Repository,readonly session:Session,readonly renderer:Renderer){}
+  constructor(readonly repo:Repository,readonly session:Session,readonly renderer:Renderer){renderer.setSourceResolver?.(async(source,full)=>{const a=await repo.asset(source.assetId);if(a.revision!==source.assetRevision)throw Error('Film strip source unavailable');return {id:a.id,blob:full?a.blob:a.preview};});}
   async commit(){
     if(this.session.gesturing&&(this.pendingEditing||this.pendingBrowsing||this.session.dirty))throw Error('Finish moving before changing frames');
     if(this.pendingEditing)await this.saveEditingContext();
@@ -164,10 +176,11 @@ export class Navigation {
     const sources=await Promise.all(ids.map(id=>this.repo.asset(id))) as [Asset,Asset];
     const id=pairId(project,ids[0],ids[1]);
     const initial=createComposition(id,sources.map(a=>({assetId:a.id,assetRevision:a.revision})) as Parameters<typeof createComposition>[1],sources.map(a=>({x:a.width,y:a.height})) as Parameters<typeof createComposition>[2],stableSeed(id));
-    const scene=await this.repo.ensureComposition(initial);
+    const stored=project.filmStripVersion===1?await this.repo.composition(id):undefined;
+    const scene=stored??await this.repo.ensureComposition(await initialRecipeScene(this.repo,project,initial));
     // Previously viewed but never edited pairs adopt the consistent film direction.
     // Saved user edits (revision > 0) retain their exact placement.
-    if(scene.revision===0&&scene.layers.every(l=>l.transform.xMm===0&&l.transform.yMm===0&&l.transform.turns===0&&(l.transform.scale??1)===1&&l.placements[0].turns===0))scene.layers=initial.layers;
+    if(!scene.filmStrip&&scene.revision===0&&scene.layers.every(l=>l.transform.xMm===0&&l.transform.yMm===0&&l.transform.turns===0&&(l.transform.scale??1)===1&&l.placements[0].turns===0))scene.layers=initial.layers;
     const success=await this.renderer.loadPair(sources.map(a=>({id:a.id,blob:a.preview})) as Parameters<Renderer['loadPair']>[0],true,scene,async()=>{await this.repo.select(project,expectedRecipe??(this.project?.id===project.id?this.project.recipe:project.recipe));await this.repo.setPreference('browsing-context',this.context(project,space,anchor,order));});
     if(!success)throw Error('Photo is recovering. Try selecting again.');
     this.project=project;this.rolls=rolls;this.sources=sources;this.space=space;this.libraryAnchor=anchor;this.libraryOrder=order;this.onChange();

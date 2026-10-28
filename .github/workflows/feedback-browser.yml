@@ -17,3 +17,5 @@ jobs:
       - run: npm ci --include=dev
       - run: npx playwright install --with-deps chromium
       - run: node scripts/lighttable-feedback-ui-check.mjs
+      - run: node scripts/lighttable-film-gpu-check.mjs
+      - run: node scripts/lighttable-rolls-e2e-check.mjs

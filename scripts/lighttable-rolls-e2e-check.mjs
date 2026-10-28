@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-// Draft: syntax checked but not yet run through assertions.
+// Run in CI with an available Chromium/WebGL implementation.
 // Ephemeral browser context only: no existing browser profile or user photographs.
 const vite = await createServer({server:{host:'127.0.0.1',port:5217,strictPort:true},logLevel:'error'});
 let browser;
@@ -22,7 +22,7 @@ try {
   await page.click('[data-home-tab="rolls"]');
   for(let roll=0;roll<2;roll++){ console.log('Import roll',roll+1);
     const [picker]=await Promise.all([page.waitForEvent('filechooser'),page.click('[data-add-roll]')]);
-    await page.click('[data-capacity="6"]');
+    assert.equal(await page.locator('.frame-limits').isVisible(),false,'Free mode should not show fixed-length controls');
     await picker.setFiles(images.slice(roll*6,roll*6+6).map((png,i)=>({name:`synthetic-${roll}-${i}.png`,mimeType:'image/png',buffer:Buffer.from(png,'base64')})));
     await page.fill('[data-roll-name]',`Synthetic ${roll+1}`);
     assert.equal(await page.locator('.candidate').count(),6);
@@ -32,13 +32,15 @@ try {
   }
   console.log('Imports complete');
   const rolls=await page.evaluate(()=>window.__lighttable.repo.listRolls());
-  assert.equal(rolls.length,2); assert.ok(rolls.every(r=>r.assetIds.length===6));
+  assert.equal(rolls.length,2); assert.ok(rolls.every(r=>r.assetIds.length===6 && r.capacity===6));
   await page.click('[data-home-tab="mixes"]');
   await page.click('[data-new-mix]');
   await page.locator('[data-roll]').first().waitFor();
   await page.click(`[data-roll="${rolls[0].id}"]`);
   await page.click(`[data-roll="${rolls[1].id}"]`);
   assert.equal(await page.locator('[data-roll][aria-pressed="true"]').count(),2);
+  assert.equal(await page.locator('.selected-strip').count(),2);
+  for(const remove of await page.locator('.selected-strip button').all()){const box=await remove.boundingBox();assert.ok(box && box.width>=44 && box.height>=44,'Each remove control must be at least 44px');}
   await page.click('[data-start-mix]');
   await page.waitForFunction(()=>window.__lighttable?.navigation.project && !document.querySelector('.library-dialog').open && !window.__lighttable.navigation.busy);
   const snapshot=()=>page.evaluate(async()=>{const l=window.__lighttable;return {project:structuredClone(l.navigation.project),stored:await l.repo.project(l.navigation.project.id),draft:structuredClone(l.session.draft),dirty:l.session.dirty};});
@@ -48,6 +50,8 @@ try {
   for(const [side,roll] of [['assetAId',rolls[0]],['assetBId',rolls[1]]]) assert.deepEqual([...initial.project.recipe.slots.map(s=>s[side])].sort(),[...roll.assetIds].sort());
   assert.deepEqual(initial.stored.recipe,initial.project.recipe);
   await page.setViewportSize({width:874,height:402});
+  await page.waitForFunction(()=>window.__lighttable.session.editing && !window.__lighttable.navigation.busy);
+  await page.locator('[data-rail="a"] [aria-pressed="true"]').waitFor({state:'visible'});
   await page.click('[data-rail="a"] [aria-pressed="true"]');
   await page.click('[data-mode="levels"]');
   await page.locator('[data-level="black"]').focus(); await page.keyboard.press('ArrowUp');

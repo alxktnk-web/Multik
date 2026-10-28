@@ -1,12 +1,11 @@
 import { around, inverse, multiply, point, rotation, scale, sourceToFilm, translate, type Matrix } from './transforms';
-import { copyComposition, fitSource, type Composition, type Layer, type Placement, type Point, type RectMm, type SourceRef } from './types';
+import { copyComposition, fitSource, type Composition, type Layer, type Placement, type Point, type RectMm, type SourceRef, type StripSnapshot, type FilmStrip } from './types';
 
-// Preparatory scene format. No existing scene is upgraded implicitly; this type is
-// not yet persisted or rendered by the application.
+// Explicitly versioned snapshots leave older compositions unchanged.
 export type StripSource = { source: SourceRef; size: Point };
-export type StripSnapshot = { center: number; frames: Placement[] };
+export type { StripSnapshot } from './types';
 export type FilmStripScene = Composition & {
-  filmStrip: { version: 1; gapMm: number; layers: [StripSnapshot, StripSnapshot] };
+  filmStrip: FilmStrip;
 };
 export const FILM_GAP_MM = 1.2;
 const MAX_FRAMES = 1000;
