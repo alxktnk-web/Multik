@@ -105,3 +105,18 @@
 .home-dialog .composer-actions .mix-button{flex:none;min-height:44px}
 .home-dialog .selected-strip img{flex:1 1 0;min-width:0;max-width:42px}
 .home-dialog .selected-strip strong,.home-dialog .selected-strip button{flex:none}
+
+/* Keep both source strips above the Mix action, including on narrow screens. */
+.home-dialog .composer{flex-direction:column;align-items:stretch;gap:4px}
+.home-dialog .selected-strips{width:100%}
+.home-dialog .selected-strip{min-width:0;min-height:44px;overflow:hidden}
+.home-dialog .selected-strip button{width:44px;height:44px;min-width:44px;min-height:44px;padding:0}
+.home-dialog .composer-actions{flex-direction:row;justify-content:flex-end;align-items:center}
+.home-dialog .composer-actions button{min-height:44px}
+@media(orientation:landscape){.home-dialog .home-dock{max-height:65dvh;overflow:auto;padding-bottom:max(6px,env(safe-area-inset-bottom))}}
+
+.home-dialog .library-heading [data-settings]{color:var(--muted);padding:0 8px;font-size:13px}
+.settings-dialog .fixed-length-setting{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:56px;font-size:16px}
+.settings-dialog .fixed-length-setting input{width:24px;height:24px;accent-color:var(--sage)}
+.settings-dialog p{color:var(--muted);font-size:13px;line-height:1.4}
+.settings-dialog [data-settings-message]{color:#e0b9a8}

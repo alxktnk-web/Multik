@@ -25,8 +25,14 @@ describe('durable schema and pair identity',()=>{
 describe('strict roll capacity',()=>{
   const files=(n:number)=>Array.from({length:n},(_,i)=>({name:`${i}.png`}) as File);
   it('keeps all overflow candidates, disables further adding and allows correction',()=>{
-    const s=new Selection();s.add(files(9));s.add(files(5));expect(s.files.length).toBe(14);expect(s.overflow).toBe(true);expect(s.ready).toBe(false);expect(s.add(files(2))).toBe(false);
+    const s=new Selection();s.setCapacity(12);s.add(files(9));s.add(files(5));expect(s.files.length).toBe(14);expect(s.overflow).toBe(true);expect(s.ready).toBe(false);expect(s.add(files(2))).toBe(false);
     s.remove(0);s.remove(0);expect(s.ready).toBe(true);expect(s.full).toBe(true);s.remove(0);expect(s.full).toBe(false);s.add(files(1));expect(s.ready).toBe(true);
+  });
+  it('defaults to free counts and enforces a 200-photo ceiling without dropping selections',()=>{
+    const s=new Selection();expect(s.ready).toBe(false);expect(s.add(files(37))).toBe(true);expect(s.ready).toBe(true);
+    expect(s.add(files(163))).toBe(true);expect(s.files).toHaveLength(200);expect(s.full).toBe(true);
+    expect(s.add(files(1))).toBe(false);expect(s.files).toHaveLength(200);
+    const fresh=new Selection();expect(fresh.add(files(201))).toBe(false);expect(fresh.files).toHaveLength(0);
   });
   it('capacity changes never silently discard originals',()=>{const s=new Selection();s.add(files(12));s.setCapacity(6);expect(s.files.length).toBe(12);expect(s.overflow).toBe(true);s.setCapacity(24);expect(s.full).toBe(false);});
 });

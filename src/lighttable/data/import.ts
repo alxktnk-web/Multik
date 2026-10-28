@@ -2,14 +2,18 @@ import { decodeSource } from '../render/assets';
 import type { Repository } from './repository';
 import { capacities, type Asset, type Capacity, type ImportJob } from './types';
 export class Selection {
-  capacity:Capacity=12;
+  capacity:Capacity|0=0;
   files:File[]=[];
-  add(files:File[]){if(this.files.length>=this.capacity)return false;this.files.push(...files);return true;}
+  add(files:File[]){if(this.full||this.files.length+files.length>200)return false;this.files.push(...files);return true;}
   remove(index:number){this.files.splice(index,1);}
-  setCapacity(value:number){if(!capacities.includes(value as Capacity))throw Error('Invalid frame limit');this.capacity=value as Capacity;}
-  get full(){return this.files.length>=this.capacity;}
-  get overflow(){return this.files.length>this.capacity;}
-  get ready(){return this.files.length===this.capacity;}
+  setCapacity(value:number){if(value!==0&&!capacities.includes(value as Capacity))throw Error('Invalid frame limit');this.capacity=value as Capacity|0;}
+  get full(){return this.files.length>=(this.capacity||200);}
+  get overflow(){return this.files.length>(this.capacity||200);}
+  get ready(){return this.capacity?this.files.length===this.capacity:this.files.length>=1&&this.files.length<=200;}
+}
+/** Progress counts committed frames on retry and uses each roll's actual length. */
+export function importProgress(secondCount:number,firstCount=0,firstCommitted=false){
+  return {total:firstCount+secondCount,offset:firstCommitted?firstCount:0};
 }
 const encode=(canvas:HTMLCanvasElement,quality:number)=>new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Could not prepare photo')),'image/jpeg',quality));
 export async function prepareAsset(blob:Blob,id:string,owner:string,origin?:string):Promise<Asset>{
@@ -26,8 +30,8 @@ export function suggestedRollName(date=new Date()){
   return new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short'}).format(date)+' · '+new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false}).format(date);
 }
 export async function importFiles(repo:Repository,selection:Selection,name:string,progress:(n:number)=>void,signal?:AbortSignal){
-  if(!selection.ready)throw Error(`Choose exactly ${selection.capacity} photos`);
-  const files=[...selection.files],job=await repo.beginImport(name||suggestedRollName(),selection.capacity);
+  if(!selection.ready)throw Error(selection.capacity?`Choose exactly ${selection.capacity} photos`:'Choose 1 to 200 photos');
+  const files=[...selection.files],job=await repo.beginImport(name||suggestedRollName(),files.length);
   try{
     for(let i=0;i<files.length;i++){
       signal?.throwIfAborted();const asset=await prepareAsset(files[i],job.assetIds[i],job.id);signal?.throwIfAborted();await repo.stageAsset(job,i,asset);progress(i+1);
